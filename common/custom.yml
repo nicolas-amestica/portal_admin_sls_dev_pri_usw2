@@ -1,0 +1,22 @@
+shortRegion: ${self:custom.regions.siglas.${self:provider.region}}
+
+regions:
+  siglas:
+    us-east-1: 'use1'
+    us-east-2: 'use2'
+    us-west-1: 'usw1'
+    us-west-2: 'usw2'
+    sa-east-1: 'sae1'
+
+stage: ${opt:stage, self:provider.stage}
+
+bucketDeployName: sls-deploys-${self:custom.stage}-pri-${self:custom.shortRegion}
+dynamoDbArn: "${env:DYNAMODB_ARN, 'arn:aws:dynamodb:us-west-2:123456789012:table/users-dev-pri-usw2'}"
+usersTableName: users-${self:provider.stage}-pri-${self:custom.shortRegion}
+serverless-offline:
+  httpPort: 3200
+# customDomain:
+#   domainName: api.${self:provider.stage}.girasindomito.cl
+#   basePath: ""
+#   stage: ${self:provider.stage}
+#   createRoute53Record: true

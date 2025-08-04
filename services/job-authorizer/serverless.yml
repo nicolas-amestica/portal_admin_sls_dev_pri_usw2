@@ -1,0 +1,68 @@
+service: autorizador
+# Descripcion: Servicio autorizador de acceso seguro a los endpoints
+
+# Configuraciones para evitar alertas de la versión 3 del framework
+disabledDeprecations: '*'
+# configValidationMode: off # Esta linea debe ser revisada para evitar el warning del projectDir, cuando eso quede solucionada se debe eliminar la linea actual
+# projectDir: ./../../
+
+plugins:
+  # - serverless-better-credentials
+  - serverless-bundle
+  - serverless-offline
+  # - serverless-domain-manager
+
+# Variables personalizadas compartidas entre los diferentes servicios.
+custom: ${file(../../common/custom.yml)}
+
+# Empaquetar cada función del servicio de forma individual para procurar levantamiento rápido de las funciones.
+package:
+  individually: true
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-west-2'}
+  profile: pa-${self:custom.stage}
+  # lambdaHashingVersion: 20201221
+  # endpointType: REGIONAL
+
+  # Configurar seguimiento mediante aws x-ray para identificar y resolver problemas y errores de rendimiento.
+  tracing:
+    apiGateway: true
+    lambda: true
+
+  # Repositorio en S3 que se va a usar para desplegar los recursos en cloudFormation
+  deploymentBucket:
+    name: sls-deploys-${self:custom.stage}-pri-${self:custom.shortRegion}
+
+  environment:
+    SECRET_KEY: secret-pri-${self:custom.stage}-${self:custom.shortRegion}
+    PROFILE: ${self:provider.profile}
+
+  iamRoleStatements:
+    - ${file(../../aws/policies/lambda-policy-ssm.yml)}
+
+# ! TODO: Esta función se usa para hacer pruebas, esta protegida para que solo pueda devolver una respuesta si recibe un token válido
+functions:
+  auth:
+    handler: authorizer.authorize
+    events:
+      - http:
+          path: v1/autorizador
+          method: post
+          cors: true
+  getToken:
+    handler: authorizer.generateToken
+    events:
+      - http:
+          path: v1/accesos
+          method: post
+          cors: true
+resources:
+  Outputs:
+    authArn:
+      Value: !GetAtt [AuthLambdaFunction, Arn]
+      Export:
+        Name: ${self:custom.stage}-authArn

@@ -1,0 +1,43 @@
+{
+  "name": "portal-admin-sls-dev-pri-usw2",
+  "version": "1.0.0",
+  "description": "Proyecto bonito",
+  "main": "index.js",
+  "scripts": {
+    "start": "AWS_PROFILE=pa-dev serverless offline",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nicolas-amestica/portal_admin_sls_dev_pri_usw2.git"
+  },
+  "author": "Nicolás Améstica Vidal",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/nicolas-amestica/portal_admin_sls_dev_pri_usw2/issues"
+  },
+  "homepage": "https://github.com/nicolas-amestica/portal_admin_sls_dev_pri_usw2#readme",
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.859.0",
+    "@aws-sdk/client-lambda": "^3.859.0",
+    "@aws-sdk/client-s3": "^3.859.0",
+    "@aws-sdk/client-secrets-manager": "^3.859.0",
+    "@aws-sdk/credential-providers": "^3.859.0",
+    "@aws-sdk/lib-dynamodb": "^3.859.0",
+    "@aws-sdk/util-dynamodb": "^3.859.0",
+    "axios": "^1.11.0",
+    "bcryptjs": "^3.0.2",
+    "date-fns": "^4.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "lambda-multipart-parser": "^1.0.1",
+    "nodemailer": "^7.0.5",
+    "uuid": "^11.1.0",
+    "winston": "^3.17.0"
+  },
+  "devDependencies": {
+    "serverless": "^3.40.0",
+    "serverless-bundle": "^6.3.1",
+    "serverless-domain-manager": "^8.0.0",
+    "serverless-offline": "^14.4.0"
+  }
+}
