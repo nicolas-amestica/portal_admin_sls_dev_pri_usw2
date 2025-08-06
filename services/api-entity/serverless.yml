@@ -31,6 +31,12 @@ provider:
   deploymentBucket:
     name: sls-deploys-${self:custom.stage}-pri-${self:custom.shortRegion}
 
+  iamRoleStatements:
+    - ${file(../../aws/policies/lambda-policy-xray.yml)}
+    - ${file(../../aws/policies/lambda-policy-dynamodb-user.yml)}
+    - ${file(../../aws/policies/lambda-policy-ses.yml)}
+    - ${file(../../aws/policies/lambda-policy-ssm.yml)}
+    - ${file(../../aws/policies/lambda-policy-secretsmanager.yml)}
   # iamRoleStatements:
   #   - Effect: Allow
   #     Action:
