@@ -59,6 +59,15 @@ functions:
           method: post
           cors: true
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
+  loginv2:
+    handler: functions/login-v1.main
+    timeout: 20
+    events:
+      - http:
+          path: v1/sesiones/iniciar-sesion-dos
+          method: post
+          cors: true
+          authorizer: ${file(../../common/lambda-authorizer.yml)}
 
 resources:
   - ${file(../../common/dynamodb-resources.yml)}
