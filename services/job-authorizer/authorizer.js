@@ -1,5 +1,5 @@
 import jwt from "jsonwebtoken";
-import { success } from "../../helpers/responses";
+import { success, unsuccessful } from "../../helpers/responses";
 import { getParameterStore } from "../../libs/ssm";
 
 const { SECRET_KEY } = process.env;
@@ -90,11 +90,16 @@ const validateAccess = (accessToMethod, accessToEndpoint) => {
 const generatePolicy = async (token, methodArn, method) => {
   try {
     const secretsKeys = [SECRET_KEY];
+
     const secrets = await getParameterStore(secretsKeys);
 
-    const { Value: SECRET } = secrets.find(
-      (secret) => secret.Name === SECRET_KEY
-    );
+    // Manejo de error si no existe el secreto
+    const found = secrets && secrets.find((secret) => secret.Name === SECRET_KEY);
+    if (!found || !found.Value) {
+      throw new Error(`Secret ${SECRET_KEY} not found in SSM Parameter Store`);
+    }
+    const SECRET = found.Value;
+
     const decoded = jwt.verify(token, SECRET);
     const payload = decoded.body;
     const allowances = payload.allowances.toLowerCase();
@@ -109,7 +114,7 @@ const generatePolicy = async (token, methodArn, method) => {
 
     return createPolicy(conditionKey, methodArn);
   } catch (error) {
-    console.log("Error: el token recibido no pasó el proceso de validación");
+    console.log("Error en generatePolicy:", error);
     return createPolicy("Deny", methodArn);
   }
 };
@@ -154,12 +159,22 @@ export const authorize = async (event) => {
  * y genera un token JWT válido por 365 días. El token incluye los permisos en su payload.
  */
 export const generateToken = async (event) => {
+  const action = "Generar token.";
   const secretsKeys = [SECRET_KEY];
+
+  if (!secretsKeys)
+    return unsuccessful(400, "No se encuentra el secreto en SSM Parameter Store", action);
+
   const secrets = await getParameterStore(secretsKeys);
 
-  const { Value: SECRET } = secrets.find(
-    (secret) => secret.Name === SECRET_KEY
-  );
+  if (!secrets)
+    return unsuccessful(400, "No se encuentra el valor del secreto en SSM Parameter Store", action);
+
+  const found = secrets && secrets.find((secret) => secret.Name === SECRET_KEY);
+  if (!found || !found.Value) {
+    throw new Error(`Secret ${SECRET_KEY} not found in SSM Parameter Store`);
+  }
+  const SECRET = found.Value;
   const { allowances } = JSON.parse(event.body);
   const TIMEOUT = "365d";
   const token = jwt.sign({ body: { allowances } }, SECRET, {
