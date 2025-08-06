@@ -10,6 +10,14 @@ if (IS_OFFLINE === "true") {
   ssm = new AWS.SSM({ region: AWS_REGION, credentials: origin });
 }
 
+/**
+ * Obtiene parámetros del AWS Systems Manager Parameter Store.
+ *
+ * @async
+ * @function
+ * @param {string[]} secretsKeys - Lista de nombres de los parámetros a obtener.
+ * @returns {Promise<Object[]|null>} Retorna un arreglo de parámetros si existen, o null en caso de error o si no se encuentran.
+ */
 export const getParameterStore = async (secretsKeys) => {
   try {
     const { Parameters } = await ssm

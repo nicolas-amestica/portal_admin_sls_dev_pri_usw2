@@ -4,7 +4,6 @@ frameworkVersion: '3'
 plugins:
   - serverless-bundle
   - serverless-offline
-  # - serverless-domain-manager
 
 custom: ${file(../../common/custom.yml)}
 
@@ -37,17 +36,6 @@ provider:
     - ${file(../../aws/policies/lambda-policy-ses.yml)}
     - ${file(../../aws/policies/lambda-policy-ssm.yml)}
     - ${file(../../aws/policies/lambda-policy-secretsmanager.yml)}
-  # iamRoleStatements:
-  #   - Effect: Allow
-  #     Action:
-  #       - dynamodb:GetItem
-  #       - dynamodb:PutItem
-  #     Resource:
-  #       - ${self:custom.dynamoDbArn}
-  #   - Effect: Allow
-  #     Action:
-  #       - secretsmanager:GetSecretValue
-  #     Resource: "*"
 
 functions:
   loginv1:
@@ -58,7 +46,6 @@ functions:
           path: v1/sesiones/iniciar-sesion
           method: post
           cors: true
-          # authorizer: ${file(../../common/lambda-authorizer.yml)}
   loginv2:
     handler: functions/login-v1.main
     timeout: 20
@@ -71,4 +58,3 @@ functions:
 
 resources:
   - ${file(../../common/dynamodb-resources.yml)}
-  # - ${file(../../common/s3-resources.yml)}
