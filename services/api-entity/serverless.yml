@@ -47,13 +47,13 @@ provider:
 functions:
   loginv1:
     handler: functions/login-v1.main
-    # timeout: 30
+    timeout: 20
     events:
       - http:
           path: v1/sesiones/iniciar-sesion
           method: post
           cors: true
-          authorizer: ${file(../../common/lambda-authorizer.yml)}
+          # authorizer: ${file(../../common/lambda-authorizer.yml)}
 
 resources:
   - ${file(../../common/dynamodb-resources.yml)}
