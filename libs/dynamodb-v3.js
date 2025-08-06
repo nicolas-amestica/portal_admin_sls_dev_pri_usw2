@@ -1,14 +1,14 @@
 /* eslint-disable no-param-reassign */
-import { DynamoDBClient, ScanCommand } from '@aws-sdk/client-dynamodb';
-import { unmarshall } from '@aws-sdk/util-dynamodb';
+import { DynamoDBClient, ScanCommand } from "@aws-sdk/client-dynamodb";
+import { unmarshall } from "@aws-sdk/util-dynamodb";
 import {
   DeleteCommand,
   GetCommand,
   PutCommand,
   QueryCommand,
   UpdateCommand,
-} from '@aws-sdk/lib-dynamodb';
-import { getAWSConfigs } from './configs';
+} from "@aws-sdk/lib-dynamodb";
+import { getAWSConfigs } from "./configs";
 
 let dynamoDb;
 
@@ -66,7 +66,7 @@ export const iterativeQuery = async (params) => {
 };
 
 export const put = async (params) => {
-  params = { ...params, ReturnConsumedCapacity: 'TOTAL' };
+  params = { ...params, ReturnConsumedCapacity: "TOTAL" };
   try {
     if (!dynamoDb) await initClient();
     const command = new PutCommand(params);
@@ -79,7 +79,7 @@ export const put = async (params) => {
 };
 
 export const remove = async (params) => {
-  params = { ...params, ReturnValues: 'ALL_OLD' };
+  params = { ...params, ReturnValues: "ALL_OLD" };
   try {
     if (!dynamoDb) await initClient();
     const command = new DeleteCommand(params);
@@ -93,7 +93,7 @@ export const remove = async (params) => {
 };
 
 export const update = async (params) => {
-  params = { ...params, ReturnValues: 'ALL_NEW' };
+  params = { ...params, ReturnValues: "ALL_NEW" };
   try {
     if (!dynamoDb) await initClient();
     const command = new UpdateCommand(params);

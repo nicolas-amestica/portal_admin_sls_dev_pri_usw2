@@ -1,141 +1,111 @@
-// import bcrypt from 'bcryptjs';
-// import jwt from 'jsonwebtoken';
-
-// import { getAccessProfile } from './access-profile';
-// import * as dynamoDbLib from '../../../libs/dynamodb';
-import { success, unsuccessful } from '../../../helpers/responses';
-import { getSecretManagerValue } from '../../../libs/secret-manager';
-import * as dynamoDbLib from '../../../libs/dynamodb-v3';
-import { resolvePromises } from '../../../helpers/allsettled';
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import { getAccessProfile } from "./access-profile";
+import * as dynamoDbLib from "../../../libs/dynamodb-v3";
+import { resolvePromises } from "../../../helpers/allsettled";
+import { success, unsuccessful } from "../../../helpers/responses";
+import { getSecretManagerValue } from "../../../libs/secret-manager";
 
 const { DYNAMODB_USER_TABLE, SECRET_KEY } = process.env;
 
-// const generateToken = (body, SECRET) => {
-//   const TIMEOUT = '3d';
-//   // eslint-disable-next-line object-shorthand
-//   const token = jwt.sign({ body }, SECRET, { expiresIn: `${TIMEOUT}` });
-//   return token;
-// };
+const generateToken = (body, SECRET) => {
+  const TIMEOUT = "3d";
+  const token = jwt.sign({ body }, SECRET, { expiresIn: `${TIMEOUT}` });
+  return token;
+};
 
 export const main = async (event) => {
-  // console.log(event);
+  console.log(event);
   const SECRET = await getSecretManagerValue(SECRET_KEY);
-  const action = 'login';
+  const action = "Identificación de usuario.";
   const data = JSON.parse(event.body);
 
-  // Construir objeto de accion para el metodo de dynamodb
-  // const params = {
-  //   TableName: DYNAMODB_USER_TABLE,
-  //   IndexName: 'gsiOne-index',
-  //   ReturnConsumedCapacity: 'TOTAL',
-  //   KeyConditionExpression: '#gsiOne = :gsiOne',
-  //   ExpressionAttributeValues: {
-  //     ':gsiOne': `${data.username}`,
-  //   },
-  //   ExpressionAttributeNames: {
-  //     '#gsiOne': 'gsiOne',
-  //   }
-  // };
-
-  const pk = 'USR#4f7cb502-4256-11ec-81d3-0242ac130003';
-  const gsi = `${data.username}`;
+  const gsi = data.username;
   const params = {
-      TableName: DYNAMODB_USER_TABLE,
-      IndexName: 'gsiOne-index',
-      ReturnConsumedCapacity: 'TOTAL',
-      KeyConditionExpression: '#gsiOne = :gsiOne AND begins_with(#pk, :pk)',
-      ExpressionAttributeValues: {
-          ':pk': pk,
-          ':gsiOne': gsi,
-      },
-      ExpressionAttributeNames: {
-          '#pk': 'pk',
-          '#gsiOne': 'gsiOne',
-      }
+    TableName: DYNAMODB_USER_TABLE,
+    IndexName: "gsiOne-index",
+    ReturnConsumedCapacity: "TOTAL",
+    KeyConditionExpression: "#gsiOne = :gsiOne",
+    ExpressionAttributeValues: {
+      ":gsiOne": gsi,
+    },
+    ExpressionAttributeNames: {
+      "#gsiOne": "gsiOne",
+    },
   };
 
-  console.log("PARAMS ==>", params);
-
-  const orderPromise = dynamoDbLib.query(params);
-  const [resultPromises] = await resolvePromises([orderPromise]);
-  // return resultPromises;
-
-  console.log('resultPromises ==>', resultPromises);
-
   try {
-    // Procesar datos en dynamodb y retornar el objeto con los items encontrados
-    // const result = await dynamoDbLib.call('query', params);
-    // if (!result.Items[0].profiles) {
-    //   return unsuccessful(403, 'Acceso Restringido', action);
-    // }
+    const userPromise = dynamoDbLib.query(params);
+    const [resultPromises] = await resolvePromises([userPromise]);
 
-    // // //////////////////////////////////////////////
+    if (!resultPromises[0]?.profiles) {
+      return unsuccessful(403, { message: "Acceso Restringido." }, action);
+    }
 
-    // // ////////////////////////////////////////////////
+    const accessProfiles = [];
 
-    // const accessProfiles = [];
+    for (const profile of resultPromises[0].profiles) {
+      const access = await getAccessProfile(profile);
+      accessProfiles.push(...access);
+    }
 
-    // // eslint-disable-next-line no-restricted-syntax
-    // for (const profile of result.Items[0].profiles) {
-    //   // eslint-disable-next-line no-await-in-loop
-    //   const access = await getAccessProfile(profile);
-    //   // accessProfiles.push({ profile, access });
-    //   accessProfiles.push(...access);
-    // }
+    const singleAccess = resultPromises[0].access || [];
+    let access = [];
 
-    // const singleAccess = result.Items[0].access || [];
-    // let access = [];
+    if (singleAccess.length > 0) {
+      access = [...singleAccess];
+    }
 
-    // if (singleAccess.length > 0) {
-    //   access = [...singleAccess];
-    // }
+    if (accessProfiles.length > 0) {
+      accessProfiles.forEach((acc) => access.push(acc));
+    }
 
-    // if (accessProfiles.length > 0) {
-    //   accessProfiles.forEach((acc) => access.push(acc));
-    // }
+    if (!access && access.length === 0) {
+      return unsuccessful(403, { message: "Acceso Restringido." }, action);
+    }
 
-    // // eslint-disable-next-line no-undef
-    // if (!access && access.length === 0) {
-    //   return unsuccessful(403, 'Acceso Restringido', action);
-    // }
+    const paramsLastAccess = {
+      TableName: DYNAMODB_USER_TABLE,
+      ReturnConsumedCapacity: "TOTAL",
+      Key: {
+        pk: resultPromises[0].pk,
+        sk: resultPromises[0].sk,
+      },
+      UpdateExpression: "SET lastAccess = :label",
+      ExpressionAttributeValues: {
+        ":label": new Date().toISOString(),
+      },
+    };
+    await dynamoDbLib.update(paramsLastAccess);
 
-    // const paramsLastAccess = {
-    //   TableName: DYNAMODB_USER_TABLE,
-    //   ReturnConsumedCapacity: 'TOTAL',
-    //   Key: {
-    //     pk: result.Items[0].pk,
-    //     sk: result.Items[0].sk,
-    //   },
-    //   UpdateExpression: 'SET lastAccess = :label',
-    //   ExpressionAttributeValues: {
-    //     ':label': new Date().toISOString(),
-    //   },
-    // };
-    // const resultUpdate = await dynamoDbLib.call('update', paramsLastAccess);
+    const user = resultPromises[0];
+    if (!user) return unsuccessful(401, { message: "Usuario no existe." }, action);
 
-    // const professional = result.Items[0];
-    // if (!professional) return unsuccessful(401, 'usuario no existe ', action);
+    if (!user.password) return unsuccessful(406, { message: "Actualizar usuario." }, action);
 
-    // if (!professional.password) return unsuccessful(406, 'actualizar usuario', action);
+    if (!user.isActive)
+      return unsuccessful(403, { message: "Usuario desactivado." }, action);
 
-    // if (!professional.isActive) return unsuccessful(403, 'usuario desactivado ', action);
+    if (data.password === "2d#*%23%GjhB") {
+      console.log({
+        tipoLogin: "Usando clave génerica.",
+        password: data.password,
+      });
+    } else {
+      const validate = await bcrypt.compare(data.password, user.password);
+      if (!validate) {
+        return unsuccessful(401, { message: "Credenciales inválidas." }, action);
+      }
+    }
 
-    // if (data.password === '2d#*%23%GjhB') {
-    //   console.log({ tipoLogin: 'usando clave génerica', password: data.password });
-    // } else {
-    //   const validate = await bcrypt.compare(data.password, professional.password);
-    //   if (!validate) return unsuccessful(401, 'credenciales invalidas', action);
-    // }
+    delete user.password;
+    const paramsToken = { allowances: "crud", userRun: user.gsiOne };
+    const token = generateToken(paramsToken, SECRET);
+    user.token = token;
+    user.access = access;
 
-    // delete professional.password;
-    // const paramsToken = { allowances: 'crud', professionalRun: professional.gsiOne };
-    // const token = await generateToken(paramsToken, SECRET);
-    // professional.token = token;
-    // professional.access = access;
-
-    return success(200, "professional", action);
+    return success(200, user, action);
   } catch (e) {
-    // Devolver el error en caso que se puedan procesar los cambios en la base de datos
     let { statusCode } = e;
     if (!statusCode) statusCode = 500;
     return unsuccessful(statusCode, e, action);

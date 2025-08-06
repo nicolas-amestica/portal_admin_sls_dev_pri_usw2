@@ -1,6 +1,8 @@
 const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
 
-const secretsClient = new SecretsManagerClient({ region: 'us-west-2' }); // Cambia la región si es necesario
+const { AWS_REGION } = process.env;
+
+const secretsClient = new SecretsManagerClient({ region: AWS_REGION });
 
 export async function getSecretManagerValue(secretName) {
   try {
@@ -8,8 +10,6 @@ export async function getSecretManagerValue(secretName) {
     const command = new GetSecretValueCommand({ SecretId: secretName });
 
     const response = await secretsClient.send(command);
-
-    console.log("response ==>", response);
 
     if (response.SecretString) {
       return response.SecretString;
