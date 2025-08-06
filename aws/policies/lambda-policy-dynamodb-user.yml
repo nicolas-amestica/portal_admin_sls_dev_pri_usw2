@@ -8,5 +8,4 @@ Action:
   - dynamodb:UpdateItem
   - dynamodb:DeleteItem
 Resource:
-  - Fn::ImportValue: ${self:custom.stage}-usersArn
-  - Fn::Join: ['/', [Fn::ImportValue: '${self:custom.stage}-usersArn', 'index', '*']]
+  - ${self:custom.dynamoDbArn}
