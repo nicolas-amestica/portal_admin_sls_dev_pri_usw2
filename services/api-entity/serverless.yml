@@ -20,7 +20,6 @@ provider:
     SECRET_KEY: secret-pri-${self:custom.stage}-${self:custom.shortRegion}
     PROFILE: ${self:provider.profile}
     STAGE: ${self:custom.stage}
-    AWS_REGION: ${self:provider.region}
     GENERIC_PASSWORD: 2d#*%23%GjhB
 
   # Configurar seguimiento mediante aws x-ray para identificar y resolver problemas y errores de rendimiento.
