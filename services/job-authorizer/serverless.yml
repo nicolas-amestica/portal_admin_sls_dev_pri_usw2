@@ -44,7 +44,6 @@ provider:
   iamRoleStatements:
     - ${file(../../aws/policies/lambda-policy-ssm.yml)}
 
-# ! TODO: Esta función se usa para hacer pruebas, esta protegida para que solo pueda devolver una respuesta si recibe un token válido
 functions:
   auth:
     handler: authorizer.authorize

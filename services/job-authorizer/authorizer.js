@@ -4,6 +4,10 @@ import { getParameterStore } from "../../libs/ssm";
 
 const { SECRET_KEY } = process.env;
 
+if (!SECRET_KEY) {
+  throw new Error("SECRET_KEY no está definido en environment variables");
+}
+
 /**
  * Valida el acceso a un método HTTP según los permisos otorgados.
  *
@@ -91,16 +95,23 @@ const generatePolicy = async (token, methodArn, method) => {
   try {
     const secretsKeys = [SECRET_KEY];
 
+    if (!SECRET_KEY || secretsKeys.some((key) => !key)) {
+      throw new Error(
+        "SECRET_KEY no está definido correctamente o es inválido"
+      );
+    }
+
     const secrets = await getParameterStore(secretsKeys);
 
     // Manejo de error si no existe el secreto
-    const found = secrets && secrets.find((secret) => secret.Name === SECRET_KEY);
+    const found =
+      secrets && secrets.find((secret) => secret.Name === SECRET_KEY);
     if (!found || !found.Value) {
       throw new Error(`Secret ${SECRET_KEY} not found in SSM Parameter Store`);
     }
     const SECRET = found.Value;
 
-    const decoded = jwt.verify(token, SECRET);
+    const decoded = jwt.verify(token, SECRET, { algorithms: ["HS256"] });
     const payload = decoded.body;
     const allowances = payload.allowances.toLowerCase();
     const { endpoints } = payload;
@@ -130,17 +141,38 @@ const generatePolicy = async (token, methodArn, method) => {
  * @returns {Promise<Object|string>} Retorna una política de autorización generada o un mensaje de error.
  */
 export const authorize = async (event) => {
-  console.log(event);
-  const { methodArn, authorizationToken } = event;
+  console.log("Evento recibido por el autorizador:", event);
+
+  let methodArn, authorizationToken;
+
+  if (event.authorizationToken && event.methodArn) {
+    methodArn = event.methodArn;
+    authorizationToken = event.authorizationToken;
+  } else {
+    const body =
+      typeof event.body === "string" ? JSON.parse(event.body) : event.body;
+    methodArn = body.methodArn;
+    authorizationToken = body.authorizationToken;
+  }
+
+  if (!authorizationToken) {
+    console.warn("No se proporcionó authorizationToken");
+    return createPolicy("Deny", methodArn);
+  }
+
   const token = authorizationToken.replace("Bearer ", "");
   const httpMethod = methodArn.split("/")[2];
+
   try {
+    if (!SECRET_KEY) {
+      throw new Error("SECRET_KEY no está definido en process.env");
+    }
+
     const policy = await generatePolicy(token, methodArn, httpMethod);
-    console.log("policy: ", policy);
     return policy;
   } catch (error) {
-    console.log(error);
-    return error.message;
+    console.error("Error en authorize:", error);
+    return createPolicy("Deny", methodArn);
   }
 };
 
@@ -159,22 +191,33 @@ export const authorize = async (event) => {
  * y genera un token JWT válido por 365 días. El token incluye los permisos en su payload.
  */
 export const generateToken = async (event) => {
+  // console.log("event", event);
   const action = "Generar token.";
   const secretsKeys = [SECRET_KEY];
 
   if (!secretsKeys)
-    return unsuccessful(400, "No se encuentra el secreto en SSM Parameter Store", action);
+    return unsuccessful(
+      400,
+      "No se encuentra el secreto en SSM Parameter Store",
+      action
+    );
 
   const secrets = await getParameterStore(secretsKeys);
 
   if (!secrets)
-    return unsuccessful(400, "No se encuentra el valor del secreto en SSM Parameter Store", action);
+    return unsuccessful(
+      400,
+      "No se encuentra el valor del secreto en SSM Parameter Store",
+      action
+    );
 
   const found = secrets && secrets.find((secret) => secret.Name === SECRET_KEY);
+
   if (!found || !found.Value) {
     throw new Error(`Secret ${SECRET_KEY} not found in SSM Parameter Store`);
   }
-  const SECRET = found.Value;
+  const SECRET = (found.Value || "").trim();
+
   const { allowances } = JSON.parse(event.body);
   const TIMEOUT = "365d";
   const token = jwt.sign({ body: { allowances } }, SECRET, {

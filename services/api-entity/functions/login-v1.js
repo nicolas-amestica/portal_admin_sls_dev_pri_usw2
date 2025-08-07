@@ -135,6 +135,7 @@ export const main = async (event) => {
 
     delete user.password;
     const paramsToken = { allowances: "crud", userRun: user.gsiOne };
+
     const token = generateToken(paramsToken, SECRET);
     user.token = token;
     user.access = access;
