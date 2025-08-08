@@ -14,12 +14,14 @@ provider:
   region: ${opt:region, 'us-west-2'}
   profile: pa-${self:custom.stage}
 
+  logs:
+    restApi: true
+
   environment:
     DYNAMODB_USER_TABLE: users-${self:custom.stage}-pri-${self:custom.shortRegion}
     SECRET_KEY: secret-pri-${self:custom.stage}-${self:custom.shortRegion}
     PROFILE: ${self:provider.profile}
     STAGE: ${self:custom.stage}
-    GENERIC_PASSWORD: 2d#*%23%GjhB
 
   # Configurar seguimiento mediante aws x-ray para identificar y resolver problemas y errores de rendimiento.
   tracing:
@@ -36,6 +38,7 @@ provider:
     - ${file(../../aws/policies/lambda-policy-ses.yml)}
     - ${file(../../aws/policies/lambda-policy-ssm.yml)}
     - ${file(../../aws/policies/lambda-policy-secretsmanager.yml)}
+    - ${file(../../aws/policies/lambda-policy-cloudwatch.yml)}
 
 functions:
   loginv1:
@@ -55,6 +58,23 @@ functions:
           method: post
           cors: true
           authorizer: ${file(../../common/lambda-authorizer.yml)}
+  prueba:
+    handler: functions/prueba.main
+    timeout: 20
+    events:
+      - http:
+          path: v1/sesiones/prueba
+          method: get
+          cors: true
+          authorizer: ${file(../../common/lambda-authorizer.yml)}
+  prueba2:
+    handler: functions/prueba.main
+    timeout: 20
+    events:
+      - http:
+          path: v1/sesiones/prueba2
+          method: get
+          cors: true
 
 resources:
   - ${file(../../common/dynamodb-resources.yml)}

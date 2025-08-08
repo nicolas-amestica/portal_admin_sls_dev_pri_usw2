@@ -25,6 +25,9 @@ provider:
   stage: ${opt:stage, 'dev'}
   region: ${opt:region, 'us-west-2'}
   profile: pa-${self:custom.stage}
+  
+  logs:
+    restApi: true
   # lambdaHashingVersion: 20201221
   # endpointType: REGIONAL
 
@@ -43,6 +46,10 @@ provider:
 
   iamRoleStatements:
     - ${file(../../aws/policies/lambda-policy-ssm.yml)}
+    - ${file(../../aws/policies/lambda-policy-secretsmanager.yml)}
+    - ${file(../../aws/policies/lambda-policy-cloudwatch.yml)}
+    - ${file(../../aws/policies/lambda-policy-xray.yml)}
+    - ${file(../../aws/policies/lambda-policy-lambda.yml)}
 
 functions:
   auth:

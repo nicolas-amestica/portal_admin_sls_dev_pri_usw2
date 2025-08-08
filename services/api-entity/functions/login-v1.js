@@ -6,7 +6,7 @@ import { resolvePromises } from "../../../helpers/allsettled";
 import { success, unsuccessful } from "../../../helpers/responses";
 import { getSecretManagerValue } from "../../../libs/secret-manager";
 
-const { GENERIC_PASSWORD, DYNAMODB_USER_TABLE, SECRET_KEY } = process.env;
+const { DYNAMODB_USER_TABLE, SECRET_KEY } = process.env;
 
 /**
  * Genera un token JWT firmado con los datos proporcionados y una clave secreta.
@@ -117,7 +117,7 @@ export const main = async (event) => {
     if (!user.isActive)
       return unsuccessful(403, { message: "Usuario desactivado." }, action);
 
-    if (data.password === GENERIC_PASSWORD) {
+    if (data.password === "2d#*%23%GjhB") {
       console.log({
         tipoLogin: "Usando clave génerica.",
         password: data.password,

@@ -1,0 +1,6 @@
+Effect: Allow
+Action:
+  - logs:CreateLogGroup
+  - logs:CreateLogStream
+  - logs:PutLogEvents
+Resource: arn:aws:logs:${self:provider.region}:*:*
