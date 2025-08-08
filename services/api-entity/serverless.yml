@@ -14,8 +14,8 @@ provider:
   region: ${opt:region, 'us-west-2'}
   profile: pa-${self:custom.stage}
 
-  logs:
-    restApi: true
+  # logs:
+  #   restApi: true
 
   environment:
     DYNAMODB_USER_TABLE: users-${self:custom.stage}-pri-${self:custom.shortRegion}

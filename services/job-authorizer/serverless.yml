@@ -26,8 +26,6 @@ provider:
   region: ${opt:region, 'us-west-2'}
   profile: pa-${self:custom.stage}
   
-  logs:
-    restApi: true
   # lambdaHashingVersion: 20201221
   # endpointType: REGIONAL
 
