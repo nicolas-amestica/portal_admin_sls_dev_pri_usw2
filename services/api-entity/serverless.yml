@@ -13,9 +13,8 @@ provider:
   stage: ${opt:stage, 'dev'}
   region: ${opt:region, 'us-west-2'}
   profile: pa-${self:custom.stage}
-
-  # logs:
-  #   restApi: true
+  lambdaHashingVersion: 20201221
+  endpointType: REGIONAL
 
   environment:
     DYNAMODB_USER_TABLE: users-${self:custom.stage}-pri-${self:custom.shortRegion}
@@ -58,14 +57,6 @@ functions:
           method: get
           cors: true
           authorizer: ${file(../../common/lambda-authorizer.yml)}
-  prueba2:
-    handler: functions/prueba.main
-    timeout: 20
-    events:
-      - http:
-          path: v1/sesiones/prueba2
-          method: get
-          cors: true
 
 resources:
   - ${file(../../common/dynamodb-resources.yml)}

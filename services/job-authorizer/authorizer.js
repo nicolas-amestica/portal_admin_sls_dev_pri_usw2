@@ -1,12 +1,10 @@
 import jwt from "jsonwebtoken";
-import { success, unsuccessful } from "../../helpers/responses";
 import { getParameterStore } from "../../libs/ssm";
+import { success, unsuccessful } from "../../helpers/responses";
 
 const { SECRET_KEY } = process.env;
 
-if (!SECRET_KEY) {
-  throw new Error("SECRET_KEY no está definido en environment variables");
-}
+if (!SECRET_KEY) throw new Error("SECRET_KEY no está definido en environment variables");
 
 /**
  * Valida el acceso a un método HTTP según los permisos otorgados.
@@ -103,7 +101,6 @@ const generatePolicy = async (token, methodArn, method) => {
 
     const secrets = await getParameterStore(secretsKeys);
 
-    // Manejo de error si no existe el secreto
     const found =
       secrets && secrets.find((secret) => secret.Name === SECRET_KEY);
     if (!found || !found.Value) {
@@ -142,7 +139,6 @@ const generatePolicy = async (token, methodArn, method) => {
  */
 export const authorize = async (event) => {
   console.log("Evento recibido por el autorizador:", event);
-
   let methodArn, authorizationToken;
 
   if (event.authorizationToken && event.methodArn) {
@@ -164,9 +160,8 @@ export const authorize = async (event) => {
   const httpMethod = methodArn.split("/")[2];
 
   try {
-    if (!SECRET_KEY) {
+    if (!SECRET_KEY)
       throw new Error("SECRET_KEY no está definido en process.env");
-    }
 
     const policy = await generatePolicy(token, methodArn, httpMethod);
     return policy;
@@ -191,7 +186,7 @@ export const authorize = async (event) => {
  * y genera un token JWT válido por 365 días. El token incluye los permisos en su payload.
  */
 export const generateToken = async (event) => {
-  // console.log("event", event);
+  console.log("event", event);
   const action = "Generar token.";
   const secretsKeys = [SECRET_KEY];
 
