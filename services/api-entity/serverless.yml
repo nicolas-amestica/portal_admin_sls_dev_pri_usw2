@@ -49,15 +49,6 @@ functions:
           path: v1/sesiones/iniciar-sesion
           method: post
           cors: true
-  loginv2:
-    handler: functions/login-v1.main
-    timeout: 20
-    events:
-      - http:
-          path: v1/sesiones/iniciar-sesion-dos
-          method: post
-          cors: true
-          authorizer: ${file(../../common/lambda-authorizer.yml)}
   prueba:
     handler: functions/prueba.main
     timeout: 20

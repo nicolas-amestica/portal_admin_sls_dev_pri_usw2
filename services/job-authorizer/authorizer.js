@@ -111,7 +111,7 @@ const generatePolicy = async (token, methodArn, method) => {
     }
     const SECRET = found.Value;
 
-    const decoded = jwt.verify(token, SECRET, { algorithms: ["HS256"] });
+    const decoded = jwt.verify(token, SECRET);
     const payload = decoded.body;
     const allowances = payload.allowances.toLowerCase();
     const { endpoints } = payload;
