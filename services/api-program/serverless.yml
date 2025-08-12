@@ -21,7 +21,7 @@ provider:
   endpointType: REGIONAL
 
   environment:
-    # DYNAMODB_USER_TABLE: users-${self:custom.stage}-pri-${self:custom.shortRegion}
+    DYNAMODB_PROGRAM_TABLE: programs-${self:custom.stage}-pri-${self:custom.shortRegion}
     SECRET_KEY: secret-pri-${self:custom.stage}-${self:custom.shortRegion}
     PROFILE: ${self:provider.profile}
     STAGE: ${self:custom.stage}
@@ -38,15 +38,16 @@ provider:
   iamRoleStatements:
     - ${file(../../aws/policies/lambda-policy-xray.yml)}
     - ${file(../../aws/policies/lambda-policy-ssm.yml)}
+    - ${file(../../aws/policies/lambda-policy-dynamodb-program.yml)}
 
 functions:
-  create_program:
-    handler: functions/create-program.main
+  create_program_v1:
+    handler: functions/create-program-v1.main
     description: Este recurso está relacionado con la creación de un programa de giras de estudios, permitiendo gestionar y administrar los detalles asociados a cada programa.
     timeout: 30
     events:
       - http:
-          path: v1/programas/solicitudes/programa
+          path: v1/programas/solicitudes/viaje
           method: post
           cors: true
           # authorizer: ${file(../../common/lambda-authorizer.yml)}

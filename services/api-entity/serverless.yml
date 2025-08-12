@@ -5,6 +5,11 @@ plugins:
   - serverless-bundle
   - serverless-offline
 
+# Configuraciones para evitar alertas de la versión 3 del framework
+disabledDeprecations: '*'
+configValidationMode: off # Esta linea debe ser revisada para evitar el warning del projectDir, cuando eso quede solucionada se debe eliminar la linea actual
+projectDir: ./../../
+
 custom: ${file(../../common/custom.yml)}
 
 provider:
@@ -34,13 +39,12 @@ provider:
   iamRoleStatements:
     - ${file(../../aws/policies/lambda-policy-xray.yml)}
     - ${file(../../aws/policies/lambda-policy-dynamodb-user.yml)}
-    - ${file(../../aws/policies/lambda-policy-ses.yml)}
     - ${file(../../aws/policies/lambda-policy-ssm.yml)}
     - ${file(../../aws/policies/lambda-policy-secretsmanager.yml)}
     - ${file(../../aws/policies/lambda-policy-cloudwatch.yml)}
 
 functions:
-  loginv1:
+  login_v1:
     handler: functions/login-v1.main
     timeout: 20
     events:
@@ -48,15 +52,7 @@ functions:
           path: v1/sesiones/iniciar-sesion
           method: post
           cors: true
-  prueba:
-    handler: functions/prueba.main
-    timeout: 20
-    events:
-      - http:
-          path: v1/sesiones/prueba
-          method: get
-          cors: true
-          authorizer: ${file(../../common/lambda-authorizer.yml)}
 
 resources:
-  - ${file(../../common/dynamodb-resources.yml)}
+  - ${file(../../common/apigateway-errors.yml)}
+  # - ${file(../../common/dynamodb-resources.yml)}
