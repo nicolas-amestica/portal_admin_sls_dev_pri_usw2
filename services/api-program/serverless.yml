@@ -52,6 +52,16 @@ functions:
           method: post
           cors: true
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
+  get_programs_v1:
+    handler: functions/get-programs-v1.main
+    description: Este recurso está relacionado con la obtención de la lista de programas de giras de estudios.
+    timeout: 30
+    events:
+      - http:
+          path: v1/programas/solicitudes/viajes
+          method: get
+          cors: true
+          # authorizer: ${file(../../common/lambda-authorizer.yml)}
 
 resources:
   - ${file(../../common/apigateway-errors.yml)}
