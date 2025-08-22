@@ -9,13 +9,15 @@ export const main = async (event) => {
   const action = "Creación de programa de gira de estudios.";
   const { content } = JSON.parse(event.body);
 
+  const id = uuidv4();
+
   const params = {
       TableName: DYNAMODB_PROGRAM_TABLE,
       ReturnConsumedCapacity: 'TOTAL',
       Item: {
           pk: `PRG#${PROGRAM_TABLE_ID}`,
-          sk: `GIR#${uuidv4()}`,
-          id: uuidv4(),
+          sk: content.type === 'giras' ? `GIR#${id}` : `VJS#${id}`,
+          id: id,
           createdAt: new Date().toISOString(),
           ...content
       },
