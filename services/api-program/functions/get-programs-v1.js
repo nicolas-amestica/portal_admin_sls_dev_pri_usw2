@@ -8,24 +8,29 @@ export const main = async (event) => {
   const action = "Obtención de lista de programas de gira de estudios.";
   const queryParams = event.queryStringParameters;
 
-  const pk = `PRG#${PROGRAM_TABLE_ID}`;
-  const sk = `GIR#`;
-
-  const params = {
-    TableName: DYNAMODB_PROGRAM_TABLE,
-    ReturnConsumedCapacity: 'TOTAL',
-    KeyConditionExpression: '#pk = :pk And begins_with(#sk, :sk)',
-    ExpressionAttributeValues: {
-      ':pk': pk,
-      ':sk': sk,
-    },
-    ExpressionAttributeNames: {
-      '#pk': 'pk',
-      '#sk': 'sk',
-    },
-  };
-
   try {
+    if (!event.pathParameters) return unsuccessful(400, { message: "Faltan los pathParameters en la solicitud." }, action);
+    const pathParameters = event.pathParameters.type;
+
+    const pk = `PRG#${PROGRAM_TABLE_ID}`;
+    const sk = pathParameters === 'viajes' ? 'VJS#' : pathParameters === 'giras' ? 'GIR#' : null;
+
+    if (!sk) return unsuccessful(400, { message: "Ha ingresado un tipo de programa no válido." }, action);
+
+    const params = {
+      TableName: DYNAMODB_PROGRAM_TABLE,
+      ReturnConsumedCapacity: 'TOTAL',
+      KeyConditionExpression: '#pk = :pk And begins_with(#sk, :sk)',
+      ExpressionAttributeValues: {
+        ':pk': pk,
+        ':sk': sk,
+      },
+      ExpressionAttributeNames: {
+        '#pk': 'pk',
+        '#sk': 'sk',
+      },
+    };
+
     const result = await dynamoDbLib.query(params);
     return success(200, result, action, queryParams);
   } catch (e) {

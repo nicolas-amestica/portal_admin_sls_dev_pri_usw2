@@ -58,7 +58,7 @@ functions:
     timeout: 30
     events:
       - http:
-          path: v1/programas/solicitudes/viajes
+          path: v1/programas/solicitudes/{type}
           method: get
           cors: true
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
