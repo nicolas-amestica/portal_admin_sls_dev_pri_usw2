@@ -9,6 +9,8 @@ export const main = async (event) => {
   const action = "Creación de programa de gira de estudios.";
   const { content } = JSON.parse(event.body);
 
+  if (!content.type?.id) return unsuccessful(400, { message: "Falta el tipo de programa en la solicitud." }, action);
+
   const id = uuidv4();
 
   const params = {
@@ -16,7 +18,7 @@ export const main = async (event) => {
       ReturnConsumedCapacity: 'TOTAL',
       Item: {
           pk: `PRG#${PROGRAM_TABLE_ID}`,
-          sk: content.type === 'giras' ? `GIR#${id}` : `VJS#${id}`,
+          sk: content.type.id === 'giras' ? `GIR#${id}` : `VJS#${id}`,
           id: id,
           createdAt: new Date().toISOString(),
           ...content
