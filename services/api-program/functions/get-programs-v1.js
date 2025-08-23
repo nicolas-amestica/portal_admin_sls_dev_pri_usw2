@@ -13,7 +13,7 @@ export const main = async (event) => {
     const pathParameters = event.pathParameters.type;
 
     const pk = `PRG#${PROGRAM_TABLE_ID}`;
-    const sk = pathParameters === 'viajes' ? 'VJS#' : pathParameters === 'giras' ? 'GIR#' : null;
+    const sk = pathParameters === 'viaje' ? 'VJS#' : pathParameters === 'gira' ? 'GIR#' : null;
 
     if (!sk) return unsuccessful(400, { message: "Ha ingresado un tipo de programa no válido." }, action);
 
