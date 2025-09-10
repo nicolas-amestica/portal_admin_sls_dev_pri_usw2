@@ -20,7 +20,7 @@ export const main = async (event) => {
     const params = {
       TableName: DYNAMODB_PROGRAM_TABLE,
       ReturnConsumedCapacity: 'TOTAL',
-      KeyConditionExpression: '#pk = :pk And begins_with(#sk, :sk)',
+      KeyConditionExpression: '#pk = :pk AND begins_with(#sk, :sk)',
       ExpressionAttributeValues: {
         ':pk': pk,
         ':sk': sk,
@@ -28,11 +28,26 @@ export const main = async (event) => {
       ExpressionAttributeNames: {
         '#pk': 'pk',
         '#sk': 'sk',
+        '#st': 'status',
+        '#type': 'type'
       },
+      ProjectionExpression: '#sk, #st, #type, school, course, season, representative, dates',
     };
 
     const result = await dynamoDbLib.query(params);
-    return success(200, result, action, queryParams);
+
+    const programs = result.map(item => ({
+      sk: item.sk,
+      status: item.status,
+      type: item.type.id,
+      school: item.school,
+      course: item.course,
+      season: item.season,
+      representativeName: item.representative.name,
+      startDate: item.dates[0]
+    }));
+
+    return success(200, programs, action, queryParams);
   } catch (e) {
     let { statusCode } = e;
     if (!statusCode) statusCode = 500;
