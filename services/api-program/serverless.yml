@@ -62,6 +62,16 @@ functions:
           method: get
           cors: true
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
+  get_program_v1:
+    handler: functions/get-program-v1.main
+    description: Este recurso está relacionado con la obtención de un programa en sistema por identificador único.
+    timeout: 30
+    events:
+      - http:
+          path: v1/programas/solicitudes/programa
+          method: get
+          cors: true
+          # authorizer: ${file(../../common/lambda-authorizer.yml)}
 
 resources:
   - ${file(../../common/apigateway-errors.yml)}

@@ -27,24 +27,23 @@ export const main = async (event) => {
       },
       ExpressionAttributeNames: {
         '#pk': 'pk',
-        '#sk': 'sk',
-        '#st': 'status',
-        '#type': 'type'
-      },
-      ProjectionExpression: '#sk, #st, #type, school, course, season, representative, dates',
+        '#sk': 'sk'
+      }
     };
 
     const result = await dynamoDbLib.query(params);
 
+    if (!result || result.length === 0) return unsuccessful(404, { message: "No se encontraron programas." }, action);
+
     const programs = result.map(item => ({
       sk: item.sk,
-      status: item.status,
-      type: item.type.id,
-      school: item.school,
-      course: item.course,
-      season: item.season,
-      representativeName: item.representative.name,
-      startDate: item.dates[0]
+      status: item.content[0].status,
+      type: item.content[0].type.id,
+      school: item.content[0].school,
+      course: item.content[0].course,
+      season: item.content[0].season,
+      representativeName: item.content[0].representative.name,
+      startDate: item.content[0].dates[0]
     }));
 
     return success(200, programs, action, queryParams);

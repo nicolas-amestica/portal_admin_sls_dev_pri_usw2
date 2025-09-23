@@ -21,7 +21,7 @@ export const main = async (event) => {
           sk: content.type.id === 'gira' ? `GIR#${id}` : `VJS#${id}`,
           id: id,
           createdAt: new Date().toISOString(),
-          ...content
+          content: [content],
       },
   };
 
