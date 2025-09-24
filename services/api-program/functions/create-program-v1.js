@@ -6,7 +6,7 @@ const { DYNAMODB_PROGRAM_TABLE, PROGRAM_TABLE_ID } = process.env;
 
 export const main = async (event) => {
   console.log("event ==>", event);
-  const action = "Creación de programa de gira de estudios.";
+  const action = "Creación de programa de viaje.";
   const { content } = JSON.parse(event.body);
 
   if (!content.type?.id) return unsuccessful(400, { message: "Falta el tipo de programa en la solicitud." }, action);
