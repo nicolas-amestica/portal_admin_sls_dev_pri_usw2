@@ -33,9 +33,7 @@ export const main = async (event) => {
 
     const result = await dynamoDbLib.query(params);
 
-    if (!result || result.length === 0) return unsuccessful(404, { message: "No se encontraron programas." }, action);
-
-    const programs = result.map(item => ({
+    const programs = (!result || result.length === 0) ? [] : result.map(item => ({
       sk: item.sk,
       status: item.content[0].status,
       type: item.content[0].type.id,
