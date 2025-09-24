@@ -18,7 +18,7 @@ export const main = async (event) => {
       ReturnConsumedCapacity: 'TOTAL',
       Item: {
           pk: `PRG#${PROGRAM_TABLE_ID}`,
-          sk: content.type.id === 'gira' ? `GIR#${id}` : `VJS#${id}`,
+          sk: content.type.id === 'tour' ? `GIR#${id}` : `VJS#${id}`,
           id: id,
           createdAt: new Date().toISOString(),
           content: [content],
