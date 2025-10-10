@@ -21,11 +21,11 @@ provider:
   endpointType: REGIONAL
 
   environment:
+    STAGE: ${self:custom.stage}
     DYNAMODB_PROGRAM_TABLE: programs-${self:custom.stage}-pri-${self:custom.shortRegion}
     PROGRAM_TABLE_ID: 8e3d823d-9f58-45df-8a8f-6779435a0001
     SECRET_KEY: secret-pri-${self:custom.stage}-${self:custom.shortRegion}
     PROFILE: ${self:provider.profile}
-    STAGE: ${self:custom.stage}
 
   # Configurar seguimiento mediante aws x-ray para identificar y resolver problemas y errores de rendimiento.
   tracing:

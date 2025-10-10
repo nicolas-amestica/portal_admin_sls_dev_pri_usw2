@@ -37,6 +37,7 @@ provider:
     name: sls-deploys-${self:custom.stage}-pri-${self:custom.shortRegion}
 
   environment:
+    STAGE: ${self:custom.stage}
     SECRET_KEY: secret-pri-${self:custom.stage}-${self:custom.shortRegion}
     PROFILE: ${self:provider.profile}
 

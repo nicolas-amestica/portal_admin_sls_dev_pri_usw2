@@ -22,10 +22,10 @@ provider:
   endpointType: REGIONAL
 
   environment:
+    STAGE: ${self:custom.stage}
     DYNAMODB_USER_TABLE: users-${self:custom.stage}-pri-${self:custom.shortRegion}
     SECRET_KEY: secret-pri-${self:custom.stage}-${self:custom.shortRegion}
     PROFILE: ${self:provider.profile}
-    STAGE: ${self:custom.stage}
 
   # Configurar seguimiento mediante aws x-ray para identificar y resolver problemas y errores de rendimiento.
   tracing:
