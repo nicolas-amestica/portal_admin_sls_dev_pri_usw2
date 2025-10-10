@@ -44,14 +44,22 @@ provider:
     - ${file(../../aws/policies/lambda-policy-cloudwatch.yml)}
 
 functions:
-  login_v1:
+  login:
     handler: functions/login-v1.main
-    timeout: 20
     events:
       - http:
           path: v1/sesiones/iniciar-sesion
           method: post
-          cors: true
+          cors:
+            origin: '*' # O especifica 'http://localhost:4300'
+            headers:
+              - Content-Type
+              - Authorization
+              - X-Amz-Date
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+            allowCredentials: false
 
 resources:
   - ${file(../../common/apigateway-errors.yml)}
