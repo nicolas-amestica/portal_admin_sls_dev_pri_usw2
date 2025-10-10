@@ -11,12 +11,7 @@ regions:
 stage: ${opt:stage, self:provider.stage}
 
 bucketDeployName: sls-deploys-${self:custom.stage}-pri-${self:custom.shortRegion}
-dynamoDbArn: "${env:DYNAMODB_ARN, 'arn:aws:dynamodb:us-west-2:123456789012:table/users-dev-pri-usw2'}"
+dynamoDbArn: "${env:DYNAMODB_ARN, 'arn:aws:dynamodb:us-west-2:123456789012:table/users-${self:provider.stage}-pri-${self:custom.shortRegion}'}"
 usersTableName: users-${self:provider.stage}-pri-${self:custom.shortRegion}
 serverless-offline:
   httpPort: 3200
-# customDomain:
-#   domainName: api.${self:provider.stage}.girasindomito.cl
-#   basePath: ""
-#   stage: ${self:provider.stage}
-#   createRoute53Record: true
