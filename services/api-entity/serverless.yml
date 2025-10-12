@@ -51,7 +51,7 @@ functions:
           path: v1/sesiones/iniciar-sesion
           method: post
           cors:
-            origin: '*' # O especifica 'http://localhost:4300'
+            origin: '*'
             headers:
               - Content-Type
               - Authorization
@@ -61,6 +61,15 @@ functions:
               - X-Amz-User-Agent
             allowCredentials: false
 
+  get_access_v1:
+    handler: functions/get-access-v1.main
+    description: Este recurso está relacionado con la obtención de los accesos de un usuario.
+    timeout: 30
+    events:
+      - http:
+          path: v1/iam/accesos/aplicaciones/GI/user
+          method: get
+          cors: true
+
 resources:
   - ${file(../../common/apigateway-errors.yml)}
-  # - ${file(../../common/dynamodb-resources.yml)}
