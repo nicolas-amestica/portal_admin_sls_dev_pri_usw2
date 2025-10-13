@@ -33,7 +33,8 @@
     "lambda-multipart-parser": "^1.0.1",
     "nodemailer": "^7.0.5",
     "uuid": "^11.1.0",
-    "winston": "^3.17.0"
+    "winston": "^3.17.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "serverless": "^3.40.0",
