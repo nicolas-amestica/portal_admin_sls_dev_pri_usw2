@@ -1,0 +1,56 @@
+service: mantenedor
+frameworkVersion: '3'
+
+plugins:
+  - serverless-bundle
+  - serverless-offline
+
+# Configuraciones para evitar alertas de la versión 3 del framework
+disabledDeprecations: '*'
+configValidationMode: off # Esta linea debe ser revisada para evitar el warning del projectDir, cuando eso quede solucionada se debe eliminar la linea actual
+projectDir: ./../../
+
+custom: ${file(../../common/custom.yml)}
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-west-2'}
+  profile: pa-${self:custom.stage}
+  lambdaHashingVersion: 20201221
+  endpointType: REGIONAL
+
+  environment:
+    STAGE: ${self:custom.stage}
+    PROFILE: ${self:provider.profile}
+    DYNAMODB_MAINTAINER_TABLE: maintainer-${self:custom.stage}-pri-${self:custom.shortRegion}
+
+  # Configurar seguimiento mediante aws x-ray para identificar y resolver problemas y errores de rendimiento.
+  tracing:
+    apiGateway: true
+    lambda: true
+
+  # Repositorio en S3 que se va a usar para desplegar los recursos en cloudFormation
+  deploymentBucket:
+    name: sls-deploys-${self:custom.stage}-pri-${self:custom.shortRegion}
+
+  iamRoleStatements:
+    - ${file(../../aws/policies/lambda-policy-xray.yml)}
+    - ${file(../../aws/policies/lambda-policy-ssm.yml)}
+    - ${file(../../aws/policies/lambda-policy-secretsmanager.yml)}
+    - ${file(../../aws/policies/lambda-policy-cloudwatch.yml)}
+
+functions:
+  get_banks_v1:
+    handler: functions/get-banks-v1.main
+    description: Este recurso está relacionado con la obtención de los bancos de la empresa.
+    timeout: 30
+    events:
+      - http:
+          path: v1/mantenedor/bancos
+          method: get
+          cors: true
+
+resources:
+  - ${file(../../common/apigateway-errors.yml)}
