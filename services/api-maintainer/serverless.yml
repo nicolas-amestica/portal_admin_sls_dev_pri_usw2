@@ -40,6 +40,7 @@ provider:
     - ${file(../../aws/policies/lambda-policy-ssm.yml)}
     - ${file(../../aws/policies/lambda-policy-secretsmanager.yml)}
     - ${file(../../aws/policies/lambda-policy-cloudwatch.yml)}
+    - ${file(../../aws/policies/lambda-policy-dynamodb-maintainer.yml)}
 
 functions:
   get_banks_v1:
