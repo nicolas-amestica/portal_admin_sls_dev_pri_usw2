@@ -1,4 +1,4 @@
-import { v4 as uuidv4 } from 'uuid';
+import { uuidv7 } from "uuidv7";
 import * as dynamoDbLib from '../../../libs/dynamodb-v3';
 import { success, unsuccessful } from "../../../helpers/responses";
 
@@ -11,8 +11,7 @@ export const main = async (event) => {
 
   if (!content.type?.id) return unsuccessful(400, { message: "Falta el tipo de programa en la solicitud." }, action);
 
-  const id = uuidv4();
-
+  const id = uuidv7();
   const params = {
       TableName: DYNAMODB_PROGRAM_TABLE,
       ReturnConsumedCapacity: 'TOTAL',
