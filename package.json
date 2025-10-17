@@ -20,7 +20,7 @@
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.859.0",
     "@aws-sdk/client-lambda": "^3.859.0",
-    "@aws-sdk/client-s3": "^3.859.0",
+    "@aws-sdk/client-s3": "^3.911.0",
     "@aws-sdk/client-secrets-manager": "^3.859.0",
     "@aws-sdk/client-ssm": "^3.862.0",
     "@aws-sdk/credential-providers": "^3.859.0",
@@ -30,9 +30,11 @@
     "bcryptjs": "^3.0.2",
     "date-fns": "^4.1.0",
     "jsonwebtoken": "^9.0.2",
+    "lambda-multipart-data-parser": "^1.0.4",
     "lambda-multipart-parser": "^1.0.1",
     "nodemailer": "^7.0.5",
     "uuid": "^11.1.0",
+    "uuidv7": "^1.0.2",
     "winston": "^3.17.0",
     "xlsx": "^0.18.5"
   },
