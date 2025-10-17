@@ -167,8 +167,25 @@ export const main = async (event) => {
         { message: `Faltan campos requeridos: ${missing.join(", ")}` },
         action
       );
+
     const { sk, amount, paymentObservation } = formPayload;
+
+    if (!file)
+      return unsuccessful(
+        400,
+        { message: "No se encontró archivo adjunto" },
+        action
+      );
+
     const [program] = await getProgramFromDynamodb({ sortKey: sk });
+
+    if (!program)
+      return unsuccessful(
+        404,
+        { message: "Programa no encontrado" },
+        action
+      );
+
     const fileUploaded = await uploadFile(file);
     const payment = {
       ...fileUploaded,
@@ -185,6 +202,7 @@ export const main = async (event) => {
 
     return success(200, program, action);
   } catch (e) {
+    console.log("ERROR ==>", e);
     let { statusCode } = e;
     if (!statusCode) statusCode = 500;
     return unsuccessful(statusCode, e, action);

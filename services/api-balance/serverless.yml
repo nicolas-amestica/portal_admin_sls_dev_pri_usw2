@@ -41,6 +41,7 @@ provider:
     - ${file(../../aws/policies/lambda-policy-xray.yml)}
     - ${file(../../aws/policies/lambda-policy-ssm.yml)}
     - ${file(../../aws/policies/lambda-policy-dynamodb-program.yml)}
+    - ${file(../../aws/policies/lambda-policy-s3.yml)}
 
 functions:
   create_balance_v1:
