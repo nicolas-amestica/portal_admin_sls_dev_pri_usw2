@@ -10,25 +10,24 @@ export const main = async (event) => {
 
   if (!sk) return unsuccessful(400, { message: "Falta el tipo de programa en la solicitud." }, action);
 
-  const program = {
-      pk: pk,
-      sk: sk,
-      id: id,
-      createdAt: createdAt,
-      updatedAt: new Date().toISOString(),
-      content: content
-  };
-
-  const params = {
-      TableName: DYNAMODB_PROGRAM_TABLE,
-      ReturnConsumedCapacity: 'TOTAL',
-      Item: program
-  };
-
-  await dynamoDbLib.put(params);
-
   try {
-    return success(200, params, action);
+    const program = {
+        pk: pk,
+        sk: sk,
+        id: id,
+        createdAt: createdAt,
+        updatedAt: new Date().toISOString(),
+        content: content
+    };
+
+    const params = {
+        TableName: DYNAMODB_PROGRAM_TABLE,
+        ReturnConsumedCapacity: 'TOTAL',
+        Item: program
+    };
+    const result = await dynamoDbLib.put(params);
+
+    return success(200, result, action);
   } catch (e) {
     let { statusCode } = e;
     if (!statusCode) statusCode = 500;

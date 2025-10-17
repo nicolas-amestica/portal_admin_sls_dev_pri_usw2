@@ -63,7 +63,7 @@ functions:
           cors: true
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
   get_programs_v1:
-    handler: functions/get-programs-v1.main
+    handler: functions/get-programs-view-v1.main
     description: Este recurso está relacionado con la obtención de la lista de programas en sistema.
     timeout: 30
     events:

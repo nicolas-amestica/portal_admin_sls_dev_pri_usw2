@@ -11,23 +11,23 @@ export const main = async (event) => {
 
   if (!content.type?.id) return unsuccessful(400, { message: "Falta el tipo de programa en la solicitud." }, action);
 
-  const id = uuidv7();
-  const params = {
-      TableName: DYNAMODB_PROGRAM_TABLE,
-      ReturnConsumedCapacity: 'TOTAL',
-      Item: {
-          pk: `PRG#${PROGRAM_TABLE_ID}`,
-          sk: content.type.id === 'tour' ? `GIR#${id}` : `VJS#${id}`,
-          id: id,
-          createdAt: new Date().toISOString(),
-          content: [content],
-      },
-  };
-
-  await dynamoDbLib.put(params);
-
   try {
-    return success(200, params, action);
+    const id = uuidv7();
+    const params = {
+        TableName: DYNAMODB_PROGRAM_TABLE,
+        ReturnConsumedCapacity: 'TOTAL',
+        Item: {
+            pk: `PRG#${PROGRAM_TABLE_ID}`,
+            sk: content.type.id === 'tour' ? `GIR#${id}` : `VJS#${id}`,
+            id: id,
+            createdAt: new Date().toISOString(),
+            content: [content],
+        },
+    };
+
+    const result = await dynamoDbLib.put(params);
+
+    return success(200, result, action);
   } catch (e) {
     let { statusCode } = e;
     if (!statusCode) statusCode = 500;
