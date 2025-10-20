@@ -30,7 +30,7 @@ export const main = async (event) => {
       }
     };
 
-    const [result] = await dynamoDbLib.query(params);
+   const result = await dynamoDbLib.query(params);
 
     return success(200, result, action, queryParams);
   } catch (e) {
