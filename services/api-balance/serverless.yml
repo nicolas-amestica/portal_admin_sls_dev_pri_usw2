@@ -46,12 +46,22 @@ provider:
 functions:
   create_balance_v1:
     handler: functions/create-balance-v1.main
-    description: Este recurso está relacionado con la creación de un balance de giras de estudios o viajes.
+    description: Este recurso crea un balance del programa.
     timeout: 30
     events:
       - http:
           path: v1/balances/solicitudes/balance
           method: post
+          cors: true
+          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+  get_balances_v1:
+    handler: functions/get-balances-v1.main
+    description: Este recurso obtiene un balance de un programa.
+    timeout: 30
+    events:
+      - http:
+          path: v1/balances/solicitudes/balance
+          method: get
           cors: true
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
 

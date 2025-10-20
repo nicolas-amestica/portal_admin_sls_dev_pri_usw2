@@ -1,27 +1,38 @@
 import * as dynamoDbLib from '../../../libs/dynamodb-v3';
 import { success, unsuccessful } from "../../../helpers/responses";
 
-const { DYNAMODB_PROGRAM_TABLE, PROGRAM_TABLE_ID } = process.env;
+const {
+  DYNAMODB_PROGRAM_TABLE,
+  PROGRAM_TABLE_ID
+} = process.env;
 
+const adaptBalances = async (totalWithUtilities, payments) => {
+  let total = totalWithUtilities;
+  return payments.map(payment => {
+    const balance = {
+      ...payment,
+      amount: parseInt(payment.amount),
+      remaining: total - parseInt(payment.amount)
+    };
+    total -= parseInt(payment.amount);
+    return balance;
+  }) || [];
+};
 export const main = async (event) => {
   console.log("event ==>", event);
-  const action = "Obtención de lista de programas en sistema.";
+  const action = "Obtención de lista de balances del programa.";
   const queryParams = event.queryStringParameters;
 
   try {
-    if (!queryParams) return unsuccessful(400, { message: "Faltan los queryParameters en la solicitud." }, action);
-
-    const sk = queryParams.sk;
+    const { sk } = queryParams;
     if (!sk) return unsuccessful(400, { message: "Identificador de programa inválido." }, action);
-
-    const pk = `PRG#${PROGRAM_TABLE_ID}`;
 
     const params = {
       TableName: DYNAMODB_PROGRAM_TABLE,
       ReturnConsumedCapacity: 'TOTAL',
       KeyConditionExpression: '#pk = :pk AND begins_with(#sk, :sk)',
       ExpressionAttributeValues: {
-        ':pk': pk,
+        ':pk': PROGRAM_TABLE_ID,
         ':sk': sk,
       },
       ExpressionAttributeNames: {
@@ -30,12 +41,17 @@ export const main = async (event) => {
       }
     };
 
-   const [result] = await dynamoDbLib.query(params);
+    const [result] = await dynamoDbLib.query(params);
+    const payments = result?.content[0]?.payments || [];
+    const totalWithUtilities = result.content[0].totalWithUtilities;
+    const formattedPayments = await adaptBalances(totalWithUtilities, payments || []);
 
-    return success(200, result, action, queryParams);
+    return success(200, formattedPayments, action, queryParams);
   } catch (e) {
     let { statusCode } = e;
     if (!statusCode) statusCode = 500;
     return unsuccessful(statusCode, e, action);
   }
 };
+
+
