@@ -35,7 +35,7 @@ export const main = async (event) => {
 
     const programs = (!result || result.length === 0) ? [] : result.map(item => ({
       sk: item.sk,
-      status: item.content[0].status,
+      status: item.status,
       type: item.content[0].type.id,
       school: item.content[0].school,
       course: item.content[0].course,
