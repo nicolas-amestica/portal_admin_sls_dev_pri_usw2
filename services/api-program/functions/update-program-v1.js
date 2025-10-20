@@ -19,7 +19,8 @@ export const main = async (event) => {
         updatedAt: new Date().toISOString(),
         content: content,
         status: status,
-        user: user
+        user: user,
+        startDate: content[0].dates[0]
     };
 
     const params = {
