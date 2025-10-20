@@ -6,7 +6,7 @@ const { DYNAMODB_PROGRAM_TABLE } = process.env;
 export const main = async (event) => {
   console.log("event ==>", event);
   const action = "Actualización del programa de viaje.";
-  const { content, sk, pk, id, createdAt, status } = JSON.parse(event.body);
+  const { content, sk, pk, id, createdAt, status, user } = JSON.parse(event.body);
 
   if (!sk) return unsuccessful(400, { message: "Falta el tipo de programa en la solicitud." }, action);
 
@@ -18,7 +18,8 @@ export const main = async (event) => {
         createdAt: createdAt,
         updatedAt: new Date().toISOString(),
         content: content,
-        status: status
+        status: status,
+        user: user
     };
 
     const params = {
