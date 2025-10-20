@@ -7,9 +7,9 @@ const { DYNAMODB_PROGRAM_TABLE, PROGRAM_TABLE_ID } = process.env;
 export const main = async (event) => {
   console.log("event ==>", event);
   const action = "Creación de programa de viaje.";
-  const { content } = JSON.parse(event.body);
+  const { content, user } = JSON.parse(event.body);
 
-  if (!content.type?.id) return unsuccessful(400, { message: "Falta el tipo de programa en la solicitud." }, action);
+  if (!content[0].type?.id) return unsuccessful(400, { message: "Falta el tipo de programa en la solicitud." }, action);
 
   try {
     const id = uuidv7();
@@ -18,10 +18,13 @@ export const main = async (event) => {
         ReturnConsumedCapacity: 'TOTAL',
         Item: {
             pk: `PRG#${PROGRAM_TABLE_ID}`,
-            sk: content.type.id === 'tour' ? `GIR#${id}` : `VJS#${id}`,
+            sk: content[0].type.id === 'tour' ? `GIR#${id}` : `VJS#${id}`,
             id: id,
             createdAt: new Date().toISOString(),
-            content: [content],
+            content: content,
+            user: user,
+            status: 'pending',
+            type : content[0].type.id,
         },
     };
 
