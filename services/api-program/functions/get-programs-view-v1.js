@@ -4,7 +4,7 @@ import { success, unsuccessful } from "../../../helpers/responses";
 const { DYNAMODB_PROGRAM_TABLE, PROGRAM_TABLE_ID } = process.env;
 
 export const main = async (event) => {
-  console.log("event ==>", event);
+  // console.log("event ==>", event);
   const action = "Obtención de lista de programas en sistema.";
   const queryParams = event.queryStringParameters;
 
