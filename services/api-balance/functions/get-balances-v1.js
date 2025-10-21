@@ -12,7 +12,8 @@ const adaptBalances = async (totalWithUtilities, payments) => {
     const balance = {
       ...payment,
       amount: parseInt(payment.amount),
-      remaining: total - parseInt(payment.amount)
+      remaining: total - parseInt(payment.amount),
+      totalWithUtilities
     };
     total -= parseInt(payment.amount);
     return balance;
