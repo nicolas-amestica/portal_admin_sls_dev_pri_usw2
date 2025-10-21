@@ -19,6 +19,7 @@ const adaptBalances = async (totalWithUtilities, payments) => {
     return balance;
   }) || [];
 };
+
 export const main = async (event) => {
   console.log("event ==>", event);
   const action = "Obtención de lista de balances del programa.";
