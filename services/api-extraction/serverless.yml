@@ -65,7 +65,7 @@ functions:
       - http:
           path: v1/extracciones/object
           method: get
-          cors: true
+          # cors: true
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
 
 resources:
