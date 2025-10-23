@@ -1,4 +1,4 @@
-service: extraccion
+service: extracciones
 frameworkVersion: '3'
 
 disabledDeprecations: '*'
@@ -29,6 +29,7 @@ provider:
     PER_TABLE_ID: PER#4f7cb502-4256-11ec-81d3-0242ac13000H
     SECRET_KEY: secret-pri-${self:custom.stage}-${self:custom.shortRegion}
     PROFILE: ${self:provider.profile}
+    BUCKET: "giras-indomito-${self:custom.stage}-info"
 
   # Configurar seguimiento mediante aws x-ray para identificar y resolver problemas y errores de rendimiento.
   tracing:
@@ -44,6 +45,7 @@ provider:
     - ${file(../../aws/policies/lambda-policy-ssm.yml)}
     - ${file(../../aws/policies/lambda-policy-dynamodb-program.yml)}
     - ${file(../../aws/policies/lambda-policy-dynamodb-user.yml)}
+    - ${file(../../aws/policies/lambda-policy-s3.yml)}
 
 functions:
   excel_filedata_from_any_table_v1:
@@ -53,6 +55,15 @@ functions:
     events:
       - http:
           path: v1/extraccion/table/{pkName}
+          method: get
+          cors: true
+          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+
+  downloadFile:
+    handler: functions/get-object-s3-v1.main
+    events:
+      - http:
+          path: v1/extracciones/object
           method: get
           cors: true
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
