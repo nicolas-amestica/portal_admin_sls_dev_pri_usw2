@@ -3,7 +3,7 @@ import { success, unsuccessful } from "../../../helpers/responses";
 
 const { BUCKET } = process.env;
 
-const downloadObject = async (key) => {
+const getFileUrl = async (key) => {
   const params = {
     Bucket: BUCKET,
     Key: key,
@@ -21,8 +21,11 @@ export const main = async (event) => {
     const { key } = queryParams;
     if (!key) return unsuccessful(400, { message: "Identificador de objeto inválido." }, action);
 
-    const stream = await downloadObject(key);
-    return success(200, stream, action, queryParams);
+    const url = await getFileUrl(key);
+
+    console.log("URL ==>", url);
+
+    return success(200, JSON.stringify({ url }), action, queryParams);
   } catch (error) {
     let { statusCode } = error;
     if (!statusCode) statusCode = 500;
