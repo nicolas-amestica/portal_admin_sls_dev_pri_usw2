@@ -20,6 +20,10 @@ provider:
   lambdaHashingVersion: 20201221
   endpointType: REGIONAL
 
+  apiGateway:
+    binaryMediaTypes:
+      - '*/*'
+
   environment:
     STAGE: ${self:custom.stage}
     DYNAMODB_PROGRAM_TABLE: programs-${self:custom.stage}-pri-${self:custom.shortRegion}
@@ -65,7 +69,7 @@ functions:
       - http:
           path: v1/extracciones/object
           method: get
-          # cors: true
+          cors: true
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
 
 resources:

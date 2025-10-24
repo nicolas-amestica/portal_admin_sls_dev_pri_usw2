@@ -22,3 +22,11 @@ export const getObject = async (params) => {
   const command = new GetObjectCommand(params);
   return await getSignedUrl(s3, command, { expiresIn: 3600 });
 };
+
+export const getObject2 = async (params) => {
+  if (!s3) await initClient();
+  const command = new GetObjectCommand(params);
+  // Genera URL prefirmada válida por 1 hora
+  const url = await getSignedUrl(s3, command, { expiresIn: 3600 });
+  return url;
+};

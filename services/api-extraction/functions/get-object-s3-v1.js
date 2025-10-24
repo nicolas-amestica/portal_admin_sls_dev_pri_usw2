@@ -1,5 +1,5 @@
 import * as S3 from "../../../libs/s3-v3";
-import { success, unsuccessful } from "../../../helpers/responses";
+import { unsuccessful } from "../../../helpers/responses";
 
 const { BUCKET } = process.env;
 
@@ -8,7 +8,7 @@ const getFileUrl = async (key) => {
     Bucket: BUCKET,
     Key: key,
   };
-  return await S3.getObject(params);
+  return await S3.getObject2(params);
 };
 
 export const main = async (event) => {
@@ -16,16 +16,17 @@ export const main = async (event) => {
   const action = "Obtención de objeto en S3.";
   const queryParams = event.queryStringParameters;
   try {
-    console.log("queryParams ==>", queryParams);
-
     const { key } = queryParams;
     if (!key) return unsuccessful(400, { message: "Identificador de objeto inválido." }, action);
-
     const url = await getFileUrl(key);
-
-    console.log("URL ==>", url);
-
-    return success(200, JSON.stringify({ url }), action, queryParams);
+    return {
+      statusCode: 200,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Credentials': true,
+      },
+      body: JSON.stringify({ url }) // Solo stringify el objeto, no la URL directamente
+    };
   } catch (error) {
     let { statusCode } = error;
     if (!statusCode) statusCode = 500;
