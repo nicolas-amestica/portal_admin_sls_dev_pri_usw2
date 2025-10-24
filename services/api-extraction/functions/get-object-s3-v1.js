@@ -7,7 +7,7 @@ export const main = async (event) => {
   console.log("event ==>", event);
   const action = "Obtención de objeto en S3.";
   const queryParams = event.queryStringParameters;
-  
+
   try {
     const { key } = queryParams || {};
     if (!key) {
