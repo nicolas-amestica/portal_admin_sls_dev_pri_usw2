@@ -71,6 +71,9 @@ const uploadFile = async (file) => {
     ContentEncoding: file.encoding,
   };
 
+  console.log("PARAMS ==>", params);
+  
+
   await S3.putObject(params);
 
   return {

@@ -33,7 +33,7 @@ provider:
     PER_TABLE_ID: PER#4f7cb502-4256-11ec-81d3-0242ac13000H
     SECRET_KEY: secret-pri-${self:custom.stage}-${self:custom.shortRegion}
     PROFILE: ${self:provider.profile}
-    BUCKET: "giras-indomito-${self:custom.stage}-info"
+    BUCKET_INFO_GI: giras-indomito-${self:custom.stage}-info
 
   # Configurar seguimiento mediante aws x-ray para identificar y resolver problemas y errores de rendimiento.
   tracing:
@@ -52,16 +52,6 @@ provider:
     - ${file(../../aws/policies/lambda-policy-s3.yml)}
 
 functions:
-  excel_filedata_from_any_table_v1:
-    handler: functions/excel_filedata-from-table-v1.main
-    description: Este recurso está relacionado con la obtención de datos de cualquier tabla.
-    timeout: 30
-    events:
-      - http:
-          path: v1/extraccion/table/{pkName}
-          method: get
-          cors: true
-          # authorizer: ${file(../../common/lambda-authorizer.yml)}
 
   downloadFile:
     handler: functions/get-object-s3-v1.main
