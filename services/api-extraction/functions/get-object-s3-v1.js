@@ -8,7 +8,7 @@ const getFileUrl = async (key) => {
     Bucket: BUCKET,
     Key: key,
   };
-  return await S3.getObject2(params);
+  return await S3.getObject(params);
 };
 
 export const main = async (event) => {

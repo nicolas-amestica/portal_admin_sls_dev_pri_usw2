@@ -45,11 +45,29 @@ const {
 const uploadFile = async (file) => {
   const extension = file.filename.split(".").pop().toLowerCase();
   const uuid_v7 = uuidv7();
+
+  // Mapeo de extensiones a ContentType correcto
+  const contentTypeMap = {
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    png: "image/png",
+    gif: "image/gif",
+    webp: "image/webp",
+    pdf: "application/pdf",
+    doc: "application/msword",
+    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    xls: "application/vnd.ms-excel",
+    xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  };
+
   const params = {
     Bucket: BUCKET_INFO_GI,
     Key: `balances/${uuid_v7}.${extension}`,
     Body: file.content,
-    ContentType: file.contentType,
+    ContentType:
+      contentTypeMap[extension] ||
+      file.contentType ||
+      "application/octet-stream",
     ContentEncoding: file.encoding,
   };
 
