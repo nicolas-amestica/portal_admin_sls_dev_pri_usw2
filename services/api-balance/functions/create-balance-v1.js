@@ -20,11 +20,11 @@ const {
  * El objeto se sube al bucket configurado en `BUCKET_INFO_GI` bajo la ruta `balances/`.
  *
  * @async
- * @param {Object} file - Objeto que representa el archivo a subir.
- * @param {string} file.filename - Nombre original del archivo (incluye extensión).
- * @param {Buffer|Uint8Array|String|import('stream').Readable} file.content - Contenido del archivo (valor para Body de S3).
- * @param {string} [file.contentType] - Tipo MIME del archivo (ContentType para S3).
- * @param {string} [file.encoding] - Codificación del contenido (ContentEncoding para S3).
+ * @param {Object} content - Objeto que representa el archivo a subir.
+ * @param {string} content.filename - Nombre original del archivo (incluye extensión).
+ * @param {Buffer|Uint8Array|String|import('stream').Readable} content.content - Contenido del archivo (valor para Body de S3).
+ * @param {string} [content.contentType] - Tipo MIME del archivo (ContentType para S3).
+ * @param {string} [content.encoding] - Codificación del contenido (ContentEncoding para S3).
  * @returns {Promise<{
  *   bucket: string,
  *   ext: string,
@@ -42,37 +42,16 @@ const {
  *
  * @throws {Error} Propaga errores de la operación de subida a S3 o de la generación del nombre.
  */
-const uploadFile = async (file) => {
-  const extension = file.filename.split(".").pop().toLowerCase();
+const uploadFile = async (content) => {
+  const extension = content.filename.split(".").pop().toLowerCase();
   const uuid_v7 = uuidv7();
-
-  // Mapeo de extensiones a ContentType correcto
-  const contentTypeMap = {
-    jpg: "image/jpeg",
-    jpeg: "image/jpeg",
-    png: "image/png",
-    gif: "image/gif",
-    webp: "image/webp",
-    pdf: "application/pdf",
-    doc: "application/msword",
-    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    xls: "application/vnd.ms-excel",
-    xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  };
 
   const params = {
     Bucket: BUCKET_INFO_GI,
     Key: `balances/${uuid_v7}.${extension}`,
-    Body: file.content,
-    ContentType:
-      contentTypeMap[extension] ||
-      file.contentType ||
-      "application/octet-stream",
-    ContentEncoding: file.encoding,
+    Body: content.content,
+    ContentType: content.contentType
   };
-
-  console.log("PARAMS ==>", params);
-  
 
   await S3.putObject(params);
 
@@ -177,8 +156,8 @@ export const main = async (event) => {
   console.log("event ==>", event);
   const action = "Ingreso de balance al viaje.";
   const formPayload = await parser.parse(event);
-  const file = formPayload.files?.[0];
   const requiredFields = ["sk", "amount", "files", "paymentObservation"];
+  const { content } = formPayload.files?.[0] || {};
   const missing = requiredFields.filter((f) => !formPayload[f]);
 
   try {
@@ -191,7 +170,7 @@ export const main = async (event) => {
 
     const { sk, amount, paymentObservation } = formPayload;
 
-    if (!file)
+    if (!content)
       return unsuccessful(
         400,
         { message: "No se encontró archivo adjunto" },
@@ -207,7 +186,7 @@ export const main = async (event) => {
         action
       );
 
-    const fileUploaded = await uploadFile(file);
+    const fileUploaded = await uploadFile(content);
     const payment = {
       ...fileUploaded,
       amount,
