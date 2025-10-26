@@ -19,6 +19,12 @@ provider:
   profile: pa-${self:custom.stage}
   lambdaHashingVersion: 20201221
   endpointType: REGIONAL
+  apiGateway:
+    binaryMediaTypes:
+      - 'multipart/form-data'
+      - 'image/*'
+      - 'application/pdf'
+      - '*/*'
 
   environment:
     STAGE: ${self:custom.stage}
