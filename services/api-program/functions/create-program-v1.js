@@ -25,7 +25,7 @@ export const main = async (event) => {
             user: user,
             status: 'pending',
             type : content[0].type.id,
-            startDate: content[0].dates[0]
+            startDate: content[0].dates[0].split('T')[0],
         },
     };
 

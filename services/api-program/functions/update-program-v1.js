@@ -20,7 +20,7 @@ export const main = async (event) => {
         content: content,
         status: status,
         user: user,
-        startDate: content[0].dates[0]
+        startDate: content[0].dates[0].split('T')[0],
     };
 
     const params = {
