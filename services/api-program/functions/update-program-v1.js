@@ -20,6 +20,7 @@ export const main = async (event) => {
         content: content,
         status: status,
         user: user,
+        type : content[0].type.id,
         startDate: content[0].dates[0].split('T')[0],
     };
 
