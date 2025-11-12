@@ -15,10 +15,11 @@ const {
   DYNAMODB_PAYMENT_TABLE,
   TRANSBANK_COMMERCE_CODE,
   TRANSBANK_API_KEY_SECRET,
-  FRONTEND_URL,
   TRANSBANK_KEYS,
   STAGE
 } = process.env;
+
+const FRONTEND_URL = STAGE !== "prd" ? "https://d2q00w63koc9yz.cloudfront.net" : "";
 
 /**
  * Configura las opciones de Transbank según el ambiente.
