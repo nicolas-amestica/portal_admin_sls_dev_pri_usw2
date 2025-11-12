@@ -19,7 +19,8 @@ const {
   STAGE
 } = process.env;
 
-const FRONTEND_URL = STAGE !== "prd" ? "https://d2q00w63koc9yz.cloudfront.net" : "";
+// const FRONTEND_URL = STAGE !== "prd" ? "https://d2q00w63koc9yz.cloudfront.net" : "";
+const FRONTEND_URL = STAGE !== "prd" ? "http://localhost:4300" : "";
 
 /**
  * Configura las opciones de Transbank según el ambiente.
