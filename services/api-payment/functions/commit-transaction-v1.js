@@ -57,7 +57,7 @@ const getTransactionByToken = async (token) => {
 
   try {
     const result = await dynamoDbLib.query(params);
-    return result.Items && result.Items.length > 0 ? result.Items[0] : null;
+    return result && result.length > 0 ? result[0] : null;
   } catch (error) {
     console.error("Error al buscar transacción:", error);
     return null;
@@ -81,7 +81,7 @@ const getTransactionByToken = async (token) => {
  * 4. Retorna los detalles completos de la transacción.
  */
 export const main = async (event) => {
-  console.log("Event:", JSON.stringify(event, null, 2));
+  // console.log("Event:", JSON.stringify(event, null, 2));
   const action = "Confirmar transacción de pago.";
 
   try {
