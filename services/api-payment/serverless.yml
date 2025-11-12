@@ -27,7 +27,6 @@ provider:
     TRANSBANK_ENVIRONMENT: transbank-api-key-${self:custom.stage}-pri-${self:custom.shortRegion}
     TRANSBANK_COMMERCE_CODE: transbank-api-key-${self:custom.stage}-pri-${self:custom.shortRegion}
     TRANSBANK_API_KEY_SECRET: transbank-api-key-${self:custom.stage}-pri-${self:custom.shortRegion}
-    FRONTEND_URL: http://localhost:4300
     SECRET_KEY: secret-pri-${self:custom.stage}-${self:custom.shortRegion}
     PROFILE: ${self:provider.profile}
 
