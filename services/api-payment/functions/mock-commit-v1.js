@@ -5,10 +5,10 @@ const { DYNAMODB_PAYMENT_TABLE } = process.env;
 
 /**
  * ENDPOINT MOCK - SOLO PARA DESARROLLO Y TESTING
- * 
+ *
  * Simula una confirmación exitosa de Transbank sin necesidad de ir a Webpay.
  * Este endpoint NO debe estar disponible en producción.
- * 
+ *
  * @async
  * @function
  * @param {Object} event - Objeto de evento recibido de API Gateway.
