@@ -20,10 +20,10 @@ const {
 } = process.env;
 
 const FRONTEND_URL = IS_OFFLINE
-  ? "http://localhost:4300"
+  ? "http://localhost:4300" // local
   : STAGE === "dev"
-    ? "https://d2q00w63koc9yz.cloudfront.net"
-    : "https://production.miapp.com";
+    ? "https://d2q00w63koc9yz.cloudfront.net" // development
+    : "https://d2e3zvke409odp.cloudfront.net/"; // production
 
 /**
  * Configura las opciones de Transbank según el ambiente.
