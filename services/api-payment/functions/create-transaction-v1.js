@@ -11,16 +11,19 @@ import { success, unsuccessful } from "../../../helpers/responses";
 import { getSecretManagerValue } from "../../../libs/secret-manager";
 
 const {
+  STAGE,
+  IS_OFFLINE,
   TRANSBANK_ENVIRONMENT,
   DYNAMODB_PAYMENT_TABLE,
   TRANSBANK_COMMERCE_CODE,
   TRANSBANK_API_KEY_SECRET,
-  TRANSBANK_KEYS,
-  STAGE
 } = process.env;
 
-// const FRONTEND_URL = STAGE !== "prd" ? "https://d2q00w63koc9yz.cloudfront.net" : "";
-const FRONTEND_URL = STAGE !== "prd" ? "http://localhost:4300" : "";
+const FRONTEND_URL = IS_OFFLINE
+  ? "http://localhost:4300"
+  : STAGE === "dev"
+    ? "https://d2q00w63koc9yz.cloudfront.net"
+    : "https://production.miapp.com";
 
 /**
  * Configura las opciones de Transbank según el ambiente.
@@ -59,31 +62,24 @@ const configureTransbank = async () => {
  * 5. Retorna el token y URL para redirección al formulario de pago.
  */
 export const main = async (event) => {
-  console.log("Event:", JSON.stringify(event, null, 2));
+  console.log(event);
   const action = "Crear transacción de pago.";
-
-  console.log("STAGE ==>", STAGE);
-  console.log("TRANSBANK_KEYS ==>", TRANSBANK_KEYS);
 
   try {
     const data = JSON.parse(event.body);
     const { amount, orderId, userId, description } = data;
 
-    // Validaciones
     if (!amount || amount < 50) return unsuccessful(400, { message: "El monto debe ser mayor a 50 CLP." }, action);
 
-    // Generar identificadores únicos
     const transactionId = uuidv7();
     const buyOrder = orderId || `ORDER-${Date.now()}`;
     const sessionId = `SESSION-${Date.now()}`;
     const returnUrl = `${FRONTEND_URL}/app/cliente/pagos/resultado`;
 
-    // Configurar y crear transacción en Transbank
     const options = await configureTransbank();
     const transaction = new WebpayPlus.Transaction(options);
     const response = await transaction.create(buyOrder, sessionId, amount, returnUrl);
 
-    // Guardar registro inicial en DynamoDB
     const timestamp = new Date().toISOString();
     const params = {
       TableName: DYNAMODB_PAYMENT_TABLE,
@@ -103,8 +99,8 @@ export const main = async (event) => {
         environment: TRANSBANK_ENVIRONMENT,
         createdAt: timestamp,
         updatedAt: timestamp,
-        gsiOne: buyOrder, // Para búsqueda por orden de compra
-        gsiTwo: userId || "GUEST", // Para búsqueda por usuario
+        gsiOne: buyOrder,
+        gsiTwo: userId || "GUEST",
       },
     };
 
