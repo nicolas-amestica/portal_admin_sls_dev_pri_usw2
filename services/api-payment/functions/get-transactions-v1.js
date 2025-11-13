@@ -22,12 +22,18 @@ const { DYNAMODB_PAYMENT_TABLE } = process.env;
  * con capacidad de filtrado y paginación.
  */
 export const main = async (event) => {
-  console.log("Event:", JSON.stringify(event, null, 2));
+  console.log(event);
   const action = "Listar transacciones de pago.";
 
   try {
     const queryParams = event.queryStringParameters || {};
-    const { userId, status, buyOrder, limit = 20, lastEvaluatedKey } = queryParams;
+    const {
+      userId,
+      status,
+      buyOrder,
+      limit = 20,
+      lastEvaluatedKey,
+    } = queryParams;
 
     let params = {
       TableName: DYNAMODB_PAYMENT_TABLE,
@@ -37,9 +43,15 @@ export const main = async (event) => {
     // Si hay paginación
     if (lastEvaluatedKey) {
       try {
-        params.ExclusiveStartKey = JSON.parse(decodeURIComponent(lastEvaluatedKey));
+        params.ExclusiveStartKey = JSON.parse(
+          decodeURIComponent(lastEvaluatedKey)
+        );
       } catch (error) {
-        return unsuccessful(400, { message: "lastEvaluatedKey inválido." }, action);
+        return unsuccessful(
+          400,
+          { message: "lastEvaluatedKey inválido." },
+          action
+        );
       }
     }
 
@@ -98,13 +110,19 @@ export const main = async (event) => {
     };
 
     if (result.LastEvaluatedKey) {
-      response.nextPageToken = encodeURIComponent(JSON.stringify(result.LastEvaluatedKey));
+      response.nextPageToken = encodeURIComponent(
+        JSON.stringify(result.LastEvaluatedKey)
+      );
     }
 
     return success(200, response, action, queryParams);
   } catch (error) {
     console.error("Error al listar transacciones:", error);
     let statusCode = error.statusCode || 500;
-    return unsuccessful(statusCode, { message: error.message || "Error al listar transacciones." }, action);
+    return unsuccessful(
+      statusCode,
+      { message: error.message || "Error al listar transacciones." },
+      action
+    );
   }
 };

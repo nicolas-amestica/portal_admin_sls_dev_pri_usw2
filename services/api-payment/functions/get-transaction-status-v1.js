@@ -1,10 +1,20 @@
 import { WebpayPlus } from "transbank-sdk";
-import { Options, IntegrationApiKeys, Environment, IntegrationCommerceCodes } from "transbank-sdk";
+import {
+  Options,
+  IntegrationApiKeys,
+  Environment,
+  IntegrationCommerceCodes,
+} from "transbank-sdk";
 import * as dynamoDbLib from "../../../libs/dynamodb-v3";
 import { success, unsuccessful } from "../../../helpers/responses";
 import { getSecretManagerValue } from "../../../libs/secret-manager";
 
-const { DYNAMODB_PAYMENT_TABLE, TRANSBANK_ENVIRONMENT, TRANSBANK_COMMERCE_CODE, TRANSBANK_API_KEY_SECRET } = process.env;
+const {
+  DYNAMODB_PAYMENT_TABLE,
+  TRANSBANK_ENVIRONMENT,
+  TRANSBANK_COMMERCE_CODE,
+  TRANSBANK_API_KEY_SECRET,
+} = process.env;
 
 /**
  * Configura las opciones de Transbank según el ambiente.
@@ -15,11 +25,7 @@ const { DYNAMODB_PAYMENT_TABLE, TRANSBANK_ENVIRONMENT, TRANSBANK_COMMERCE_CODE, 
 const configureTransbank = async () => {
   if (TRANSBANK_ENVIRONMENT === "production") {
     const apiKey = await getSecretManagerValue(TRANSBANK_API_KEY_SECRET);
-    return new Options(
-      TRANSBANK_COMMERCE_CODE,
-      apiKey,
-      Environment.Production
-    );
+    return new Options(TRANSBANK_COMMERCE_CODE, apiKey, Environment.Production);
   }
   return new Options(
     IntegrationCommerceCodes.WEBPAY_PLUS,
@@ -43,7 +49,7 @@ const configureTransbank = async () => {
  * y opcionalmente actualiza el registro local en DynamoDB.
  */
 export const main = async (event) => {
-  console.log("Event:", JSON.stringify(event, null, 2));
+  console.log(event);
   const action = "Obtener estado de transacción.";
 
   try {
@@ -68,10 +74,14 @@ export const main = async (event) => {
     };
 
     const dbResult = await dynamoDbLib.query(params);
-    const transaction = dbResult.Items && dbResult.Items.length > 0 ? dbResult.Items[0] : null;
+    const transaction =
+      dbResult.Items && dbResult.Items.length > 0 ? dbResult.Items[0] : null;
 
     // Si la transacción está confirmada en DB, retornar ese resultado
-    if (transaction && (transaction.status === "AUTHORIZED" || transaction.status === "FAILED")) {
+    if (
+      transaction &&
+      (transaction.status === "AUTHORIZED" || transaction.status === "FAILED")
+    ) {
       const result = {
         transactionId: transaction.transactionId,
         buyOrder: transaction.buyOrder,
@@ -120,6 +130,10 @@ export const main = async (event) => {
   } catch (error) {
     console.error("Error al obtener estado de transacción:", error);
     let statusCode = error.statusCode || 500;
-    return unsuccessful(statusCode, { message: error.message || "Error al obtener estado." }, action);
+    return unsuccessful(
+      statusCode,
+      { message: error.message || "Error al obtener estado." },
+      action
+    );
   }
 };

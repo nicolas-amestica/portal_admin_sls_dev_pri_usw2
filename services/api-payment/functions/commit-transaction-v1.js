@@ -81,7 +81,7 @@ const getTransactionByToken = async (token) => {
  * 4. Retorna los detalles completos de la transacción.
  */
 export const main = async (event) => {
-  // console.log("Event:", JSON.stringify(event, null, 2));
+  console.log(event);
   const action = "Confirmar transacción de pago.";
 
   try {
