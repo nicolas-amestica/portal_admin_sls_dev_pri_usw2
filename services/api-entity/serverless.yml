@@ -25,6 +25,7 @@ provider:
     STAGE: ${self:custom.stage}
     DYNAMODB_USER_TABLE: users-${self:custom.stage}-pri-${self:custom.shortRegion}
     SECRET_KEY: secret-pri-${self:custom.stage}-${self:custom.shortRegion}
+    EMAIL_SECRET_KEY: email-config-${self:custom.stage}-pri-${self:custom.shortRegion}
     PROFILE: ${self:provider.profile}
 
   # Configurar seguimiento mediante aws x-ray para identificar y resolver problemas y errores de rendimiento.
@@ -49,6 +50,25 @@ functions:
     events:
       - http:
           path: v1/sesiones/iniciar-sesion
+          method: post
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - Authorization
+              - X-Amz-Date
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+            allowCredentials: false
+
+  forgot_password_v1:
+    handler: functions/forgot-password-v1.main
+    description: Envía un correo electrónico con instrucciones para recuperar la contraseña.
+    timeout: 30
+    events:
+      - http:
+          path: v1/sesiones/recuperar-clave
           method: post
           cors:
             origin: '*'
