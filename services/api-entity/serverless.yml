@@ -81,6 +81,25 @@ functions:
               - X-Amz-User-Agent
             allowCredentials: false
 
+  reset_password_v1:
+    handler: functions/reset-password-v1.main
+    description: Valida el token de recuperación y actualiza la contraseña del usuario.
+    timeout: 30
+    events:
+      - http:
+          path: v1/sesiones/restablecer-clave
+          method: post
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - Authorization
+              - X-Amz-Date
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+            allowCredentials: false
+
   get_access_v1:
     handler: functions/get-access-v1.main
     description: Este recurso está relacionado con la obtención de los accesos de un usuario.

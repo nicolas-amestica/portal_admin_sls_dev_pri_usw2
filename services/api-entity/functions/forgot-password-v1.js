@@ -142,7 +142,7 @@ const generateEmailTemplate = (userName, resetUrl) => {
  * 6. Retorna confirmación del envío sin revelar si el usuario existe (seguridad).
  */
 export const main = async (event) => {
-  console.log(event);
+  console.log("Event ==>", event);
   const action = "Recuperación de contraseña.";
   const data = JSON.parse(event.body);
 
@@ -221,13 +221,12 @@ export const main = async (event) => {
     await dynamoDbLib.update(updateParams);
 
     // Obtener configuración de email del Secret Manager
-    const emailConfig = await getSecretManagerValue(EMAIL_SECRET_KEY);
+    const emailConfig = JSON.parse(await getSecretManagerValue(EMAIL_SECRET_KEY));
 
     // Crear transportador de email
     const transporter = createEmailTransporter(emailConfig);
 
     // Construir URL de recuperación (debes ajustar esto según tu dominio)
-
     const resetUrl = `${FRONTEND_URL}/auth/reset-password?token=${resetToken}`;
 
     // Configurar el correo electrónico
@@ -241,9 +240,7 @@ export const main = async (event) => {
     // Enviar el correo
     await transporter.sendMail(mailOptions);
 
-    console.log(
-      `Correo de recuperación enviado exitosamente a ${user.email} para el usuario ${cleanRut}`
-    );
+    console.log(`Correo de recuperación enviado exitosamente a ${user.email} para el usuario ${cleanRut}`);
 
     return success(200, securityMessage, action);
   } catch (e) {
@@ -252,13 +249,6 @@ export const main = async (event) => {
     if (!statusCode) statusCode = 500;
 
     // Incluso en caso de error, retornar mensaje genérico por seguridad
-    return success(
-      200,
-      {
-        message:
-          "Si el RUT está registrado, recibirás un correo con instrucciones para recuperar tu contraseña.",
-      },
-      action
-    );
+    return success(200, { message: "Si el RUT está registrado, recibirás un correo con instrucciones para recuperar tu contraseña.", }, action);
   }
 };
