@@ -23,10 +23,12 @@ const ACTION = "Aprobar/Rechazar programa.";
  */
 const STATUS_HANDLERS = {
   approved: (program, contract, now) => {
-    program.content[0] = {
-      ...program.content[0],
-      contract: { ...contract, id: uuidv7(), createdAt: now, updatedAt: now }
-    };
+    if (program.sk.includes('GIR#')) {
+      program.content[0] = {
+        ...program.content[0],
+        contract: { ...contract, id: uuidv7(), createdAt: now, updatedAt: now }
+      };
+    }
   },
   rejected: (program, rejectReason) => {
     program.rejectReason = rejectReason;
@@ -58,9 +60,6 @@ export const main = async (event) => {
 
     if (!sk)
       return unsuccessful(400, { message: "Falta el identificador del programa en la solicitud." }, ACTION);
-
-    if (sk.includes('VJS'))
-      return unsuccessful(400, { message: "No es posible gestionar un viaje, solo las giras." }, ACTION);
 
     const [program] = await dynamoDbLib.query({
       TableName: DYNAMODB_PROGRAM_TABLE,
