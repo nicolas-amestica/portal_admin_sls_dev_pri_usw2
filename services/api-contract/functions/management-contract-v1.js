@@ -56,9 +56,6 @@ export const main = async (event) => {
   try {
     const { sk, contract, status, rejectReason } = JSON.parse(event.body);
 
-    if (status.id !== 'pending')
-      return unsuccessful(400, { message: "Actualización de estado no permitido ya que el estado actual no es 'pending'." }, ACTION);
-
     const [program] = await dynamoDbLib.query({
       TableName: DYNAMODB_PROGRAM_TABLE,
       KeyConditionExpression: '#pk = :pk AND begins_with(#sk, :sk)',
@@ -67,6 +64,9 @@ export const main = async (event) => {
     });
 
     if (!program) return unsuccessful(404, { message: "Programa no encontrado." }, ACTION);
+
+    if (program.status !== 'pending')
+      return unsuccessful(400, { message: "Actualización de estado no permitido ya que el estado actual no es 'pending'." }, ACTION);
 
     const now = new Date().toISOString();
     Object.assign(program, { status: status.id, updatedAt: now });
