@@ -234,7 +234,7 @@ export const main = async (event) => {
     const mailOptions = {
       from: `"Portal Administrativo - Giras Indómito" <${emailConfig.user}>`,
       to: user.email,
-      subject: "Recuperación de Contraseña - Portal Administrativo",
+      subject: "Recuperación de Contraseña - Giras Indómito",
       html: generateEmailTemplate(user.name || user.gsiOne, resetUrl),
     };
 
