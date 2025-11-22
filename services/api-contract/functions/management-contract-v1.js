@@ -56,6 +56,12 @@ export const main = async (event) => {
   try {
     const { sk, contract, status, rejectReason } = JSON.parse(event.body);
 
+    if (!sk)
+      return unsuccessful(400, { message: "Falta el identificador del programa en la solicitud." }, ACTION);
+
+    if (sk.includes('VJS'))
+      return unsuccessful(400, { message: "No es posible gestionar un viaje, solo las giras." }, ACTION);
+
     const [program] = await dynamoDbLib.query({
       TableName: DYNAMODB_PROGRAM_TABLE,
       KeyConditionExpression: '#pk = :pk AND begins_with(#sk, :sk)',
