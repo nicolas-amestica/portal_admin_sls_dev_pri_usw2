@@ -227,7 +227,7 @@ export const main = async (event) => {
     const transporter = createEmailTransporter(emailConfig);
 
     // Construir URL de recuperación (debes ajustar esto según tu dominio)
-    
+
     const resetUrl = `${FRONTEND_URL}/auth/reset-password?token=${resetToken}`;
 
     // Configurar el correo electrónico
