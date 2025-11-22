@@ -7,7 +7,7 @@ const ACTION = "Aprobar/Rechazar programa.";
 
 /**
  * Objeto que contiene funciones manejadoras para diferentes estados de contrato.
- * 
+ *
  * @type {Object.<string, Function>}
  * @property {Function} approved - Función que maneja el estado aprobado del contrato.
  *   Actualiza el contenido del programa con los datos del contrato, generando un nuevo ID UUID v7
@@ -15,7 +15,7 @@ const ACTION = "Aprobar/Rechazar programa.";
  *   @param {Object} program - El objeto programa a modificar
  *   @param {Object} contract - El objeto contrato con los datos a agregar
  *   @param {string|Date} now - La marca de tiempo actual para createdAt y updatedAt
- * 
+ *
  * @property {Function} rejected - Función que maneja el estado rechazado del contrato.
  *   Asigna la razón de rechazo al programa.
  *   @param {Object} program - El objeto programa a modificar
@@ -35,7 +35,7 @@ const STATUS_HANDLERS = {
 
 /**
  * Función principal para gestionar la actualización de estado de un contrato de programa.
- * 
+ *
  * @async
  * @function main
  * @param {Object} event - Evento de AWS Lambda que contiene la información de la solicitud
