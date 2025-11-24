@@ -5,7 +5,6 @@ let s3;
 
 const initClient = async () => {
   const config = await getAWSConfigs();
-  console.log(config);
   s3 = new S3Client(config);
 };
 

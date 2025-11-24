@@ -1,0 +1,7 @@
+export const PDF_CONFIG = {
+  PAGE_WIDTH: 595,
+  PAGE_HEIGHT: 842,
+  MARGIN: 50,
+  HEADER_HEIGHT: 60,
+  FOOTER_HEIGHT: 60
+};

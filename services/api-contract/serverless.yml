@@ -19,7 +19,7 @@ provider:
   profile: pa-${self:custom.stage}
   lambdaHashingVersion: 20201221
   endpointType: REGIONAL
-  architecture: arm64  # Más eficiente y económico
+  architecture: arm64
 
   environment:
     STAGE: ${self:custom.stage}
@@ -27,7 +27,8 @@ provider:
     PROGRAM_TABLE: PRG#8e3d823d-9f58-45df-8a8f-6779435a0001
     SECRET_KEY: secret-pri-${self:custom.stage}-${self:custom.shortRegion}
     PROFILE: ${self:provider.profile}
-    NODE_OPTIONS: '--enable-source-maps'  # Mejor debugging
+    NODE_OPTIONS: '--enable-source-maps'
+    BUCKET_INFO_GI: giras-indomito-${self:custom.stage}-info
 
   tracing:
     apiGateway: true
@@ -40,17 +41,30 @@ provider:
     - ${file(../../aws/policies/lambda-policy-xray.yml)}
     - ${file(../../aws/policies/lambda-policy-ssm.yml)}
     - ${file(../../aws/policies/lambda-policy-dynamodb-program.yml)}
+    - ${file(../../aws/policies/lambda-policy-s3.yml)}
 
 functions:
   management_program_v1:
     handler: functions/management-contract-v1.main
     description: Gestiona aprobación/rechazo de programas con contratos.
     timeout: 30
-    memorySize: 512  # Optimiza según tu uso
+    memorySize: 512
     events:
       - http:
           path: v1/contratos/solicitudes/contrato
           method: post
+          cors: true
+          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+
+  build_contract_v1:
+    handler: functions/build-contract-v1.main
+    description: Genera contratos para programas aprobados.
+    timeout: 30
+    memorySize: 512
+    events:
+      - http:
+          path: v1/contratos/solicitudes/contrato
+          method: get
           cors: true
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
 

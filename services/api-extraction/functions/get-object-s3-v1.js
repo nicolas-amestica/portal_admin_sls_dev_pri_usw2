@@ -27,7 +27,6 @@ export const main = async (event) => {
 
     return success(200, url, action);
   } catch (error) {
-    console.log("ERROR ==>", error);
     let { statusCode } = error;
     if (!statusCode) statusCode = 500;
     return unsuccessful(statusCode, error, action);
