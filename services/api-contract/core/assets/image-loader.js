@@ -1,4 +1,3 @@
-// core/assets/image-loader.js
 import * as S3 from "../../../../libs/s3-v3";
 
 // Cache en memoria para Lambda warm start

@@ -1,11 +1,15 @@
-import * as dynamoDbLib from '../../../libs/dynamodb-v3';
-import { success, unsuccessful } from "../../../helpers/responses";
-import { loadImages } from '../core/assets/image-loader.js';
-import { CONTRACT_TEMPLATE } from '../core/contract/template.js';
-import { buildContractData } from '../core/contract/builder.js';
 import { generatePDF } from '../core/pdf/generator.js';
+import * as dynamoDbLib from '../../../libs/dynamodb-v3';
+import { loadImages } from '../core/assets/image-loader.js';
+import { buildContractData } from '../core/contract/builder.js';
+import { CONTRACT_TEMPLATE } from '../core/contract/template.js';
+import { success, unsuccessful } from "../../../helpers/responses";
 
-const { DYNAMODB_PROGRAM_TABLE, PROGRAM_TABLE, BUCKET_INFO_GI } = process.env;
+const {
+  DYNAMODB_PROGRAM_TABLE,
+  PROGRAM_TABLE,
+  BUCKET_INFO_GI
+} = process.env;
 
 /**
  * Handler principal para generar contratos en PDF
@@ -75,10 +79,7 @@ export const main = async (event) => {
     } else {
       return unsuccessful(400, { message: 'Tipo de respuesta no soportado.' }, action);
     }
-  } catch (error) {
-    return unsuccessful(500, {
-      message: 'Error al generar el contrato',
-      error: error.message
-    }, action);
+  } catch (e) {
+    return unsuccessful(e.statusCode || 500, e, action);
   }
 };

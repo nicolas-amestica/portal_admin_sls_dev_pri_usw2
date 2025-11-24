@@ -1,6 +1,6 @@
-const { PDFDocument, rgb, StandardFonts } = require("pdf-lib");
-import { PDF_CONFIG } from "../../config/constants.js";
 import { PDF_STYLES } from "./styles.js";
+import { PDF_CONFIG } from "../../config/constants.js";
+const { PDFDocument, rgb, StandardFonts } = require("pdf-lib");
 import {
   splitTextIntoLines,
   addHeaderAndFooter,

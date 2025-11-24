@@ -1,5 +1,5 @@
+import { rgb } from 'pdf-lib';
 import { PDF_CONFIG } from '../../config/constants.js';
-import { rgb } from 'pdf-lib'; // ← AGREGAR ESTE IMPORT
 
 /**
  * Divide texto en líneas que caben en el ancho especificado
