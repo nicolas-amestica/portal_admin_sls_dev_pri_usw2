@@ -223,7 +223,21 @@ export const buildContractData = (program = {}) => {
         number: 22,
         text: `En comprobante, previa lectura, firman y ratifican como representantes.`
       }
-    ]
+    ],
+
+    // Datos para página de firmas
+    signatures: {
+      operators: representatives.map(rep => ({
+        name: rep.name,
+        rut: rep.dni
+      })),
+      clients: clientRepresentative.map(rep => ({
+        name: rep.name,
+        rut: rep.dni
+      })),
+      companyName: 'GIRAS INDÓMITO LIMITADA',
+      companyRut: bankAccount.holderDNI || '77.654.796-4'
+    }
   };
 
   return contractData;
