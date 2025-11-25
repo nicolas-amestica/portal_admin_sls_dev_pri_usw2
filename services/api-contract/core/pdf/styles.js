@@ -1,5 +1,3 @@
-// core/pdf/styles.js
-
 export const PDF_STYLES = {
   title: {
     size: 14,

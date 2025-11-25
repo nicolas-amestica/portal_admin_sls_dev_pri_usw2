@@ -2,7 +2,6 @@ import { generatePDF } from '../core/pdf/generator.js';
 import * as dynamoDbLib from '../../../libs/dynamodb-v3';
 import { loadImages } from '../core/assets/image-loader.js';
 import { buildContractData } from '../core/contract/builder.js';
-import { CONTRACT_TEMPLATE } from '../core/contract/template.js';
 import { success, unsuccessful } from "../../../helpers/responses";
 
 const {
@@ -18,7 +17,7 @@ const {
  * @returns {Object} Respuesta con PDF en base64
  */
 export const main = async (event) => {
-  console.log("Event ==>", event);
+  // console.log("Event ==>", event);
   const action = "Generar contrato del programa.";
   try {
     // 1. Validar parámetros
@@ -44,8 +43,10 @@ export const main = async (event) => {
     if (!program)
       return unsuccessful(404, { message: 'Programa no encontrado.' }, action);
 
-    // 3. Construir datos del contrato
-    const contractData = buildContractData(CONTRACT_TEMPLATE, program);
+    const { contract } = program.content[0];
+
+    // 3. Construir datos del contrato dinámicamente desde program
+    const contractData = buildContractData(contract);
 
     // 4. Cargar imágenes desde S3
     const { headerImage, footerImage } = await loadImages(
@@ -61,7 +62,6 @@ export const main = async (event) => {
       return unsuccessful(500, { message: "El PDF generado no es un Buffer válido" }, action);
 
     // 6. Retornar respuesta
-
     if (type === 'base64') {
       return success(200, pdfBuffer.toString('base64'), action);
     } else if (type === 'buffer') {

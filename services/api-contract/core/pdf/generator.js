@@ -30,8 +30,7 @@ export const generatePDF = async (
   const footerImage = await pdfDoc.embedPng(footerImageBytes);
 
   // 4. Configuración inicial
-  const { PAGE_WIDTH, PAGE_HEIGHT, MARGIN, HEADER_HEIGHT, FOOTER_HEIGHT } =
-    PDF_CONFIG;
+  const { PAGE_WIDTH, PAGE_HEIGHT, MARGIN, HEADER_HEIGHT, FOOTER_HEIGHT } = PDF_CONFIG;
   const contentWidth = getContentWidth();
   let yPosition = PAGE_HEIGHT - HEADER_HEIGHT - 100;
 
@@ -93,7 +92,6 @@ export const generatePDF = async (
   });
   yPosition -= 20;
 
-  // CLÁUSULAS
   // CLÁUSULAS
   contractData.clauses.forEach((clause, index) => {
     checkPageBreak(30);
