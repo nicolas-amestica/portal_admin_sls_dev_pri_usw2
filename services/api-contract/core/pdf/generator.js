@@ -239,10 +239,10 @@ export const generatePDF = async (
 
   // PÁGINA DE FIRMAS DINÁMICA
   page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-  yPosition = PAGE_HEIGHT - HEADER_HEIGHT - 80;
+  yPosition = PAGE_HEIGHT - HEADER_HEIGHT - 150; // Mayor espacio desde header
 
-  const { operators = [], clients = [], companyName, companyRut } = contractData.signatures || {};
-  
+  const { operators = [], clients = [], companyName } = contractData.signatures || {};
+
   const SIGNATURE_SPACE = 90; // Espacio total por cada firmante
   const SIGNATURE_LINE_LENGTH = 200;
 
@@ -254,20 +254,12 @@ export const generatePDF = async (
     // Layout de 2 columnas
     const col1X = MARGIN + 40;
     const col2X = PAGE_WIDTH / 2 + 40;
-    
+
     let operatorY = yPosition;
     let clientY = yPosition;
 
     // ============ COLUMNA OPERADORES ============
-    page.drawText(operators.length > 1 ? "Los Operadores" : "El Operador", {
-      x: col1X,
-      y: operatorY,
-      size: PDF_STYLES.signature.size + 1,
-      font: fontBold,
-      color: rgb(0, 0, 0),
-    });
     operatorY -= 12;
-
     operatorY -= 35;
 
     // Firmas de operadores
@@ -275,7 +267,7 @@ export const generatePDF = async (
       if (operatorY < MARGIN + FOOTER_HEIGHT + SIGNATURE_SPACE) {
         addHeaderAndFooter(page, pdfDoc, headerImage, footerImage, font);
         page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-        operatorY = PAGE_HEIGHT - HEADER_HEIGHT - 80;
+        operatorY = PAGE_HEIGHT - HEADER_HEIGHT - 150;
       }
 
       // Línea de firma PRIMERO (arriba)
@@ -287,10 +279,19 @@ export const generatePDF = async (
       });
       operatorY -= 15;
 
+      page.drawText("El Operador", {
+        x: col1X,
+        y: operatorY,
+        size: PDF_STYLES.signatureDetail.size,
+        font: fontBold,
+        color: rgb(0, 0, 0),
+      });
+      operatorY -= 10;
+
       // Nombre
       page.drawText(operator.name, {
         x: col1X,
-        y: operatorY,
+        y: operatorY - 3,
         size: PDF_STYLES.signatureDetail.size,
         font: font,
         color: rgb(0, 0, 0),
@@ -300,7 +301,7 @@ export const generatePDF = async (
       // RUT
       page.drawText(`RUT ${operator.rut}`, {
         x: col1X,
-        y: operatorY,
+        y: operatorY - 3,
         size: PDF_STYLES.signatureDetail.size,
         font: font,
         color: rgb(0, 0, 0),
@@ -309,13 +310,6 @@ export const generatePDF = async (
     });
 
     // ============ COLUMNA CLIENTES ============
-    page.drawText(clients.length > 1 ? "Los Representantes" : "El Representante", {
-      x: col2X - (clients.length > 1 ? 10 : 0),
-      y: clientY,
-      size: PDF_STYLES.signature.size + 1,
-      font: fontBold,
-      color: rgb(0, 0, 0),
-    });
     clientY -= 47;
 
     // Firmas de clientes
@@ -323,7 +317,7 @@ export const generatePDF = async (
       if (clientY < MARGIN + FOOTER_HEIGHT + SIGNATURE_SPACE) {
         addHeaderAndFooter(page, pdfDoc, headerImage, footerImage, font);
         page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-        clientY = PAGE_HEIGHT - HEADER_HEIGHT - 80;
+        clientY = PAGE_HEIGHT - HEADER_HEIGHT - 150;
       }
 
       // Línea de firma PRIMERO (arriba)
@@ -335,25 +329,34 @@ export const generatePDF = async (
       });
       clientY -= 15;
 
+      page.drawText("El Representante", {
+        x: col2X,
+        y: clientY,
+        size: PDF_STYLES.signatureDetail.size,
+        font: fontBold,
+        color: rgb(0, 0, 0),
+      });
+      clientY -= 10;
+
       // Nombre
       page.drawText(client.name, {
         x: col2X,
-        y: clientY,
+        y: clientY - 3,
         size: PDF_STYLES.signatureDetail.size,
         font: font,
         color: rgb(0, 0, 0),
       });
-      clientY -= 13;
+      clientY -= 14;
 
       // RUT
       page.drawText(`RUT ${client.rut}`, {
         x: col2X,
-        y: clientY,
+        y: clientY - 3,
         size: PDF_STYLES.signatureDetail.size,
         font: font,
         color: rgb(0, 0, 0),
       });
-      clientY -= SIGNATURE_SPACE - 28;
+      clientY -= SIGNATURE_SPACE - 29;
     });
 
   } else {
@@ -362,7 +365,7 @@ export const generatePDF = async (
 
     // ============ SECCIÓN OPERADORES ============
     if (operators.length > 0) {
-      page.drawText("El Operador", {
+      page.drawText(operators.length > 1 ? "Los Operadores" : "El Operador", {
         x: centerX,
         y: yPosition,
         size: PDF_STYLES.signature.size + 1,
@@ -371,11 +374,20 @@ export const generatePDF = async (
       });
       yPosition -= 12;
 
+      page.drawText(companyName || "GIRAS INDÓMITO LIMITADA", {
+        x: centerX,
+        y: yPosition,
+        size: PDF_STYLES.signatureDetail.size,
+        font: font,
+        color: rgb(0, 0, 0),
+      });
+      yPosition -= 35;
+
       operators.forEach((operator) => {
         if (yPosition < MARGIN + FOOTER_HEIGHT + SIGNATURE_SPACE) {
           addHeaderAndFooter(page, pdfDoc, headerImage, footerImage, font);
           page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-          yPosition = PAGE_HEIGHT - HEADER_HEIGHT - 80;
+          yPosition = PAGE_HEIGHT - HEADER_HEIGHT - 150;
         }
 
         // Línea de firma PRIMERO
@@ -398,7 +410,7 @@ export const generatePDF = async (
         yPosition -= 13;
 
         // RUT
-        page.drawText(`RUT ${operator.rut}`, {
+        page.drawText(`RUT ${sanitizeRut(operator.rut)}`, {
           x: centerX,
           y: yPosition,
           size: PDF_STYLES.signatureDetail.size,
@@ -416,10 +428,10 @@ export const generatePDF = async (
       if (yPosition < MARGIN + FOOTER_HEIGHT + 100) {
         addHeaderAndFooter(page, pdfDoc, headerImage, footerImage, font);
         page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-        yPosition = PAGE_HEIGHT - HEADER_HEIGHT - 80;
+        yPosition = PAGE_HEIGHT - HEADER_HEIGHT - 150;
       }
 
-      page.drawText("El Representante", {
+      page.drawText(clients.length > 1 ? "Los Representantes" : "El Representante", {
         x: centerX,
         y: yPosition,
         size: PDF_STYLES.signature.size + 1,
@@ -432,7 +444,7 @@ export const generatePDF = async (
         if (yPosition < MARGIN + FOOTER_HEIGHT + SIGNATURE_SPACE) {
           addHeaderAndFooter(page, pdfDoc, headerImage, footerImage, font);
           page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-          yPosition = PAGE_HEIGHT - HEADER_HEIGHT - 80;
+          yPosition = PAGE_HEIGHT - HEADER_HEIGHT - 150;
         }
 
         // Línea de firma PRIMERO
@@ -455,7 +467,7 @@ export const generatePDF = async (
         yPosition -= 13;
 
         // RUT
-        page.drawText(`RUT ${client.rut}`, {
+        page.drawText(`RUT ${sanitizeRut(client.rut)}`, {
           x: centerX,
           y: yPosition,
           size: PDF_STYLES.signatureDetail.size,
@@ -475,4 +487,20 @@ export const generatePDF = async (
   const buffer = Buffer.from(pdfBytes);
 
   return buffer;
+};
+
+const sanitizeRut = (rut) => {
+  if (!rut) return '';
+
+  // Remover puntos y guiones existentes
+  const cleanRut = rut.replace(/\./g, '').replace(/-/g, '');
+
+  // Separar número y dígito verificador
+  const rutBody = cleanRut.slice(0, -1);
+  const rutDv = cleanRut.slice(-1);
+
+  // Agregar puntos cada 3 dígitos desde el final
+  const formattedBody = rutBody.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+
+  return `${formattedBody}-${rutDv}`;
 };

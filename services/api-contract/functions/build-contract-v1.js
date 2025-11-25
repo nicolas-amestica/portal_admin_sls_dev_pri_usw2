@@ -17,7 +17,7 @@ const {
  * @returns {Object} Respuesta con PDF en base64
  */
 export const main = async (event) => {
-  // console.log("Event ==>", event);
+  console.log("Event ==>", event);
   const action = "Generar contrato del programa.";
   try {
     // 1. Validar parámetros
