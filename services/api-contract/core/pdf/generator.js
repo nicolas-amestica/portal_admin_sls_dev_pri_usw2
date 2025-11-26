@@ -30,14 +30,22 @@ export const generatePDF = async (
   const footerImage = await pdfDoc.embedPng(footerImageBytes);
 
   // 4. Configuración inicial
-  const { PAGE_WIDTH, PAGE_HEIGHT, MARGIN, HEADER_HEIGHT, FOOTER_HEIGHT } = PDF_CONFIG;
+  const { PAGE_WIDTH, PAGE_HEIGHT, MARGIN, HEADER_HEIGHT, FOOTER_HEIGHT } =
+    PDF_CONFIG;
   const contentWidth = getContentWidth();
   let yPosition = PAGE_HEIGHT - HEADER_HEIGHT - 100;
+
+  // Track de páginas que ya tienen header/footer para evitar duplicados
+  const pagesWithHeaderFooter = new Set();
 
   // Función helper para verificar salto de página
   const checkPageBreak = (requiredSpace = 50) => {
     if (yPosition < MARGIN + FOOTER_HEIGHT + requiredSpace) {
-      addHeaderAndFooter(page, pdfDoc, headerImage, footerImage, font);
+      // Solo agregar header/footer si la página no lo tiene
+      if (!pagesWithHeaderFooter.has(page)) {
+        addHeaderAndFooter(page, pdfDoc, headerImage, footerImage, font);
+        pagesWithHeaderFooter.add(page);
+      }
       page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
       yPosition = PAGE_HEIGHT - HEADER_HEIGHT - 100;
       return true;
@@ -93,7 +101,7 @@ export const generatePDF = async (
   yPosition -= 20;
 
   // CLÁUSULAS
-  contractData.clauses.forEach((clause, index) => {
+  contractData.clauses.forEach((clause) => {
     checkPageBreak(30);
 
     const title = clause?.title || "";
@@ -104,7 +112,7 @@ export const generatePDF = async (
     const lines = splitTextIntoLines(
       fullText,
       contentWidth,
-      font, // Usar font normal para medir
+      font,
       PDF_STYLES.clauseText.size
     );
 
@@ -115,7 +123,6 @@ export const generatePDF = async (
 
       // Si la línea contiene parte del título
       if (lineIndex === 0 || line.includes(title.split(" ").slice(-1)[0])) {
-        // Buscar dónde termina el título en esta línea
         const words = line.split(" ");
         const titleWords = title.split(" ");
 
@@ -123,7 +130,7 @@ export const generatePDF = async (
         let textPart = "";
         let titleEnded = false;
 
-        words.forEach((word, wordIndex) => {
+        words.forEach((word) => {
           if (!titleEnded && titleWords.some((tw) => word.includes(tw))) {
             titlePart += (titlePart ? " " : "") + word;
           } else {
@@ -231,22 +238,28 @@ export const generatePDF = async (
       });
     }
 
-    yPosition -= 15; // Espacio entre cláusulas
+    yPosition -= 15;
   });
 
-  // Agregar header/footer a última página
-  addHeaderAndFooter(page, pdfDoc, headerImage, footerImage, font);
-
   // PÁGINA DE FIRMAS DINÁMICA
+  // Solo agregamos header/footer a la página anterior si no lo tiene
+  if (!pagesWithHeaderFooter.has(page)) {
+    addHeaderAndFooter(page, pdfDoc, headerImage, footerImage, font);
+    pagesWithHeaderFooter.add(page);
+  }
+
   page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-  yPosition = PAGE_HEIGHT - HEADER_HEIGHT - 150; // Mayor espacio desde header
+  yPosition = PAGE_HEIGHT - HEADER_HEIGHT - 150;
 
-  const { operators = [], clients = [], companyName } = contractData.signatures || {};
+  const {
+    operators = [],
+    clients = [],
+    companyName,
+  } = contractData.signatures || {};
 
-  const SIGNATURE_SPACE = 90; // Espacio total por cada firmante
+  const SIGNATURE_SPACE = 90;
   const SIGNATURE_LINE_LENGTH = 200;
 
-  // Calcular si necesitamos 1 o 2 columnas
   const totalSignatures = operators.length + clients.length;
   const useDoubleColumn = totalSignatures <= 4;
 
@@ -258,19 +271,20 @@ export const generatePDF = async (
     let operatorY = yPosition;
     let clientY = yPosition;
 
-    // ============ COLUMNA OPERADORES ============
+    // COLUMNA OPERADORES
     operatorY -= 12;
     operatorY -= 35;
 
-    // Firmas de operadores
     operators.forEach((operator) => {
       if (operatorY < MARGIN + FOOTER_HEIGHT + SIGNATURE_SPACE) {
-        addHeaderAndFooter(page, pdfDoc, headerImage, footerImage, font);
+        if (!pagesWithHeaderFooter.has(page)) {
+          addHeaderAndFooter(page, pdfDoc, headerImage, footerImage, font);
+          pagesWithHeaderFooter.add(page);
+        }
         page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
         operatorY = PAGE_HEIGHT - HEADER_HEIGHT - 150;
       }
 
-      // Línea de firma PRIMERO (arriba)
       page.drawLine({
         start: { x: col1X, y: operatorY },
         end: { x: col1X + SIGNATURE_LINE_LENGTH, y: operatorY },
@@ -288,7 +302,6 @@ export const generatePDF = async (
       });
       operatorY -= 10;
 
-      // Nombre
       page.drawText(operator.name, {
         x: col1X,
         y: operatorY - 3,
@@ -298,8 +311,7 @@ export const generatePDF = async (
       });
       operatorY -= 13;
 
-      // RUT
-      page.drawText(`RUT ${operator.rut}`, {
+      page.drawText(`RUT ${sanitizeRut(operator.rut)}`, {
         x: col1X,
         y: operatorY - 3,
         size: PDF_STYLES.signatureDetail.size,
@@ -309,18 +321,19 @@ export const generatePDF = async (
       operatorY -= SIGNATURE_SPACE - 28;
     });
 
-    // ============ COLUMNA CLIENTES ============
+    // COLUMNA CLIENTES
     clientY -= 47;
 
-    // Firmas de clientes
     clients.forEach((client) => {
       if (clientY < MARGIN + FOOTER_HEIGHT + SIGNATURE_SPACE) {
-        addHeaderAndFooter(page, pdfDoc, headerImage, footerImage, font);
+        if (!pagesWithHeaderFooter.has(page)) {
+          addHeaderAndFooter(page, pdfDoc, headerImage, footerImage, font);
+          pagesWithHeaderFooter.add(page);
+        }
         page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
         clientY = PAGE_HEIGHT - HEADER_HEIGHT - 150;
       }
 
-      // Línea de firma PRIMERO (arriba)
       page.drawLine({
         start: { x: col2X, y: clientY },
         end: { x: col2X + SIGNATURE_LINE_LENGTH, y: clientY },
@@ -338,7 +351,6 @@ export const generatePDF = async (
       });
       clientY -= 10;
 
-      // Nombre
       page.drawText(client.name, {
         x: col2X,
         y: clientY - 3,
@@ -348,8 +360,7 @@ export const generatePDF = async (
       });
       clientY -= 14;
 
-      // RUT
-      page.drawText(`RUT ${client.rut}`, {
+      page.drawText(`RUT ${sanitizeRut(client.rut)}`, {
         x: col2X,
         y: clientY - 3,
         size: PDF_STYLES.signatureDetail.size,
@@ -358,12 +369,11 @@ export const generatePDF = async (
       });
       clientY -= SIGNATURE_SPACE - 29;
     });
-
   } else {
     // Layout de 1 columna
     const centerX = MARGIN + 40;
 
-    // ============ SECCIÓN OPERADORES ============
+    // SECCIÓN OPERADORES
     if (operators.length > 0) {
       page.drawText(operators.length > 1 ? "Los Operadores" : "El Operador", {
         x: centerX,
@@ -385,12 +395,14 @@ export const generatePDF = async (
 
       operators.forEach((operator) => {
         if (yPosition < MARGIN + FOOTER_HEIGHT + SIGNATURE_SPACE) {
-          addHeaderAndFooter(page, pdfDoc, headerImage, footerImage, font);
+          if (!pagesWithHeaderFooter.has(page)) {
+            addHeaderAndFooter(page, pdfDoc, headerImage, footerImage, font);
+            pagesWithHeaderFooter.add(page);
+          }
           page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
           yPosition = PAGE_HEIGHT - HEADER_HEIGHT - 150;
         }
 
-        // Línea de firma PRIMERO
         page.drawLine({
           start: { x: centerX, y: yPosition },
           end: { x: centerX + SIGNATURE_LINE_LENGTH, y: yPosition },
@@ -399,7 +411,6 @@ export const generatePDF = async (
         });
         yPosition -= 15;
 
-        // Nombre
         page.drawText(operator.name, {
           x: centerX,
           y: yPosition,
@@ -409,7 +420,6 @@ export const generatePDF = async (
         });
         yPosition -= 13;
 
-        // RUT
         page.drawText(`RUT ${sanitizeRut(operator.rut)}`, {
           x: centerX,
           y: yPosition,
@@ -423,31 +433,39 @@ export const generatePDF = async (
       yPosition -= 30;
     }
 
-    // ============ SECCIÓN CLIENTES ============
+    // SECCIÓN CLIENTES
     if (clients.length > 0) {
       if (yPosition < MARGIN + FOOTER_HEIGHT + 100) {
-        addHeaderAndFooter(page, pdfDoc, headerImage, footerImage, font);
+        if (!pagesWithHeaderFooter.has(page)) {
+          addHeaderAndFooter(page, pdfDoc, headerImage, footerImage, font);
+          pagesWithHeaderFooter.add(page);
+        }
         page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
         yPosition = PAGE_HEIGHT - HEADER_HEIGHT - 150;
       }
 
-      page.drawText(clients.length > 1 ? "Los Representantes" : "El Representante", {
-        x: centerX,
-        y: yPosition,
-        size: PDF_STYLES.signature.size + 1,
-        font: fontBold,
-        color: rgb(0, 0, 0),
-      });
+      page.drawText(
+        clients.length > 1 ? "Los Representantes" : "El Representante",
+        {
+          x: centerX,
+          y: yPosition,
+          size: PDF_STYLES.signature.size + 1,
+          font: fontBold,
+          color: rgb(0, 0, 0),
+        }
+      );
       yPosition -= 35;
 
       clients.forEach((client) => {
         if (yPosition < MARGIN + FOOTER_HEIGHT + SIGNATURE_SPACE) {
-          addHeaderAndFooter(page, pdfDoc, headerImage, footerImage, font);
+          if (!pagesWithHeaderFooter.has(page)) {
+            addHeaderAndFooter(page, pdfDoc, headerImage, footerImage, font);
+            pagesWithHeaderFooter.add(page);
+          }
           page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
           yPosition = PAGE_HEIGHT - HEADER_HEIGHT - 150;
         }
 
-        // Línea de firma PRIMERO
         page.drawLine({
           start: { x: centerX, y: yPosition },
           end: { x: centerX + SIGNATURE_LINE_LENGTH, y: yPosition },
@@ -456,7 +474,6 @@ export const generatePDF = async (
         });
         yPosition -= 15;
 
-        // Nombre
         page.drawText(client.name, {
           x: centerX,
           y: yPosition,
@@ -466,7 +483,6 @@ export const generatePDF = async (
         });
         yPosition -= 13;
 
-        // RUT
         page.drawText(`RUT ${sanitizeRut(client.rut)}`, {
           x: centerX,
           y: yPosition,
@@ -479,8 +495,13 @@ export const generatePDF = async (
     }
   }
 
-  // Agregar header/footer a página de firmas
-  addHeaderAndFooter(page, pdfDoc, headerImage, footerImage, font);
+  // Agregar header/footer a todas las páginas que no lo tengan
+  const allPages = pdfDoc.getPages();
+  allPages.forEach((p) => {
+    if (!pagesWithHeaderFooter.has(p)) {
+      addHeaderAndFooter(p, pdfDoc, headerImage, footerImage, font);
+    }
+  });
 
   // 7. Generar bytes finales
   const pdfBytes = await pdfDoc.save();
@@ -490,17 +511,12 @@ export const generatePDF = async (
 };
 
 const sanitizeRut = (rut) => {
-  if (!rut) return '';
+  if (!rut) return "";
 
-  // Remover puntos y guiones existentes
-  const cleanRut = rut.replace(/\./g, '').replace(/-/g, '');
-
-  // Separar número y dígito verificador
+  const cleanRut = rut.replace(/\./g, "").replace(/-/g, "");
   const rutBody = cleanRut.slice(0, -1);
   const rutDv = cleanRut.slice(-1);
-
-  // Agregar puntos cada 3 dígitos desde el final
-  const formattedBody = rutBody.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  const formattedBody = rutBody.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 
   return `${formattedBody}-${rutDv}`;
 };
