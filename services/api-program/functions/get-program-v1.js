@@ -1,41 +1,30 @@
 import * as dynamoDbLib from '../../../libs/dynamodb-v3';
 import { success, unsuccessful } from "../../../helpers/responses";
 
-const { DYNAMODB_PROGRAM_TABLE, PROGRAM_TABLE_ID } = process.env;
+const { DYNAMODB_PROGRAM_TABLE, PROGRAM_TABLE } = process.env;
 
 export const main = async (event) => {
-  console.log("event ==>", event);
-  const action = "Obtención de lista de programas en sistema.";
-  const queryParams = event.queryStringParameters;
+  const action = "Obtención de programa en sistema.";
+  const { sk } = event.queryStringParameters || {};
 
   try {
-    if (!queryParams) return unsuccessful(400, { message: "Faltan los queryParameters en la solicitud." }, action);
+    if (!sk) return unsuccessful(400, { message: "Identificador de programa no encontrado en request." }, action);
 
-    const sk = queryParams.sk;
-    if (!sk) return unsuccessful(400, { message: "Identificador de programa inválido." }, action);
-
-    const pk = `PRG#${PROGRAM_TABLE_ID}`;
-
-    const params = {
+    const [result] = await dynamoDbLib.query({
       TableName: DYNAMODB_PROGRAM_TABLE,
-      ReturnConsumedCapacity: 'TOTAL',
       KeyConditionExpression: '#pk = :pk AND begins_with(#sk, :sk)',
       ExpressionAttributeValues: {
-        ':pk': pk,
+        ':pk': PROGRAM_TABLE,
         ':sk': sk,
       },
       ExpressionAttributeNames: {
         '#pk': 'pk',
         '#sk': 'sk'
       }
-    };
+    });
 
-   const [result] = await dynamoDbLib.query(params);
-
-    return success(200, result, action, queryParams);
+    return success(200, result, action);
   } catch (e) {
-    let { statusCode } = e;
-    if (!statusCode) statusCode = 500;
-    return unsuccessful(statusCode, e, action);
+    return unsuccessful(e.statusCode || 500, e, action);
   }
 };
