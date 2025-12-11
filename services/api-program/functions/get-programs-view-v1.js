@@ -28,7 +28,7 @@ export const main = async (event) => {
 
     const result = await dynamoDbLib.query(params);
 
-    const programs = result?.map(({ sk, status, content }) => ({
+    const programs = result?.map(({ sk, status, content, priority, startDate }) => ({
       sk,
       status,
       type: content[0].type.id,
@@ -36,8 +36,16 @@ export const main = async (event) => {
       course: content[0].course,
       season: content[0].season,
       representativeName: content[0].representative.name,
-      startDate: content[0].dates[0],
+      startDate,
+      priority
     })) ?? [];
+
+    programs.sort((a, b) => {
+      if (a.priority !== b.priority) {
+        return a.priority - b.priority;
+      }
+      return a.startDate.localeCompare(b.startDate);
+    });
 
     return success(200, programs, action);
   } catch (e) {
