@@ -5,33 +5,11 @@ const { DYNAMODB_PROGRAM_TABLE, PROGRAM_TABLE } = process.env;
 
 export const main = async (event) => {
   console.log("event ==>", event);
-  const action = "Obtención de lista de programas en sistema.";
-  const { year } = event.queryStringParameters;
-  const { type } = event.pathParameters;
+  const action = "Obtener programas por periodo en sistema.";
+  const { periodo } = event.queryStringParameters;
 
   try {
-    if (!type)
-      return unsuccessful(
-        400,
-        { message: "Faltan el tipo de programa en la solicitud." },
-        action
-      );
-    if (!year)
-      return unsuccessful(
-        400,
-        { message: "Faltan el año en la solicitud." },
-        action
-      );
-
-    const pk = PROGRAM_TABLE;
-    const sk = type === "viaje" ? "VJS#" : type === "gira" ? "GIR#" : null;
-
-    if (!sk)
-      return unsuccessful(
-        400,
-        { message: "Ha ingresado un tipo de programa no válido." },
-        action
-      );
+    if (!periodo) return unsuccessful(400, { message: "Faltan el periodo en la solicitud." }, action);
 
     const params = {
       TableName: DYNAMODB_PROGRAM_TABLE,
@@ -39,8 +17,8 @@ export const main = async (event) => {
       ReturnConsumedCapacity: "TOTAL",
       KeyConditionExpression: "#pk = :pk And begins_with(#startDate, :startDate)",
       ExpressionAttributeValues: {
-        ':pk': pk,
-        ":startDate": year,
+        ':pk': PROGRAM_TABLE,
+        ":startDate": periodo,
       },
       ExpressionAttributeNames: {
         '#pk': 'pk',
@@ -50,24 +28,19 @@ export const main = async (event) => {
 
     const result = await dynamoDbLib.query(params);
 
-    const programs =
-      !result || result.length === 0
-        ? []
-        : result.map((item) => ({
-            sk: item.sk,
-            status: item.status,
-            type: item.content[0].type.id,
-            school: item.content[0].school,
-            course: item.content[0].course,
-            season: item.content[0].season,
-            representativeName: item.content[0].representative.name,
-            startDate: item.content[0].dates[0],
-          }));
+    const programs = result?.map(({ sk, status, content }) => ({
+      sk,
+      status,
+      type: content[0].type.id,
+      school: content[0].school,
+      course: content[0].course,
+      season: content[0].season,
+      representativeName: content[0].representative.name,
+      startDate: content[0].dates[0],
+    })) ?? [];
 
     return success(200, programs, action);
   } catch (e) {
-    let { statusCode } = e;
-    if (!statusCode) statusCode = 500;
-    return unsuccessful(statusCode, e, action);
+    return unsuccessful(e.statusCode ?? 500, e, action);
   }
 };
