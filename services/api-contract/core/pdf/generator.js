@@ -497,10 +497,19 @@ export const generatePDF = async (
 
   // Agregar header/footer a todas las páginas que no lo tengan
   const allPages = pdfDoc.getPages();
+
   allPages.forEach((p) => {
     if (!pagesWithHeaderFooter.has(p)) {
       addHeaderAndFooter(p, pdfDoc, headerImage, footerImage, font);
     }
+    // p.drawText('BORRADOR', {
+    //   x: 5,
+    //   y: 100 / 2 + 300,
+    //   size: 50,
+    //   color: rgb(0.5, 0.5, 0.5),
+    //   opacity: 0.3,
+    //   // rotate: degrees(-45),
+    // });
   });
 
   // 7. Generar bytes finales

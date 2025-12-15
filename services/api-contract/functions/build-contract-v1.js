@@ -17,7 +17,7 @@ const {
  * @returns {Object} Respuesta con PDF en base64
  */
 export const main = async (event) => {
-  console.log("Event ==>", event);
+  // console.log("Event ==>", event);
   const action = "Generar contrato del programa.";
   try {
     // 1. Validar parámetros
@@ -40,10 +40,13 @@ export const main = async (event) => {
       }
     });
 
-    if (!program)
-      return unsuccessful(404, { message: 'Programa no encontrado.' }, action);
+    if (!program) return unsuccessful(404, { message: 'Programa no encontrado.' }, action);
 
-    const { contract } = program.content[0];
+    const { contract } = program?.content[0];
+
+    console.log(contract);
+
+    if (!contract) return unsuccessful(404, { message: 'Contrato no encontrado.' }, action);
 
     // 3. Construir datos del contrato dinámicamente desde program
     const contractData = buildContractData(contract);

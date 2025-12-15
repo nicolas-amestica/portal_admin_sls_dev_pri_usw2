@@ -36,7 +36,7 @@ const buildServicesIncluded = (services = []) => {
  */
 const buildClientRepresentativesText = (clientRepresentative = [], institutionName = '') => {
   if (!Array.isArray(clientRepresentative) || clientRepresentative.length === 0) {
-    return 'REPRESENTANTE NO ESPECIFICADO';
+    return ':::SIN REPRESENTANTE NO ESPECIFICADO:::';
   }
 
   // Verificar si todos tienen el mismo curso
@@ -46,15 +46,15 @@ const buildClientRepresentativesText = (clientRepresentative = [], institutionNa
   if (sameCourse) {
     // Todos del mismo curso: listar nombres y DNIs, curso e institución al final
     const namesWithDNI = clientRepresentative
-      .map(rep => `${rep.name}, cédula nacional de identidad número ${rep.dni}`)
+      .map(rep => `${rep.name || ':::SIN NOMBRE CLIENTE:::'}, cédula nacional de identidad número ${rep.dni || ':::SIN RUT CLIENTE:::'}`)
       .join(', y ');
 
-    return `${namesWithDNI}, en representación del curso ${courses[0]} del ${institutionName}`;
+    return `${namesWithDNI}, en representación del curso ${courses[0] || ':::SIN CURSO ESPECIFICADO:::'} del ${institutionName || ':::SIN INSTITUCIÓN NO ESPECIFICADA:::'}`;
   } else {
     // Cursos diferentes: incluir curso con cada representante
     return clientRepresentative
-      .map(rep => `${rep.name}, cédula nacional de identidad número ${rep.dni}, en representación del curso ${rep.course}`)
-      .join(', y ') + ` del ${institutionName}`;
+      .map(rep => `${rep.name || ':::SIN NOMBRE CLIENTE:::'}, cédula nacional de identidad número ${rep.dni || ':::SIN RUT CLIENTE:::'}, en representación del curso ${rep.course || ':::SIN CURSO ESPECIFICADO:::'}`)
+      .join(', y ') + ` del ${institutionName || ':::SIN INSTITUCIÓN NO ESPECIFICADA:::'}`;
   }
 };
 
@@ -92,26 +92,26 @@ export const buildContractData = (program = {}) => {
 
   // Construir texto de representantes legales de Giras Indómito
   const representativesText = representatives.length > 0
-    ? representatives.map(rep => `${rep.name}, cédula nacional de identidad número ${rep.dni}`).join(', y ')
-    : 'REPRESENTANTE NO ESPECIFICADO';
+    ? representatives.map(rep => `${rep.name || ':::SIN NOMBRE REPRESENTANTE:::'}, cédula nacional de identidad número ${rep.dni || ':::SIN RUT REPRESENTANTE:::'}`).join(', y ')
+    : ':::SIN REPRESENTANTE ESPECIFICADO:::';
 
   // Construir texto de representantes del cliente (optimizado para evitar redundancia)
   const clientRepresentativesText = buildClientRepresentativesText(
     clientRepresentative,
-    institution.name || '"INSTITUCIÓN NO ESPECIFICADA"'
+    institution.name || ':::SIN INSTITUCIÓN ESPECIFICADA:::'
   );
 
   // Construir contrato dinámico
   const contractData = {
     title: "CONTRATO DE PRESTACIÓN DE SERVICIOS TURÍSTICOS",
 
-    generalData: `En ${trip.city || 'Chile'}, ${contractDate.simple}, entre GIRAS INDÓMITO LIMITADA, RUT ${bankAccount.holderDNI || '77.654.796-4'}, representada legalmente por ${representativesText}, según se acredita, en adelante "El Operador", por una parte; y por otra, ${clientRepresentativesText}, en adelante "El Pasajero" o "Los Representantes".`,
+    generalData: `En ${trip.city || ':::SIN CIUDAD:::'}, ${contractDate.simple || ':::SIN FECHA:::'}, entre GIRAS INDÓMITO LIMITADA, RUT ${bankAccount.holderDNI || ':::SIN RUT:::'}, representada legalmente por ${representativesText || ':::SIN EMPRESA:::'}, según se acredita, en adelante "El Operador", por una parte; y por otra, ${clientRepresentativesText || ':::SIN REPRESENTANTES:::'}, en adelante "El Pasajero" o "Los Representantes".`,
 
     clauses: [
       {
         number: 1,
         title: "PRIMERO:",
-        text: `El Operador y el Pasajero han convenido la realización de un programa de viaje con destino a ${trip.destination || 'destino acordado'}, con fecha de salida el ${departureDate.full} y retorno el ${returnDate.full}, partiendo desde ${trip.departurePoint || 'punto de salida acordado'}, domiciliado en ${institution.address || 'dirección no especificada'}, y retornando al mismo lugar de origen. El programa detallado ha sido firmado por los comparecientes y forma parte integrante de este contrato por acuerdo unánime de ambas partes.`
+        text: `El Operador y el Pasajero han convenido la realización de un programa de viaje con destino a ${trip.destination || ':::SIN DESTINO ACORDADO:::'}, con fecha de salida el ${departureDate.full || ':::SIN FECHA DE SALIDA:::'} y retorno el ${returnDate.full || ':::SIN FECHA DE RETORNO:::'}, partiendo desde ${trip.departurePoint || ':::SIN PUNTO DE SALIDA ACORDADO:::'}, domiciliado en ${institution.address || ':::SIN DIRECCIÓN NO ESPECIFICADA:::'}, y retornando al mismo lugar de origen. El programa detallado ha sido firmado por los comparecientes y forma parte integrante de este contrato por acuerdo unánime de ambas partes.`
       },
       {
         number: 2,
@@ -166,7 +166,7 @@ export const buildContractData = (program = {}) => {
       {
         number: 12,
         title: "DÉCIMO SEGUNDO:",
-        text: `Los programas incluirán exclusivamente lo señalado en el presente contrato y serán confirmados bajo previa reserva con una cuota inicial correspondiente al ${conditions.depositPercentageWithFlight || 65}% del valor del programa con aéreos y ${conditions.depositPercentageWithoutFlight || 20}% en aquellos que no incluyen aéreos, o la suma de ${formatCurrency(conditions.specialProgramDeposit || 40000)} en caso de Programas Especiales. Dicho monto será abonado al valor total. El saldo faltante deberá estar cancelado en un plazo no superior a ${conditions.daysBeforeFlightBalance || 30} días antes de la salida del vuelo o ${conditions.daysBeforeTerrestrialBalance || 10} días antes de la ocupación de los servicios terrestres. En caso de que el pasajero no haya pagado el valor total en las fechas señaladas, sus reservas serán automáticamente anuladas y se procederá a las devoluciones, previo descuento de los gastos de anulación de las reservas según correspondan.`
+        text: `Los programas incluirán exclusivamente lo señalado en el presente contrato y serán confirmados bajo previa reserva con una cuota inicial correspondiente al ${conditions.depositPercentageWithFlight || ':::SIN PORCENTAJE DE DEPÓSITO CON AÉREOS:::'}% del valor del programa con aéreos y ${conditions.depositPercentageWithoutFlight || ':::SIN PORCENTAJE DE DEPÓSITO SIN AÉREOS:::'}% en aquellos que no incluyen aéreos, o la suma de ${formatCurrency(conditions.specialProgramDeposit || ':::SIN DEPÓSITO DE PROGRAMAS ESPECIALES:::')} en caso de Programas Especiales. Dicho monto será abonado al valor total. El saldo faltante deberá estar cancelado en un plazo no superior a ${conditions.daysBeforeFlightBalance || ':::SIN DÍAS ANTES DEL VUELO:::'} días antes de la salida del vuelo o ${conditions.daysBeforeTerrestrialBalance || ':::SIN DÍAS ANTES DE LOS SERVICIOS TERRESTRES:::'} días antes de la ocupación de los servicios terrestres. En caso de que el pasajero no haya pagado el valor total en las fechas señaladas, sus reservas serán automáticamente anuladas y se procederá a las devoluciones, previo descuento de los gastos de anulación de las reservas según correspondan.`
       },
       {
         number: 13,
@@ -191,13 +191,13 @@ export const buildContractData = (program = {}) => {
           title: plan.name || "PROGRAMA TURÍSTICO NO ESPECIFICADO",
           days: trip.days || "DÍAS NO ESPECIFICADOS",
           nights: trip.nights || "NOCHES NO ESPECIFICADAS",
-          services: buildServicesIncluded(plan.servicesIncluded)
+          services: buildServicesIncluded(plan.servicesIncluded) || ':::SIN SERVICIOS:::'
         }
       },
       {
         number: 17,
         title: "DÉCIMO SÉPTIMO:",
-        text: `La cantidad inicial es de ${totalPassengers} pasajeros más ${freePassengers} liberados de pago. Para efectos de la realización del programa seleccionado, cada uno cancela la suma de ${formatCurrency(pricePerPerson)} (precio del día: ${priceInUSD} USD), totalizando ${formatCurrency(payments.totalGroup || 0)} para el grupo. La firma de este contrato se realiza mediante la cancelación de un abono de ${formatCurrency(downPayment)}, quedando un saldo grupal de ${formatCurrency(groupBalance)}, el cual se pagará en ${installments.quantity || 0} cuotas mensuales a partir de ${installments.startMonth || 'fecha acordada'} de ${formatCurrency(installments.groupInstallmentValue || 0)}, o cuotas individuales de ${formatCurrency(installments.individualInstallmentValue || 0)}. El viaje debe estar pagado en su totalidad como máximo ${payments.daysBeforePayment || 7} días antes de la fecha de salida. En caso de existir un alza excesiva en el dólar que supere los ${formatCurrency(maxExchangeRate)}, el viaje deberá ser reprogramado (en caso de no querer pagar la diferencia) o bien pagar la diferencia por persona que pueda generar el alza, debido a que la mayoría de los servicios se paga en dólares americanos. Las formas de pago son las siguientes: transferencia o depósito bancario a la cuenta corriente número ${bankAccount.accountNumber || 'N/A'} (${bankAccount.accountHolder || 'Titular'}, RUT ${bankAccount.holderDNI || 'N/A'}, ${bankAccount.bank || 'Banco'}). Enviar confirmación de depósito o transferencia al correo: ${bankAccount.email || 'info@girasindomito.cl'}`
+        text: `La cantidad inicial es de ${totalPassengers || ':::SIN TOTAL DE PASAJEROS:::'} pasajeros más ${freePassengers || ':::SIN PASAJEROS LIBERADOS:::'} liberados de pago. Para efectos de la realización del programa seleccionado, cada uno cancela la suma de ${formatCurrency(pricePerPerson) || ':::SIN PRECIO POR PERSONA:::'} (precio del día: ${priceInUSD || ':::SIN PRECIO DEL DÍA:::'} USD), totalizando ${formatCurrency(payments.totalGroup || ':::SIN TOTAL GRUPAL:::')} para el grupo. La firma de este contrato se realiza mediante la cancelación de un abono de ${formatCurrency(downPayment) || ':::SIN ABONO:::'}, quedando un saldo grupal de ${formatCurrency(groupBalance) || ':::SIN SALDO GRUPAL:::'}, el cual se pagará en ${installments.quantity || ':::SIN CUOTAS:::'} cuotas mensuales a partir de ${installments.startMonth || ':::SIN FECHA DE INICIO DE PAGO:::'} de ${formatCurrency(installments.groupInstallmentValue || ':::SIN VALOR DE CUOTA GRUPAL:::')}, o cuotas individuales de ${formatCurrency(installments.individualInstallmentValue || ':::SIN VALOR DE CUOTA INDIVIDUAL:::')}. El viaje debe estar pagado en su totalidad como máximo ${payments.daysBeforePayment || ':::SIN DÍAS ANTES DE PAGO:::'} días antes de la fecha de salida. En caso de existir un alza excesiva en el dólar que supere los ${formatCurrency(maxExchangeRate) || ':::SIN VALOR DE TASA DE CAMBIO:::'}, el viaje deberá ser reprogramado (en caso de no querer pagar la diferencia) o bien pagar la diferencia por persona que pueda generar el alza, debido a que la mayoría de los servicios se paga en dólares americanos. Las formas de pago son las siguientes: transferencia o depósito bancario a la cuenta corriente número ${bankAccount.accountNumber || ':::SIN NÚMERO DE CUENTA:::'} (${bankAccount.accountHolder || ':::SIN TITULAR DE CUENTA:::'}, RUT ${bankAccount.holderDNI || ':::SIN RUT DE CUENTA:::'}, ${bankAccount.bank || ':::SIN BANCO DE CUENTA:::'}). Enviar confirmación de depósito o transferencia al correo: ${bankAccount.email || ':::SIN EMAIL DE CUENTA:::'}.`
       },
       {
         number: 18,
@@ -207,17 +207,17 @@ export const buildContractData = (program = {}) => {
       {
         number: 19,
         title: "DÉCIMO NOVENO:",
-        text: `Ante cualquier reclamo que surja respecto de los servicios contratados, el Pasajero deberá enviar por escrito la situación en conflicto, teniendo un plazo de ${conditions.complaintDeadlineDays || 30} días para hacer pública dicha solicitud. Cualquier dificultad que surja entre las partes con ocasión del cumplimiento, interpretación o incumplimiento del presente contrato, y que no pueda ser solucionada armoniosamente entre ellas, se someterá al conocimiento de un árbitro arbitrador designado de común acuerdo entre las partes y, en subsidio de ello, por la justicia ordinaria, en cuyo caso será árbitro de derecho. Dicho árbitro conocerá en única instancia y contra sus resoluciones no procederá recurso alguno.`
+        text: `Ante cualquier reclamo que surja respecto de los servicios contratados, el Pasajero deberá enviar por escrito la situación en conflicto, teniendo un plazo de ${conditions.complaintDeadlineDays || ':::SIN DÍAS PARA RECLAMO:::'} días para hacer pública dicha solicitud. Cualquier dificultad que surja entre las partes con ocasión del cumplimiento, interpretación o incumplimiento del presente contrato, y que no pueda ser solucionada armoniosamente entre ellas, se someterá al conocimiento de un árbitro arbitrador designado de común acuerdo entre las partes y, en subsidio de ello, por la justicia ordinaria, en cuyo caso será árbitro de derecho. Dicho árbitro conocerá en única instancia y contra sus resoluciones no procederá recurso alguno.`
       },
       {
         number: 20,
         title: "VIGÉSIMO:",
-        text: `El presente contrato tendrá vigencia únicamente en las fechas estipuladas. Ante cualquier cambio de fecha por parte de las personas que firmaron este contrato, estas deberán dar aviso en forma escrita con ${conditions.cancellationNoticeDays || 35} días de anticipación a la salida para un posible cambio de fecha.`
+        text: `El presente contrato tendrá vigencia únicamente en las fechas estipuladas. Ante cualquier cambio de fecha por parte de las personas que firmaron este contrato, estas deberán dar aviso en forma escrita con ${conditions.cancellationNoticeDays || ':::SIN DÍAS DE AVISO DE CANCELACIÓN:::'} días de anticipación a la salida para un posible cambio de fecha.`
       },
       {
         number: 21,
         title: "VIGÉSIMO PRIMERO:",
-        text: `En caso de que el pasajero, los pasajeros o el grupo completo desista del viaje, perderá automáticamente el ${conditions.cancellationPenaltyPercentage || 25}% del valor total del viaje, el cual será tomado como compensación para cubrir reservas y gastos operacionales.`
+        text: `En caso de que el pasajero, los pasajeros o el grupo completo desista del viaje, perderá automáticamente el ${conditions.cancellationPenaltyPercentage || ':::SIN PORCENTAJE DE PENALIZACIÓN:::'}% del valor total del viaje, el cual será tomado como compensación para cubrir reservas y gastos operacionales.`
       },
       {
         number: 22,
@@ -228,15 +228,15 @@ export const buildContractData = (program = {}) => {
     // Datos para página de firmas
     signatures: {
       operators: representatives.map(rep => ({
-        name: rep.name,
-        rut: rep.dni
+        name: rep.name || ':::SIN NOMBRE REPRESENTANTE:::',
+        rut: rep.dni || ':::SIN RUT REPRESENTANTE:::',
       })),
       clients: clientRepresentative.map(rep => ({
-        name: rep.name,
-        rut: rep.dni
+        name: rep.name || ':::SIN NOMBRE CLIENTE:::',
+        rut: rep.dni || ':::SIN RUT CLIENTE:::',
       })),
       companyName: 'GIRAS INDÓMITO LIMITADA',
-      companyRut: bankAccount.holderDNI || '77.654.796-4'
+      companyRut: bankAccount.holderDNI || ':::SIN RUT DE CUENTA:::' ,
     }
   };
 
