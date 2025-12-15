@@ -20,18 +20,30 @@ const ACTION = "Aprobar/Rechazar programa.";
  *   Asigna la razón de rechazo al programa.
  *   @param {Object} program - El objeto programa a modificar
  *   @param {string} rejectReason - La razón por la cual el contrato fue rechazado
+ *
+ * @property {Function} completed - Función que maneja el estado completado del contrato.
+ *   Establece la marca de tiempo de completado del programa.
+ *   @param {Object} program - El objeto programa a modificar
+ *   @param {string|Date} now - La marca de tiempo actual para completedAt
  */
 const STATUS_HANDLERS = {
   approved: (program, contract, now) => {
-    if (program.sk.includes('GIR#')) {
+    if (program.sk.includes('PRG#')) {
+      program.priority = 2;
       program.content[0] = {
         ...program.content[0],
         contract: { ...contract, id: uuidv7(), createdAt: now, updatedAt: now }
       };
     }
   },
-  rejected: (program, rejectReason) => {
-    program.rejectReason = rejectReason;
+  rejected: (program, rejectedReason, now) => {
+    program.priority = 4;
+    program.rejectedReason = rejectedReason;
+    program.rejectedAt = now;
+  },
+  completed: (program, now) => {
+    program.priority = 3;
+    program.completedAt = now;
   }
 };
 
@@ -58,8 +70,7 @@ export const main = async (event) => {
   try {
     const { sk, contract, status, rejectReason } = JSON.parse(event.body);
 
-    if (!sk)
-      return unsuccessful(400, { message: "Falta el identificador del programa en la solicitud." }, ACTION);
+    if (!sk) return unsuccessful(400, { message: "Falta el identificador del programa en la solicitud." }, ACTION);
 
     const [program] = await dynamoDbLib.query({
       TableName: DYNAMODB_PROGRAM_TABLE,
