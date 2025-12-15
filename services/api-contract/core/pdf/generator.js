@@ -1,6 +1,7 @@
 import { PDF_STYLES } from "./styles.js";
 import { PDF_CONFIG } from "../../config/constants.js";
 const { PDFDocument, rgb, StandardFonts } = require("pdf-lib");
+const { addWatermark } = require("../contract/watermark.js");
 import {
   splitTextIntoLines,
   addHeaderAndFooter,
@@ -15,6 +16,7 @@ export const generatePDF = async (
   headerImageBase64,
   footerImageBase64
 ) => {
+
   // 1. Crear documento
   const pdfDoc = await PDFDocument.create();
 
@@ -502,19 +504,16 @@ export const generatePDF = async (
     if (!pagesWithHeaderFooter.has(p)) {
       addHeaderAndFooter(p, pdfDoc, headerImage, footerImage, font);
     }
-    // p.drawText('BORRADOR', {
-    //   x: 5,
-    //   y: 100 / 2 + 300,
-    //   size: 50,
-    //   color: rgb(0.5, 0.5, 0.5),
-    //   opacity: 0.3,
-    //   // rotate: degrees(-45),
-    // });
   });
 
   // 7. Generar bytes finales
   const pdfBytes = await pdfDoc.save();
-  const buffer = Buffer.from(pdfBytes);
+
+  // 8. Agregar marca de agua
+  const watermarkedPdf = await addWatermark(pdfBytes, 'BORRADOR');
+
+  // 9. Convertir a Buffer
+  const buffer = Buffer.from(watermarkedPdf);
 
   return buffer;
 };

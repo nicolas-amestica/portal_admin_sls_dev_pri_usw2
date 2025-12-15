@@ -2,7 +2,16 @@
  * Formatea fecha en español
  */
 const formatDate = (dateString) => {
-  const date = new Date(dateString);
+  let date;
+
+  // Si viene en formato DD-MM-YYYY, parsear manualmente
+  if (dateString.includes('-') && dateString.split('-')[0].length <= 2) {
+    const [day, month, year] = dateString.split('-');
+    date = new Date(year, month - 1, day); // month - 1 porque Date usa 0-11
+  } else {
+    date = new Date(dateString);
+  }
+
   const months = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
                   'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
   const days = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
@@ -61,15 +70,18 @@ const buildClientRepresentativesText = (clientRepresentative = [], institutionNa
 /**
  * Construye el contenido completo del contrato para el PDF
  */
-export const buildContractData = (program = {}) => {
+export const buildContractData = (contract = {}) => {
+
   const {
     trip = {},
     plan = {},
     institution = {},
-    clientRepresentative = [],
+    clientRepresentative: clientRepData = {},  // ← Renombrar
     representatives = [],
     payments = {}
-  } = program;
+  } = contract;
+
+  const clientRepresentative = clientRepData && Object.keys(clientRepData).length > 0 ? [clientRepData] : [];
 
   // Fechas formateadas
   const contractDate = trip.contractDate ? formatDate(trip.contractDate) : { simple: '' };
@@ -166,7 +178,7 @@ export const buildContractData = (program = {}) => {
       {
         number: 12,
         title: "DÉCIMO SEGUNDO:",
-        text: `Los programas incluirán exclusivamente lo señalado en el presente contrato y serán confirmados bajo previa reserva con una cuota inicial correspondiente al ${conditions.depositPercentageWithFlight || ':::SIN PORCENTAJE DE DEPÓSITO CON AÉREOS:::'}% del valor del programa con aéreos y ${conditions.depositPercentageWithoutFlight || ':::SIN PORCENTAJE DE DEPÓSITO SIN AÉREOS:::'}% en aquellos que no incluyen aéreos, o la suma de ${formatCurrency(conditions.specialProgramDeposit || ':::SIN DEPÓSITO DE PROGRAMAS ESPECIALES:::')} en caso de Programas Especiales. Dicho monto será abonado al valor total. El saldo faltante deberá estar cancelado en un plazo no superior a ${conditions.daysBeforeFlightBalance || ':::SIN DÍAS ANTES DEL VUELO:::'} días antes de la salida del vuelo o ${conditions.daysBeforeTerrestrialBalance || ':::SIN DÍAS ANTES DE LOS SERVICIOS TERRESTRES:::'} días antes de la ocupación de los servicios terrestres. En caso de que el pasajero no haya pagado el valor total en las fechas señaladas, sus reservas serán automáticamente anuladas y se procederá a las devoluciones, previo descuento de los gastos de anulación de las reservas según correspondan.`
+        text: `Los programas incluirán exclusivamente lo señalado en el presente contrato y serán confirmados bajo previa reserva con una cuota inicial correspondiente al ${conditions.depositPercentageWithFlight || ':::SIN PORCENTAJE DE DEPÓSITO CON AÉREOS:::'}% del valor del programa con aéreos y ${conditions.depositPercentageWithoutFlight || ':::SIN PORCENTAJE DE DEPÓSITO SIN AÉREOS:::'}% en aquellos que no incluyen aéreos, o la suma de ${conditions.specialProgramDeposit ? formatCurrency(conditions.specialProgramDeposit) : ':::SIN DEPÓSITO DE PROGRAMAS ESPECIALES:::'} en caso de Programas Especiales. Dicho monto será abonado al valor total. El saldo faltante deberá estar cancelado en un plazo no superior a ${conditions.daysBeforeFlightBalance || ':::SIN DÍAS ANTES DEL VUELO:::'} días antes de la salida del vuelo o ${conditions.daysBeforeTerrestrialBalance || ':::SIN DÍAS ANTES DE LOS SERVICIOS TERRESTRES:::'} días antes de la ocupación de los servicios terrestres. En caso de que el pasajero no haya pagado el valor total en las fechas señaladas, sus reservas serán automáticamente anuladas y se procederá a las devoluciones, previo descuento de los gastos de anulación de las reservas según correspondan.`
       },
       {
         number: 13,
@@ -191,13 +203,13 @@ export const buildContractData = (program = {}) => {
           title: plan.name || "PROGRAMA TURÍSTICO NO ESPECIFICADO",
           days: trip.days || "DÍAS NO ESPECIFICADOS",
           nights: trip.nights || "NOCHES NO ESPECIFICADAS",
-          services: buildServicesIncluded(plan.servicesIncluded) || ':::SIN SERVICIOS:::'
+          services: buildServicesIncluded(plan.servicesIncluded)
         }
       },
       {
         number: 17,
         title: "DÉCIMO SÉPTIMO:",
-        text: `La cantidad inicial es de ${totalPassengers || ':::SIN TOTAL DE PASAJEROS:::'} pasajeros más ${freePassengers || ':::SIN PASAJEROS LIBERADOS:::'} liberados de pago. Para efectos de la realización del programa seleccionado, cada uno cancela la suma de ${formatCurrency(pricePerPerson) || ':::SIN PRECIO POR PERSONA:::'} (precio del día: ${priceInUSD || ':::SIN PRECIO DEL DÍA:::'} USD), totalizando ${formatCurrency(payments.totalGroup || ':::SIN TOTAL GRUPAL:::')} para el grupo. La firma de este contrato se realiza mediante la cancelación de un abono de ${formatCurrency(downPayment) || ':::SIN ABONO:::'}, quedando un saldo grupal de ${formatCurrency(groupBalance) || ':::SIN SALDO GRUPAL:::'}, el cual se pagará en ${installments.quantity || ':::SIN CUOTAS:::'} cuotas mensuales a partir de ${installments.startMonth || ':::SIN FECHA DE INICIO DE PAGO:::'} de ${formatCurrency(installments.groupInstallmentValue || ':::SIN VALOR DE CUOTA GRUPAL:::')}, o cuotas individuales de ${formatCurrency(installments.individualInstallmentValue || ':::SIN VALOR DE CUOTA INDIVIDUAL:::')}. El viaje debe estar pagado en su totalidad como máximo ${payments.daysBeforePayment || ':::SIN DÍAS ANTES DE PAGO:::'} días antes de la fecha de salida. En caso de existir un alza excesiva en el dólar que supere los ${formatCurrency(maxExchangeRate) || ':::SIN VALOR DE TASA DE CAMBIO:::'}, el viaje deberá ser reprogramado (en caso de no querer pagar la diferencia) o bien pagar la diferencia por persona que pueda generar el alza, debido a que la mayoría de los servicios se paga en dólares americanos. Las formas de pago son las siguientes: transferencia o depósito bancario a la cuenta corriente número ${bankAccount.accountNumber || ':::SIN NÚMERO DE CUENTA:::'} (${bankAccount.accountHolder || ':::SIN TITULAR DE CUENTA:::'}, RUT ${bankAccount.holderDNI || ':::SIN RUT DE CUENTA:::'}, ${bankAccount.bank || ':::SIN BANCO DE CUENTA:::'}). Enviar confirmación de depósito o transferencia al correo: ${bankAccount.email || ':::SIN EMAIL DE CUENTA:::'}.`
+        text: `La cantidad inicial es de ${totalPassengers || ':::SIN TOTAL DE PASAJEROS:::'} pasajeros más ${freePassengers || ':::SIN PASAJEROS LIBERADOS:::'} liberados de pago. Para efectos de la realización del programa seleccionado, cada uno cancela la suma de ${pricePerPerson ? formatCurrency(pricePerPerson) : ':::SIN PRECIO POR PERSONA:::'} (precio del día: ${priceInUSD || ':::SIN PRECIO DEL DÍA:::'} USD), totalizando ${payments.totalGroup ? formatCurrency(payments.totalGroup) : ':::SIN TOTAL GRUPAL:::'} para el grupo. La firma de este contrato se realiza mediante la cancelación de un abono de ${downPayment ? formatCurrency(downPayment) : ':::SIN ABONO:::'}, quedando un saldo grupal de ${groupBalance ? formatCurrency(groupBalance) : ':::SIN SALDO GRUPAL:::'}, el cual se pagará en ${installments.quantity || ':::SIN CUOTAS:::'} cuotas mensuales a partir de ${installments.startMonth || ':::SIN FECHA DE INICIO DE PAGO:::'} de ${installments.groupInstallmentValue ? formatCurrency(installments.groupInstallmentValue) : ':::SIN VALOR DE CUOTA GRUPAL:::'}, o cuotas individuales de ${installments.individualInstallmentValue ? formatCurrency(installments.individualInstallmentValue) : ':::SIN VALOR DE CUOTA INDIVIDUAL:::'}. El viaje debe estar pagado en su totalidad como máximo ${payments.daysBeforePayment || ':::SIN DÍAS ANTES DE PAGO:::'} días antes de la fecha de salida. En caso de existir un alza excesiva en el dólar que supere los ${maxExchangeRate ? formatCurrency(maxExchangeRate) : ':::SIN VALOR DE TASA DE CAMBIO:::'}, el viaje deberá ser reprogramado (en caso de no querer pagar la diferencia) o bien pagar la diferencia por persona que pueda generar el alza, debido a que la mayoría de los servicios se paga en dólares americanos. Las formas de pago son las siguientes: transferencia o depósito bancario a la cuenta corriente número ${bankAccount.accountNumber || ':::SIN NÚMERO DE CUENTA:::'} (${bankAccount.accountHolder || ':::SIN TITULAR DE CUENTA:::'}, RUT ${bankAccount.holderDNI || ':::SIN RUT DE CUENTA:::'}, ${bankAccount.bank || ':::SIN BANCO DE CUENTA:::'}). Enviar confirmación de depósito o transferencia al correo: ${bankAccount.email || ':::SIN EMAIL DE CUENTA:::'}.`
       },
       {
         number: 18,
@@ -227,16 +239,20 @@ export const buildContractData = (program = {}) => {
 
     // Datos para página de firmas
     signatures: {
-      operators: representatives.map(rep => ({
-        name: rep.name || ':::SIN NOMBRE REPRESENTANTE:::',
-        rut: rep.dni || ':::SIN RUT REPRESENTANTE:::',
-      })),
-      clients: clientRepresentative.map(rep => ({
-        name: rep.name || ':::SIN NOMBRE CLIENTE:::',
-        rut: rep.dni || ':::SIN RUT CLIENTE:::',
-      })),
+      operators: Array.isArray(representatives)
+        ? representatives.map(rep => ({
+            name: rep?.name || ':::SIN NOMBRE REPRESENTANTE:::',
+            rut: rep?.dni || ':::SIN RUT REPRESENTANTE:::',
+          }))
+        : [],
+      clients: Array.isArray(clientRepresentative)
+        ? clientRepresentative.map(rep => ({
+            name: rep?.name || ':::SIN NOMBRE CLIENTE:::',
+            rut: rep?.dni || ':::SIN RUT CLIENTE:::',
+          }))
+        : [],
       companyName: 'GIRAS INDÓMITO LIMITADA',
-      companyRut: bankAccount.holderDNI || ':::SIN RUT DE CUENTA:::' ,
+      companyRut: bankAccount.holderDNI || ':::SIN RUT DE CUENTA:::'
     }
   };
 
