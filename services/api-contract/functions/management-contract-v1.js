@@ -3,7 +3,7 @@ import * as dynamoDbLib from '../../../libs/dynamodb-v3';
 import { success, unsuccessful } from "../../../helpers/responses";
 
 const { DYNAMODB_PROGRAM_TABLE, PROGRAM_TABLE } = process.env;
-const ACTION = "Aprobar/Rechazar programa.";
+const ACTION = "Guardar, Aprobar, Completar o Rechazar programa.";
 
 /**
  * Objeto que contiene funciones manejadoras para diferentes estados de contrato.
@@ -25,25 +25,41 @@ const ACTION = "Aprobar/Rechazar programa.";
  *   Establece la marca de tiempo de completado del programa.
  *   @param {Object} program - El objeto programa a modificar
  *   @param {string|Date} now - La marca de tiempo actual para completedAt
+ * 
+ * @property {Function} save - Función que maneja el estado de guardado del contrato.
+ *   Actualiza el contenido del programa con los datos del contrato proporcionados.
+ *   @param {Object} program - El objeto programa a modificar
+ *   @param {Object} contract - El objeto contrato con los datos a agregar
  */
 const STATUS_HANDLERS = {
+  save: (program, contract) => {
+    program.content[0] = {
+      ...program.content[0],
+      contract: {
+        ...contract,
+      }
+    };
+  },
   approved: (program, contract, now) => {
-    if (program.sk.includes('PRG#')) {
-      program.priority = 2;
-      program.content[0] = {
-        ...program.content[0],
-        contract: { ...contract, id: uuidv7(), createdAt: now, updatedAt: now }
-      };
-    }
+    program.priority = 2;
+    program.content[0] = {
+      ...program.content[0],
+      contract: {
+        id: uuidv7(),
+        ...contract,
+        createdAt: now,
+        updatedAt: now
+      }
+    };
+  },
+  completed: (program, now) => {
+    program.priority = 3;
+    program.completedAt = now;
   },
   rejected: (program, rejectedReason, now) => {
     program.priority = 4;
     program.rejectedReason = rejectedReason;
     program.rejectedAt = now;
-  },
-  completed: (program, now) => {
-    program.priority = 3;
-    program.completedAt = now;
   }
 };
 
@@ -68,7 +84,7 @@ const STATUS_HANDLERS = {
  */
 export const main = async (event) => {
   try {
-    const { sk, contract, status, rejectReason } = JSON.parse(event.body);
+    const { sk, contract, status, rejectReason, action } = JSON.parse(event.body);
 
     if (!sk) return unsuccessful(400, { message: "Falta el identificador del programa en la solicitud." }, ACTION);
 
@@ -82,9 +98,9 @@ export const main = async (event) => {
     if (!program) return unsuccessful(404, { message: "Programa no encontrado." }, ACTION);
 
     const now = new Date().toISOString();
-    Object.assign(program, { status: status.id, updatedAt: now });
+    Object.assign(program, status.id !== 'save' ? { status: status.id, updatedAt: now } : null);
 
-    STATUS_HANDLERS[status.id]?.(program, contract || rejectReason, now);
+    STATUS_HANDLERS[status.id]?.(program, contract || rejectReason, now, action);
 
     await dynamoDbLib.put({ TableName: DYNAMODB_PROGRAM_TABLE, Item: program });
 
