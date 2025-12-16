@@ -25,7 +25,7 @@ const ACTION = "Guardar, Aprobar, Completar o Rechazar programa.";
  *   Establece la marca de tiempo de completado del programa.
  *   @param {Object} program - El objeto programa a modificar
  *   @param {string|Date} now - La marca de tiempo actual para completedAt
- * 
+ *
  * @property {Function} save - Función que maneja el estado de guardado del contrato.
  *   Actualiza el contenido del programa con los datos del contrato proporcionados.
  *   @param {Object} program - El objeto programa a modificar
