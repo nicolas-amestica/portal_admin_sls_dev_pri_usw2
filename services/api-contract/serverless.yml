@@ -57,14 +57,14 @@ functions:
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
 
   build_contract_v1:
-    handler: functions/build-contract-v1.main
-    description: Genera contratos para programas aprobados.
+    handler: functions/build-pdf-document-v1.main
+    description: Genera documentos en base64 y tipo "archivo" según tipo que se solicite.
     timeout: 30
     memorySize: 512
     events:
       - http:
-          path: v1/contratos/solicitudes/documento
-          method: get
+          path: v1/documentos/solicitudes/documento
+          method: post
           cors: true
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
 

@@ -1,7 +1,7 @@
 import { generatePDF } from '../core/pdf/generator.js';
 import { loadImages } from '../core/assets/image-loader.js';
 import { buildContractData as buildDocumentData } from '../core/contract/builder.js';
-import { success, unsuccessful } from "../../../helpers/responses";
+import { success, unsuccessful } from "../../../helpers/responses.js";
 
 const {
   BUCKET_INFO_GI
@@ -24,7 +24,7 @@ export const main = async (event) => {
     if (!type) return unsuccessful(400, { message: 'Falta el tipo de respuesta del documento.' }, action);
 
     // 2. Construir datos del documento dinámicamente
-    const adaptedDocumentData = buildDocumentData(documentData);
+    const adaptedDocumentData = buildDocumentData(documentData.contract);
 
     // 3. Cargar imágenes desde S3
     const { headerImage, footerImage } = await loadImages(
