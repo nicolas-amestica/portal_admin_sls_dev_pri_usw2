@@ -64,7 +64,7 @@ export const main = async (event) => {
 
     // 6. Retornar respuesta
     if (type === 'base64') {
-      return success(200, pdfBuffer.toString('base64'), action);
+      return success(200, { base64: pdfBuffer.toString('base64') }, action);
     } else if (type === 'buffer') {
       return {
         statusCode: 200,
