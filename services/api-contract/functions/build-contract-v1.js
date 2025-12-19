@@ -1,12 +1,9 @@
 import { generatePDF } from '../core/pdf/generator.js';
-import * as dynamoDbLib from '../../../libs/dynamodb-v3';
 import { loadImages } from '../core/assets/image-loader.js';
-import { buildContractData } from '../core/contract/builder.js';
+import { buildContractData as buildDocumentData } from '../core/contract/builder.js';
 import { success, unsuccessful } from "../../../helpers/responses";
 
 const {
-  DYNAMODB_PROGRAM_TABLE,
-  PROGRAM_TABLE,
   BUCKET_INFO_GI
 } = process.env;
 
@@ -18,51 +15,31 @@ const {
  */
 export const main = async (event) => {
   console.log("Event ==>", event);
-  const action = "Generar contrato del programa.";
+  const action = "Generar documento pdf.";
   try {
     // 1. Validar parámetros
-    const { id, type } = event.queryStringParameters;
+    const { documentData, type } = JSON.parse(event.body);
 
-    if (!id) return unsuccessful(400, { message: 'Falta el identificador del programa.' }, action);
-    if (!type) return unsuccessful(400, { message: 'Falta el tipo de respuesta del contrato.' }, action);
+    if (!documentData) return unsuccessful(400, { message: 'Falta el formulario del documento.' }, action);
+    if (!type) return unsuccessful(400, { message: 'Falta el tipo de respuesta del documento.' }, action);
 
-    // 2. Consultar programa en DynamoDB
-    const [program] = await dynamoDbLib.query({
-      TableName: DYNAMODB_PROGRAM_TABLE,
-      KeyConditionExpression: '#pk = :pk AND begins_with(#sk, :sk)',
-      ExpressionAttributeValues: {
-        ':pk': PROGRAM_TABLE,
-        ':sk': id
-      },
-      ExpressionAttributeNames: {
-        '#pk': 'pk',
-        '#sk': 'sk'
-      }
-    });
+    // 2. Construir datos del documento dinámicamente
+    const adaptedDocumentData = buildDocumentData(documentData);
 
-    if (!program) return unsuccessful(404, { message: 'Programa no encontrado.' }, action);
-
-    const { contract } = program?.content[0];
-
-    if (!contract) return unsuccessful(404, { message: 'Contrato no encontrado.' }, action);
-
-    // 3. Construir datos del contrato dinámicamente desde program
-    const contractData = buildContractData(contract);
-
-    // 4. Cargar imágenes desde S3
+    // 3. Cargar imágenes desde S3
     const { headerImage, footerImage } = await loadImages(
       BUCKET_INFO_GI,
       'assets/header.png',
       'assets/footer.png'
     );
 
-    // 5. Generar PDF
-    const pdfBuffer = await generatePDF(contractData, headerImage, footerImage);
+    // 4. Generar PDF
+    const pdfBuffer = await generatePDF(adaptedDocumentData, headerImage, footerImage);
 
     if (!Buffer.isBuffer(pdfBuffer))
-      return unsuccessful(500, { message: "El PDF generado no es un Buffer válido" }, action);
+      return unsuccessful(500, { message: "El PDF generado no es un buffer válido" }, action);
 
-    // 6. Retornar respuesta
+    // 5. Retornar respuesta
     if (type === 'base64') {
       return success(200, { base64: pdfBuffer.toString('base64') }, action);
     } else if (type === 'buffer') {
@@ -70,7 +47,7 @@ export const main = async (event) => {
         statusCode: 200,
         headers: {
           'Content-Type': 'application/pdf',
-          'Content-Disposition': 'attachment; filename=contrato-servicios-turisticos.pdf',
+          'Content-Disposition': 'attachment; filename=documento-servicios-turisticos.pdf',
           'Access-Control-Allow-Origin': '*',
           'Access-Control-Allow-Credentials': true
         },
