@@ -63,7 +63,7 @@ functions:
     memorySize: 512
     events:
       - http:
-          path: v1/contratos/solicitudes/contrato
+          path: v1/contratos/solicitudes/documento
           method: get
           cors: true
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
