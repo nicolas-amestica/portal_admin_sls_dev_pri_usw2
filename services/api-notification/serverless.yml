@@ -51,7 +51,7 @@ functions:
     memorySize: 512
     events:
       - http:
-          path: v1/notificaciones/solicitudes/email
+          path: v1/notificaciones/contrato
           method: post
           cors: true
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
