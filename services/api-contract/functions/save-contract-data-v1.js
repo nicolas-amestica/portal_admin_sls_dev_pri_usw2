@@ -2,9 +2,10 @@ import * as dynamoDbLib from '../../../libs/dynamodb-v3';
 import { success, unsuccessful } from "../../../helpers/responses";
 
 const { DYNAMODB_PROGRAM_TABLE, PROGRAM_TABLE } = process.env;
-const ACTION = "Guardar, Aprobar, Completar o Rechazar programa.";
+const ACTION = "Guardar datos del contrato en el programa.";
 
 export const main = async (event) => {
+  console.log("Event ==> ", event);
   try {
     const { sk, contract } = JSON.parse(event.body);
 
@@ -25,8 +26,6 @@ export const main = async (event) => {
         ...contract,
       }
     };
-
-    console.log(program);
 
     await dynamoDbLib.put({ TableName: DYNAMODB_PROGRAM_TABLE, Item: program });
 
