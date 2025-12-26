@@ -1,8 +1,8 @@
 import middy from "@middy/core";
+import { CONTRACT } from '../constants/messages';
+import { success, unsuccessful } from "../../../helpers/responses";
 import multipartBodyParser from "@middy/http-multipart-body-parser";
 import { sendEmailWithAttachments } from '../../../libs/nodemailer';
-import { success, unsuccessful } from "../../../helpers/responses";
-import { CONTRACT } from '../constants/messages';
 
 const { STAGE } = process.env;
 
@@ -10,43 +10,12 @@ const ACTION = "Enviar notificación";
 
 const MESSAGE = STAGE === 'dev' ? CONTRACT.dev : CONTRACT.prd;
 
-/**
- * Manejador principal para enviar un correo electrónico con adjunto (contrato).
- *
- * Proceso:
- * 1. Valida los campos requeridos en event.body (name, email, phone, file).
- * 2. Verifica que exista un archivo adjunto con contenido.
- * 3. Prepara el contenido del correo en formato HTML y texto plano.
- * 4. Envía el correo electrónico con el archivo adjunto usando nodemailer.
- * 5. Devuelve una respuesta normalizada mediante success() o unsuccessful().
- *
- * @async
- * @function baseHandler
- * @param {Object} event - Evento de AWS Lambda que contiene la información de la solicitud
- * @param {Object} event.body - Cuerpo de la solicitud parseado por multipartBodyParser
- * @param {string} event.body.name - Nombre de la persona
- * @param {string} event.body.email - Dirección de correo electrónico del destinatario
- * @param {string} event.body.phone - Número de teléfono de la persona
- * @param {boolean} event.body.preview - Indica si es un correo de vista previa (true) o confirmado (false)
- * @param {Object} event.body.file - Objeto con información del archivo adjunto (contrato)
- * @param {string} event.body.file.filename - Nombre del archivo
- * @param {Buffer} event.body.file.content - Contenido del archivo en formato Buffer
- * @param {string} [event.body.file.contentType] - Tipo MIME del archivo
- * @param {string} [event.body.file.mimetype] - Mime type alternativo (opcional)
- * @returns {Promise<Object>} Respuesta HTTP con información del envío o mensaje de error
- * @returns {number} returns.statusCode - Código de estado HTTP (200, 400, 500)
- * @returns {Object} returns.body - Cuerpo de la respuesta con resultado del envío o error
- * @throws {Error} Retorna error 400 si faltan campos requeridos
- * @throws {Error} Retorna error 500 para errores internos del servidor
- */
 const baseHandler = async (event) => {
   try {
     const { name, email, phone, file, preview } = event.body;
 
-    console.log("Event ==>", { name, email, phone, preview });
-
     // Validar campos requeridos
-    const requiredFields = ["name", "email", "phone", "preview"];
+    const requiredFields = ["name", "email", "phone", "preview", "file"];
     const missing = requiredFields.filter((f) => !event.body[f]);
 
     if (missing.length) {
@@ -126,7 +95,7 @@ const baseHandler = async (event) => {
     const textContent = `
         Contrato de Viaje - Giras Indómito
 
-        Estimado/a,
+        Estimado/a ${name},
 
         Adjunto encontrará el contrato de viaje con la siguiente información:
 
@@ -144,10 +113,26 @@ const baseHandler = async (event) => {
     `;
 
     // Preparar el adjunto
-    // El contenido del archivo viene como Buffer desde multipartBodyParser
+    // Asegurarse de que el contenido sea un Buffer válido
+    let fileContent;
+
+    if (Buffer.isBuffer(file.content)) {
+      // Si ya es un Buffer, usarlo directamente
+      fileContent = file.content;
+    } else if (typeof file.content === 'string') {
+      // Si es un string, convertirlo a Buffer
+      fileContent = Buffer.from(file.content, 'binary');
+    } else if (file.content instanceof Uint8Array) {
+      // Si es un Uint8Array, convertirlo a Buffer
+      fileContent = Buffer.from(file.content);
+    } else {
+      // Si es cualquier otro tipo, intentar convertirlo
+      fileContent = Buffer.from(file.content);
+    }
+
     const attachments = [{
-      filename: file.filename,
-      content: file.content,
+      filename: file.filename || 'contrato.pdf',
+      content: fileContent,
       contentType: file.contentType || file.mimetype || 'application/pdf'
     }];
 
@@ -166,35 +151,10 @@ const baseHandler = async (event) => {
       recipient: email
     }, ACTION);
   } catch (e) {
-    console.error("ERROR ==>", e);
-    const statusCode = e.statusCode || 500;
-    return unsuccessful(statusCode, e, ACTION);
+    return unsuccessful(e.statusCode || 500, e, ACTION);
   }
 };
 
-/**
- * Handler principal compuesto para la función Lambda "send-notification-v1".
- *
- * Este export es el resultado de envolver `baseHandler` con middy y aplicar el
- * middleware `multipartBodyParser` configurado para procesar peticiones de tipo
- * multipart/form-data. El middleware utiliza busboy con un límite de tamaño por
- * archivo establecido en 10 MB (10 * 1024 * 1024 bytes).
- *
- * Propósito:
- * - Permitir el parseo automático de formularios multipart y la extracción de
- *   archivos y campos para que `baseHandler` los procese.
- * - Enviar correos electrónicos con archivos adjuntos (contratos) a los destinatarios.
- *
- * Comportamiento y notas:
- * - El límite `fileSize` se aplica por archivo individual.
- * - Mantiene la firma estándar de AWS Lambda (event, context, callback) que
- *   provee `baseHandler`.
- * - Para cambiar el límite máximo de subida, modificar la propiedad `fileSize`.
- *
- * @constant
- * @name main
- * @type {import('aws-lambda').Handler}
- */
 export const main = middy(baseHandler).use(
   multipartBodyParser({
     busboy: {
