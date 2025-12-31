@@ -39,7 +39,7 @@ const uploadFile = async (content) => {
 };
 
 export const main = async (event) => {
-  // console.log("Event ==> ", event);
+  console.log("Event ==> ", event);
   try {
     const { sk, formContact } = JSON.parse(event.body);
 
