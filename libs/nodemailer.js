@@ -4,6 +4,83 @@ import { getAWSConfigs } from './configs';
 let transporter;
 
 /**
+ * Genera el contenido HTML con formato estándar para los correos de Giras Indómito.
+ *
+ * @function
+ * @param {Object} params - Parámetros para generar el HTML del correo.
+ * @param {string} params.title - Título del correo que aparece en el header.
+ * @param {string} params.recipientName - Nombre del destinatario.
+ * @param {string} params.body - Cuerpo principal del mensaje.
+ * @param {string} [params.footerText] - Texto del footer (por defecto: mensaje de correo automático).
+ * @returns {string} Contenido HTML formateado del correo.
+ */
+export const generateEmailHTML = ({ title, recipientName, body, footerText }) => {
+  const defaultFooterText = 'Este es un correo automático, por favor no responder a esta dirección.';
+
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+          }
+          .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+          }
+          .header {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+          }
+          .content {
+            padding: 20px;
+            background-color: #ffffff;
+          }
+          .info-row {
+            margin: 10px 0;
+          }
+          .label {
+            font-weight: bold;
+            color: #555;
+          }
+          .footer {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            font-size: 12px;
+            color: #777;
+            text-align: center;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h2 style="margin: 0; color: #333;">${title}</h2>
+          </div>
+          <div class="content">
+            <p>Estimado/a ${recipientName},</p>
+            <p>${body}</p>
+            <p style="margin-top: 20px;">Por favor, revise el documento adjunto y no dude en contactarnos si tiene alguna pregunta.</p>
+            <p>Saludos cordiales,<br><strong>Equipo Giras Indómito</strong></p>
+          </div>
+          <div class="footer">
+            <p>${footerText || defaultFooterText}</p>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+};
+
+/**
  * Inicializa el cliente de Nodemailer utilizando la configuración de correo.
  *
  * @async

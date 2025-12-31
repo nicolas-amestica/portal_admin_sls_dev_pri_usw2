@@ -4,14 +4,17 @@ import * as dynamoDbLib from '../../../libs/dynamodb-v3';
 import { buildDocumentData } from '../core/contract/builder.js';
 import { success, unsuccessful } from "../../../helpers/responses";
 import { generatePDF, loadImages } from '../../../libs/pdf-generator/index.js';
-import { sendEmailWithAttachments } from '../../../libs/nodemailer.js';
+import { sendEmailWithAttachments, generateEmailHTML } from '../../../libs/nodemailer.js';
+import { APPROVED_CONTRACT } from '../constants/messages.js';
 
 const {
   DYNAMODB_PROGRAM_TABLE,
   PROGRAM_TABLE,
-  BUCKET_INFO_GI
+  BUCKET_INFO_GI,
+  STAGE
 } = process.env;
 const ACTION = "Aprueba el contrato generado, genera pdf y lo almacena en S3.";
+const MESSAGE = STAGE === 'dev' ? APPROVED_CONTRACT.dev : APPROVED_CONTRACT.prd;
 
 const uploadFile = async (content) => {
   const extension = 'pdf';
@@ -82,20 +85,19 @@ export const main = async (event) => {
 
     // 7. Enviar email con documento adjunto
     const recipientEmail = formContact.email;
+    const recipientName = formContact.name || formContact.email;
 
     if (recipientEmail) {
+      const htmlContent = generateEmailHTML({
+        title: MESSAGE.title,
+        recipientName: recipientName,
+        body: MESSAGE.body
+      });
+
       await sendEmailWithAttachments({
         to: recipientEmail,
-        subject: 'Contrato Aprobado - Giras Indómito',
-        html: `
-          <h2>Contrato Aprobado</h2>
-          <p>Estimado/a,</p>
-          <p>Su contrato ha sido aprobado exitosamente.</p>
-          <p>Adjunto encontrará el documento PDF con los detalles del contrato.</p>
-          <br>
-          <p>Saludos cordiales,</p>
-          <p><strong>Giras Indómito</strong></p>
-        `,
+        subject: MESSAGE.subject,
+        html: htmlContent,
         attachments: [{
           filename: `contrato-${uploadedFile.Key}`,
           content: pdfBuffer,
