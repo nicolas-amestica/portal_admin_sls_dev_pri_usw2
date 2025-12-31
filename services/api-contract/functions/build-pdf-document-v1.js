@@ -1,6 +1,6 @@
-import { generatePDF, loadImages } from '../../../libs/pdf-generator/index.js';
 import { buildDocumentData } from '../core/contract/builder.js';
 import { success, unsuccessful } from "../../../helpers/responses.js";
+import { generatePDF, loadImages } from '../../../libs/pdf-generator/index.js';
 
 const {
   BUCKET_INFO_GI
@@ -17,10 +17,9 @@ export const main = async (event) => {
   const action = "Generar documento pdf.";
   try {
     // 1. Validar parámetros
-    const { documentData, type } = JSON.parse(event.body);
+    const { documentData } = JSON.parse(event.body);
 
     if (!documentData) return unsuccessful(400, { message: 'Falta el formulario del documento.' }, action);
-    if (!type) return unsuccessful(400, { message: 'Falta el tipo de respuesta del documento.' }, action);
 
     // 2. Construir datos del documento dinámicamente
     const adaptedDocumentData = buildDocumentData(documentData.contract);
@@ -35,8 +34,7 @@ export const main = async (event) => {
     // 4. Generar PDF
     const pdfBuffer = await generatePDF(adaptedDocumentData, headerImage, footerImage);
 
-    if (!Buffer.isBuffer(pdfBuffer))
-      return unsuccessful(500, { message: "El PDF generado no es un buffer válido" }, action);
+    if (!Buffer.isBuffer(pdfBuffer)) return unsuccessful(500, { message: "El PDF generado no es un buffer válido" }, action);
 
     // 5. Retornar respuesta
     return success(200, { base64: pdfBuffer.toString('base64') }, action);
