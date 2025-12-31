@@ -39,13 +39,43 @@ const uploadFile = async (content) => {
 };
 
 export const main = async (event) => {
-  console.log("Event ==> ", event);
+  console.log("Event ==>", JSON.stringify(event, null, 2));
+
   try {
-    const { sk, formContact } = JSON.parse(event.body);
+    // 1. Validar parámetros
+    console.log("Paso 1: Validando parámetros...");
+    console.log("event.body tipo:", typeof event.body);
+    console.log("event.isBase64Encoded:", event.isBase64Encoded);
 
-    if (!sk) return unsuccessful(400, { message: "Falta el identificador del programa en la solicitud." }, ACTION);
-    if (!formContact) return unsuccessful(400, { message: "Falta el formulario en la solicitud." }, ACTION);
+    // Manejar body que puede venir en diferentes formatos
+    let body;
+    if (typeof event.body === 'string') {
+      // Si está en base64, decodificarlo primero
+      if (event.isBase64Encoded) {
+        const decodedBody = Buffer.from(event.body, 'base64').toString('utf-8');
+        console.log("Body decodificado de base64");
+        body = JSON.parse(decodedBody);
+      } else {
+        body = JSON.parse(event.body);
+      }
+    } else {
+      body = event.body;
+    }
 
+    const { sk, formContact } = body;
+
+    if (!sk) {
+      console.error("Error: Falta el identificador del programa");
+      return unsuccessful(400, { message: "Falta el identificador del programa en la solicitud." }, ACTION);
+    }
+
+    if (!formContact) {
+      console.error("Error: Falta el formulario de contacto");
+      return unsuccessful(400, { message: "Falta el formulario en la solicitud." }, ACTION);
+    }
+
+    // 2. Buscar programa en DynamoDB
+    console.log(`Paso 2: Buscando programa con sk: ${sk}...`);
     const programs = await dynamoDbLib.query({
       TableName: DYNAMODB_PROGRAM_TABLE,
       KeyConditionExpression: '#pk = :pk AND begins_with(#sk, :sk)',
@@ -53,41 +83,58 @@ export const main = async (event) => {
       ExpressionAttributeNames: { '#pk': 'pk', '#sk': 'sk' }
     });
 
-    if (!programs || programs.length === 0) return unsuccessful(404, { message: "Programa no encontrado." }, ACTION);
+    if (!programs || programs.length === 0) {
+      console.error("Error: Programa no encontrado");
+      return unsuccessful(404, { message: "Programa no encontrado." }, ACTION);
+    }
 
     let program = programs[0];
+    console.log("Programa encontrado:", program.sk);
 
-    // 2. Construir datos del documento dinámicamente
+    // 3. Construir datos del documento dinámicamente
+    console.log("Paso 3: Construyendo datos del documento...");
     const adaptedDocumentData = buildDocumentData(program.content[0].contract);
 
-    // 3. Cargar imágenes desde S3
+    // 4. Cargar imágenes desde S3
+    console.log(`Paso 4: Cargando imágenes desde S3 (bucket: ${BUCKET_INFO_GI})...`);
     const { headerImage, footerImage } = await loadImages(
       BUCKET_INFO_GI,
       'assets/header.png',
       'assets/footer.png'
     );
 
-    // 4. Generar PDF
+    // 5. Generar PDF sin marca de agua
+    console.log("Paso 5: Generando PDF final sin marca de agua...");
     const pdfBuffer = await generatePDF(adaptedDocumentData, headerImage, footerImage, { addWatermark: false });
-    if (!Buffer.isBuffer(pdfBuffer)) return unsuccessful(500, { message: "El PDF generado no es un buffer válido" }, ACTION);
 
-    // 5. Almacenar PDF en S3
+    if (!Buffer.isBuffer(pdfBuffer)) {
+      console.error("Error: El PDF generado no es un buffer válido");
+      return unsuccessful(500, { message: "El PDF generado no es un buffer válido" }, ACTION);
+    }
+
+    console.log(`PDF generado exitosamente. Tamaño: ${pdfBuffer.length} bytes`);
+
+    // 6. Almacenar PDF en S3
+    console.log("Paso 6: Almacenando PDF en S3...");
     const uploadedFile = await uploadFile({
       content: pdfBuffer,
       contentType: 'application/pdf'
     });
+    console.log(`PDF almacenado en S3: ${uploadedFile.path}/${uploadedFile.Key}`);
 
-    // 6. Guardar referencia del archivo y actualizar estado del programa
+    // 7. Guardar referencia del archivo y actualizar estado del programa
+    console.log("Paso 7: Actualizando estado del programa en DynamoDB...");
     program.status = 'approved';
     program.updatedAt = new Date().toISOString();
     program.content[0].contract.file = uploadedFile;
     const approvedProgram = await dynamoDbLib.put({ TableName: DYNAMODB_PROGRAM_TABLE, Item: program });
 
-    // 7. Enviar email con documento adjunto
+    // 8. Enviar email con documento adjunto
     const recipientEmail = formContact.email;
     const recipientName = formContact.name || formContact.email;
 
     if (recipientEmail) {
+      console.log(`Paso 8: Enviando email a ${recipientEmail}...`);
       const htmlContent = generateEmailHTML({
         title: MESSAGE.title,
         recipientName: recipientName,
@@ -104,10 +151,29 @@ export const main = async (event) => {
           contentType: 'application/pdf'
         }]
       });
+      console.log("Email enviado exitosamente");
+    } else {
+      console.log("Paso 8: No se envió email (falta recipientEmail)");
     }
 
+    console.log("Proceso completado exitosamente");
     return success(200, approvedProgram, ACTION);
   } catch (e) {
-    return unsuccessful(e.statusCode || 500, e, ACTION);
+    console.error("Error en aprobación de contrato:", {
+      message: e.message,
+      stack: e.stack,
+      statusCode: e.statusCode,
+      name: e.name
+    });
+
+    return unsuccessful(
+      e.statusCode || 500,
+      {
+        message: e.message || 'Error desconocido al aprobar contrato',
+        error: e.name,
+        details: STAGE === 'dev' ? e.stack : undefined
+      },
+      ACTION
+    );
   }
 };

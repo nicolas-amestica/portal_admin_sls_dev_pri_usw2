@@ -1,4 +1,4 @@
-const { PDFDocument, rgb, StandardFonts } = require("pdf-lib");
+import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import { PDF_STYLES, PDF_CONFIG } from "./core/config.js";
 import { addWatermark } from "./core/watermark.js";
 import { sanitizeRut } from "./helpers/formatters.js";

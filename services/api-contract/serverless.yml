@@ -25,7 +25,6 @@ provider:
       - 'multipart/form-data'
       - 'image/*'
       - 'application/pdf'
-      - '*/*'
 
   environment:
     STAGE: ${self:custom.stage}
@@ -77,8 +76,8 @@ functions:
   build_contract_v1:
     handler: functions/build-pdf-document-v1.main
     description: Genera documentos en base64 y tipo "archivo" según tipo que se solicite.
-    timeout: 30
-    memorySize: 512
+    timeout: 60
+    memorySize: 1024
     events:
       - http:
           path: v1/documentos/solicitudes/documento
@@ -89,8 +88,8 @@ functions:
   approve_contract_v1:
     handler: functions/approve-contract-v1.main
     description: Aprueba el contrato generado, genera pdf y lo almacena en S3.
-    timeout: 30
-    memorySize: 512
+    timeout: 60
+    memorySize: 1024
     events:
       - http:
           path: v1/contratos/aprobar
