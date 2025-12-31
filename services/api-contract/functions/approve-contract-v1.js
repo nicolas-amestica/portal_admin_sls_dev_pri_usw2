@@ -4,6 +4,7 @@ import * as dynamoDbLib from '../../../libs/dynamodb-v3';
 import { buildDocumentData } from '../core/contract/builder.js';
 import { success, unsuccessful } from "../../../helpers/responses";
 import { generatePDF, loadImages } from '../../../libs/pdf-generator/index.js';
+import { sendEmailWithAttachments } from '../../../libs/nodemailer.js';
 
 const {
   DYNAMODB_PROGRAM_TABLE,
@@ -37,9 +38,10 @@ const uploadFile = async (content) => {
 export const main = async (event) => {
   // console.log("Event ==> ", event);
   try {
-    const { sk } = event.queryStringParameters;
+    const { sk, formContact } = JSON.parse(event.body);
 
     if (!sk) return unsuccessful(400, { message: "Falta el identificador del programa en la solicitud." }, ACTION);
+    if (!formContact) return unsuccessful(400, { message: "Falta el formulario en la solicitud." }, ACTION);
 
     const programs = await dynamoDbLib.query({
       TableName: DYNAMODB_PROGRAM_TABLE,
@@ -63,12 +65,12 @@ export const main = async (event) => {
     );
 
     // 4. Generar PDF
-    const pdfBuffer = await generatePDF(adaptedDocumentData, headerImage, footerImage);
+    const pdfBuffer = await generatePDF(adaptedDocumentData, headerImage, footerImage, { addWatermark: false });
     if (!Buffer.isBuffer(pdfBuffer)) return unsuccessful(500, { message: "El PDF generado no es un buffer válido" }, ACTION);
 
     // 5. Almacenar PDF en S3
     const uploadedFile = await uploadFile({
-      content: pdfBuffer.toString('base64'),
+      content: pdfBuffer,
       contentType: 'application/pdf'
     });
 
@@ -78,7 +80,29 @@ export const main = async (event) => {
     program.content[0].contract.file = uploadedFile;
     const approvedProgram = await dynamoDbLib.put({ TableName: DYNAMODB_PROGRAM_TABLE, Item: program });
 
-    // 6. Enviar email con documento adjunto
+    // 7. Enviar email con documento adjunto
+    const recipientEmail = formContact.email;
+
+    if (recipientEmail) {
+      await sendEmailWithAttachments({
+        to: recipientEmail,
+        subject: 'Contrato Aprobado - Giras Indómito',
+        html: `
+          <h2>Contrato Aprobado</h2>
+          <p>Estimado/a,</p>
+          <p>Su contrato ha sido aprobado exitosamente.</p>
+          <p>Adjunto encontrará el documento PDF con los detalles del contrato.</p>
+          <br>
+          <p>Saludos cordiales,</p>
+          <p><strong>Giras Indómito</strong></p>
+        `,
+        attachments: [{
+          filename: `contrato-${uploadedFile.Key}`,
+          content: pdfBuffer,
+          contentType: 'application/pdf'
+        }]
+      });
+    }
 
     return success(200, approvedProgram, ACTION);
   } catch (e) {
