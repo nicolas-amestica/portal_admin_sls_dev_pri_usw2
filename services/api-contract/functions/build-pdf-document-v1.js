@@ -1,6 +1,5 @@
-import { generatePDF } from '../core/pdf/generator.js';
-import { loadImages } from '../core/assets/image-loader.js';
-import { buildContractData as buildDocumentData } from '../core/contract/builder.js';
+import { generatePDF, loadImages } from '../../../libs/pdf-generator/index.js';
+import { buildDocumentData } from '../core/contract/builder.js';
 import { success, unsuccessful } from "../../../helpers/responses.js";
 
 const {
@@ -40,23 +39,7 @@ export const main = async (event) => {
       return unsuccessful(500, { message: "El PDF generado no es un buffer válido" }, action);
 
     // 5. Retornar respuesta
-    if (type === 'base64') {
-      return success(200, { base64: pdfBuffer.toString('base64') }, action);
-    } else if (type === 'buffer') {
-      return {
-        statusCode: 200,
-        headers: {
-          'Content-Type': 'application/pdf',
-          'Content-Disposition': 'attachment; filename=documento-servicios-turisticos.pdf',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Credentials': true
-        },
-        body: pdfBuffer.toString('base64'),
-        isBase64Encoded: true
-      };
-    } else {
-      return unsuccessful(400, { message: 'Tipo de respuesta no soportado.' }, action);
-    }
+    return success(200, { base64: pdfBuffer.toString('base64') }, action);
   } catch (e) {
     return unsuccessful(e.statusCode || 500, e, action);
   }

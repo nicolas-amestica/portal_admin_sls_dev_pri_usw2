@@ -1,37 +1,4 @@
-/**
- * Formatea fecha en español
- */
-const formatDate = (dateString) => {
-  let date;
-
-  // Si viene en formato DD-MM-YYYY, parsear manualmente
-  if (dateString.includes('-') && dateString.split('-')[0].length <= 2) {
-    const [day, month, year] = dateString.split('-');
-    date = new Date(year, month - 1, day); // month - 1 porque Date usa 0-11
-  } else {
-    date = new Date(dateString);
-  }
-
-  const months = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
-                  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
-  const days = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
-
-  return {
-    full: `${days[date.getDay()]} ${date.getDate()} de ${months[date.getMonth()]} de ${date.getFullYear()}`,
-    simple: `${date.getDate()} de ${months[date.getMonth()]} de ${date.getFullYear()}`
-  };
-};
-
-/**
- * Formatea número como moneda chilena
- */
-const formatCurrency = (amount) => {
-  return new Intl.NumberFormat('es-CL', {
-    style: 'currency',
-    currency: 'CLP',
-    minimumFractionDigits: 0
-  }).format(amount);
-};
+import { formatDate, formatCurrency } from '../../../../libs/pdf-generator/helpers/formatters.js';
 
 /**
  * Genera los servicios incluidos formateados
@@ -70,7 +37,7 @@ const buildClientRepresentativesText = (clientRepresentative = [], institutionNa
 /**
  * Construye el contenido completo del contrato para el PDF
  */
-export const buildContractData = (contract = {}) => {
+export const buildDocumentData = (contract = {}) => {
 
   const {
     trip = {},
