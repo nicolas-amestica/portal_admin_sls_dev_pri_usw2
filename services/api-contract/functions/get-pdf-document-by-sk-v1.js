@@ -43,8 +43,6 @@ export const main = async (event) => {
 
     if (!file) return unsuccessful(404, { message: 'Archivo no encontrado.' }, action);
 
-    
-
     return success(200, file, action);
   } catch (e) {
     return unsuccessful(e.statusCode || 500, e, action);
