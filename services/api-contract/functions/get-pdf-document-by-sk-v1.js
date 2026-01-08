@@ -35,6 +35,7 @@ export const main = async (event) => {
     if (!results || results.length === 0) return unsuccessful(404, { message: 'Programa no encontrado.' }, action);
 
     const document = results[0];
+
     const { contract } = document.content[0];
 
     if (!contract) return unsuccessful(404, { message: 'Documento no encontrado.' }, action);
