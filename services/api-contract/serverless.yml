@@ -73,22 +73,34 @@ functions:
           cors: true
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
 
-  build_contract_v1:
-    handler: functions/build-pdf-document-v1.main
-    description: Genera documentos en base64 y tipo "archivo" según tipo que se solicite.
-    timeout: 60
+  build_document_by_form_v1:
+    handler: functions/build-pdf-document-by-form-v1.main
+    description: Genera documentos en base64 desde un formulario.
+    timeout: 30
     memorySize: 1024
     events:
       - http:
-          path: v1/documentos/solicitudes/documento
+          path: v1/documentos/pdf
           method: post
+          cors: true
+          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+
+  get_pdf_document_by_sk_v1:
+    handler: functions/get-pdf-document-by-sk-v1.main
+    description: Obtiene el documento PDF en archivo a partir de su sk.
+    timeout: 30
+    memorySize: 1024
+    events:
+      - http:
+          path: v1/documentos/pdf
+          method: get
           cors: true
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
 
   approve_contract_v1:
     handler: functions/approve-contract-v1.main
     description: Aprueba el contrato generado, genera pdf y lo almacena en S3.
-    timeout: 60
+    timeout: 30
     memorySize: 1024
     events:
       - http:
