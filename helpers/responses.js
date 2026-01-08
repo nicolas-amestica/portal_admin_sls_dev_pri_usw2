@@ -99,3 +99,25 @@ export function unsuccessful(code, err, action) {
 export function send(body) {
   return buildResponse(200, body, true);
 }
+
+/**
+ * Genera una respuesta de archivo binario (PDF) con el contenido codificado en base64.
+ *
+ * @param {string} base64Content - Contenido del archivo codificado en base64.
+ * @param {string} filename - Nombre del archivo para el header Content-Disposition.
+ * @param {string} [contentType='application/pdf'] - Tipo de contenido MIME del archivo.
+ * @returns {Object} Objeto de respuesta con statusCode, headers, body y isBase64Encoded.
+ */
+export function binaryFile(base64Content, filename, contentType = 'application/pdf') {
+  return {
+    statusCode: 200,
+    headers: {
+      'Content-Type': contentType,
+      'Access-Control-Allow-Headers': '*',
+      'Access-Control-Allow-Origin': '*',
+      'Content-Disposition': `inline; filename="${filename}"`
+    },
+    body: base64Content,
+    isBase64Encoded: true
+  };
+}

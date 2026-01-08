@@ -1,14 +1,14 @@
+import { getObject } from "../../../libs/s3-v3";
 import * as dynamoDbLib from "../../../libs/dynamodb-v3";
-import { success, unsuccessful } from "../../../helpers/responses.js";
+import { unsuccessful, binaryFile } from "../../../helpers/responses.js";
 
 const {
-  // BUCKET_INFO_GI,
   PROGRAM_TABLE,
   DYNAMODB_PROGRAM_TABLE
 } = process.env;
 
 export const main = async (event) => {
-  // console.log("Event ==>", JSON.stringify(event, null, 2));
+  console.log("Event ==>", JSON.stringify(event, null, 2));
   const action = "Obtener archivo PDF del documento.";
 
   try {
@@ -44,7 +44,25 @@ export const main = async (event) => {
 
     if (!file) return unsuccessful(404, { message: 'Archivo no encontrado.' }, action);
 
-    return success(200, file, action);
+    const s3Params = {
+      Bucket: file.bucket,
+      Key: `${file.path}/${file.Key}`
+    };
+
+    const pdfObject = await getObject(s3Params);
+
+    const streamToBuffer = async (stream) => {
+      const chunks = [];
+      for await (const chunk of stream) {
+        chunks.push(chunk);
+      }
+      return Buffer.concat(chunks);
+    };
+
+    const pdfBuffer = await streamToBuffer(pdfObject.Body);
+    const base64PDF = pdfBuffer.toString('base64');
+
+    return binaryFile(base64PDF, file.Key);
   } catch (e) {
     return unsuccessful(e.statusCode || 500, e, action);
   }
