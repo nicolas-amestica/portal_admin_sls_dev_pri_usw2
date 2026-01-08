@@ -95,6 +95,7 @@ functions:
           path: v1/documentos/pdf
           method: get
           cors: true
+          contentHandling: CONVERT_TO_BINARY
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
 
   approve_contract_v1:
