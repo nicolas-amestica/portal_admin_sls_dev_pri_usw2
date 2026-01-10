@@ -42,6 +42,7 @@ provider:
     - ${file(../../aws/policies/lambda-policy-dynamodb-program.yml)}
 
 functions:
+
   create_program_v1:
     handler: functions/create-program-v1.main
     description: Este recurso está relacionado con la creación de un programa de giras de estudios o viajes.
@@ -52,6 +53,7 @@ functions:
           method: post
           cors: true
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
+
   update_program_v1:
     handler: functions/update-program-v1.main
     description: Este recurso está relacionado con la actualización de un programa de giras de estudios o viajes.
@@ -62,6 +64,7 @@ functions:
           method: put
           cors: true
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
+
   get_programs_v1:
     handler: functions/get-programs-view-v1.main
     description: Este recurso está relacionado con la obtención de la lista de programas en sistema.
@@ -72,6 +75,7 @@ functions:
           method: get
           cors: true
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
+
   get_program_v1:
     handler: functions/get-program-v1.main
     description: Este recurso está relacionado con la obtención de un programa en sistema por identificador único.
@@ -82,6 +86,30 @@ functions:
           method: get
           cors: true
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
+
+  complete_program_v1:
+    handler: functions/complete-program-v1.main
+    description: Este recurso está relacionado con la completación del programa en sistema por identificador único.
+    timeout: 30
+    events:
+      - http:
+          path: v1/programas/completar
+          method: post
+          cors: true
+          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+
+  reject_program_v1:
+    handler: functions/reject-program-v1.main
+    description: Este recurso está relacionado con el rechazo del programa en sistema por identificador único.
+    timeout: 30
+    events:
+      - http:
+          path: v1/programas/rechazar
+          method: post
+          cors: true
+          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+
+  
 
 resources:
   - ${file(../../common/apigateway-errors.yml)}
