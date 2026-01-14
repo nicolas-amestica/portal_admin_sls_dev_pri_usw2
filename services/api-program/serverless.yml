@@ -109,7 +109,5 @@ functions:
           cors: true
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
 
-  
-
 resources:
   - ${file(../../common/apigateway-errors.yml)}
