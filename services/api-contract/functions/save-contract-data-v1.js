@@ -7,7 +7,12 @@ const ACTION = "Guardar datos del contrato en el programa.";
 export const main = async (event) => {
   console.log("Event ==> ", event);
   try {
-    const { sk, contract } = JSON.parse(event.body);
+    // Manejar el body si viene en base64 (cuando binaryMediaTypes incluye '*/*')
+    let body = event.body;
+    if (event.isBase64Encoded) {
+      body = Buffer.from(event.body, 'base64').toString('utf-8');
+    }
+    const { sk, contract } = JSON.parse(body);
 
     if (!sk) return unsuccessful(400, { message: "Falta el identificador del programa en la solicitud." }, ACTION);
 

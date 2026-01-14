@@ -39,6 +39,7 @@ function buildResponse(statusCode, body, status, debug = true) {
       "Access-Control-Allow-Origin": "*",
     },
     body: JSON.stringify({ state: status, ...content }),
+    isBase64Encoded: false,
   };
 }
 

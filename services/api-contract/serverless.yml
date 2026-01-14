@@ -50,16 +50,16 @@ provider:
     - ${file(../../aws/policies/lambda-policy-s3.yml)}
 
 functions:
-  management_program_v1:
-    handler: functions/management-contract-v1.main
-    description: Gestiona aprobación/rechazo de programas con contratos.
-    timeout: 30
-    memorySize: 512
-    events:
-      - http:
-          path: v1/contratos/solicitudes/contrato
-          method: post
-          cors: true
+  # management_program_v1:
+    # handler: functions/management-contract-v1.main
+    # description: Gestiona aprobación/rechazo de programas con contratos.
+    # timeout: 30
+    # memorySize: 512
+    # events:
+      # - http:
+          # path: v1/contratos/solicitudes/contrato
+          # method: post
+          # cors: true
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
 
   save_contract_data_v1:
@@ -69,7 +69,7 @@ functions:
     memorySize: 512
     events:
       - http:
-          path: v1/contratos/solicitudes/contratos
+          path: v1/contratos/guardar
           method: post
           cors: true
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
