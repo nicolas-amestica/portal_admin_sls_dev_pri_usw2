@@ -5,7 +5,7 @@ import { parseEventBody } from '../../../helpers/event-parser.js';
 import { buildDocumentData } from '../../../libs/contract/builder.js';
 import { success, unsuccessful } from "../../../helpers/responses.js";
 import { APPROVED_CONTRACT } from '../../../libs/contract/messages.js';
-import { generatePDF, loadImages } from '../../../libs/pdf-generator/index.js';
+import { generateContract, loadImages } from '../../../libs/pdf-generator/index.js';
 import { sendEmailWithAttachments, generateEmailHTML } from '../../../libs/nodemailer.js';
 
 const {
@@ -61,13 +61,20 @@ export const main = async (event) => {
 
     const adaptedDocumentData = buildDocumentData(program.content[0].contract);
 
+    /**
+     * Obtener los dnis del contract.representatives.dni (es un array el representatives[]) y 
+     * obtener el dni de cada uno he ir a buscar la firma en S3, está en signatures/signature-<DNI>.png (bucket BUCKET_INFO_GI)
+     * No sé si hacer una función nueva o utilizar la loadImages y adaptarla para que pueda cargar múltiples imágenes
+     * Luego, incrustar cada firma en la sección de firmas del contrato (última hoja) con la función generateContract
+     */
+
     const { headerImage, footerImage } = await loadImages(
       BUCKET_INFO_GI,
       'assets/header.png',
       'assets/footer.png'
     );
 
-    const pdfBuffer = await generatePDF(adaptedDocumentData, headerImage, footerImage, { addWatermark: false });
+    const pdfBuffer = await generateContract(adaptedDocumentData, headerImage, footerImage, { addWatermark: false });
 
     if (!Buffer.isBuffer(pdfBuffer)) return unsuccessful(500, { message: "El PDF generado no es un buffer válido" }, ACTION);
 
@@ -81,7 +88,26 @@ export const main = async (event) => {
     program.content[0].contract.file = uploadedFile;
     const approvedProgram = await dynamoDbLib.put({ TableName: DYNAMODB_PROGRAM_TABLE, Item: program });
 
-    // Crear cuenta de usuario con permiso de usuario (lógica no implementada aquí)
+    /**
+     * Crear cuenta de usuario con permiso de usuario (perfil ACC#CLI#Cliente), el objeto a crear en DynamoDB es:
+     * {
+     *   "pk": "USR#4f7cb502-4256-11ec-81d3-0242ac130003",
+     *   "sk": "USR#19", <- contract.clientRepresentative.dni (USR#<RUT CON DV SIN PUNTOS NI GUION>)
+     *   "createdAt": "2025-11-08T02:14:10.472Z", <- nueva fecha
+     *   "email": "niamesvi3@gmail.com", <- program.representative.email
+     *   "gsiOne": "19", <- contract.clientRepresentative.dni (<RUT CON DV SIN PUNTOS NI GUION>)
+     *   "id": "4127943b-5c13-48f2-b3f7-aefc0115b582", <- nuevo uuidv7
+     *   "isActive": true, <- por defecto true
+     *   "lastAccess": "2025-12-26T17:52:56.452Z", <- nueva fecha
+     *   "names": "Nicolás", <- contract.clientRepresentative.name
+     *   "password": "$2a$10$LmF0FpKID889ozgC1M.PEe4Bi9sPMrgg0aPsC6eUmyxJnuvXAWeV2", <- password hasheada (por defecto "Indomito1234$")
+     *   "phoneNumber": "+56959139687",  <- program.representative.phone
+     *   "profiles": [ "ACC#CLI#Cliente" ], <- por defecto
+     *   "rut": "1-9", <- contract.clientRepresentative.rut (SIN PUNTOS Y CON GUION)
+     *   "surnames": "Améstica Vidal" <- contract.clientRepresentative.name
+     *   }
+     * Luego enviar email al usuario con el contrato adjunto y el usuario y contraseña provisoria (Indomito1234$), modifica body para enviarlo a generateEmailHTML.
+     */
 
     const recipientEmail = formContact.email;
     const recipientName = formContact.name || formContact.email;

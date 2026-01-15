@@ -29,7 +29,7 @@ export { PDF_CONFIG, PDF_STYLES } from "./core/config.js";
  *
  * @returns {Promise<Buffer>} Buffer del PDF generado
  */
-export const generatePDF = async (
+export const generateContract = async (
   documentData,
   headerImageBase64,
   footerImageBase64,
