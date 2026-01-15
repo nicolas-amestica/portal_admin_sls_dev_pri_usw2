@@ -162,6 +162,23 @@ export const main = async (event) => {
       console.log(`Usuario creado exitosamente con ID: ${userId}`);
     }
 
+    // Cargar logo desde S3 para incrustar en el email (opcional)
+    let logoBuffer = null;
+    let useCidLogo = false;
+
+    try {
+      const logoParams = {
+        Bucket: BUCKET_INFO_GI,
+        Key: 'assets/logo-gi.png'
+      };
+      const logoObject = await S3.getObject(logoParams);
+      logoBuffer = Buffer.from(await logoObject.Body.transformToByteArray());
+      useCidLogo = true;
+      console.log('Logo cargado exitosamente desde S3');
+    } catch (logoError) {
+      console.warn('No se pudo cargar el logo desde S3, se usará URL por defecto:', logoError.message);
+    }
+
     // Enviar email con credenciales
     const recipientEmail = representative.email;
     const recipientName = clientRepresentative.name || representative.email;
@@ -174,22 +191,50 @@ export const main = async (event) => {
     const htmlContent = generateEmailHTML({
       title: MESSAGE.title,
       recipientName: recipientName,
-      body: emailBody
+      body: emailBody,
+      useCidLogo: useCidLogo
+    });
+
+    // Construir attachments
+    const attachments = [];
+
+    // Agregar logo si está disponible
+    if (logoBuffer) {
+      attachments.push({
+        filename: 'logo.png',
+        content: logoBuffer,
+        contentType: 'image/png',
+        cid: 'logo-giras-indomito',
+        contentDisposition: 'inline'
+      });
+    }
+
+    // Agregar contrato PDF
+    attachments.push({
+      filename: `contrato-${uploadedFile.Key}`,
+      content: pdfBuffer,
+      contentType: 'application/pdf'
     });
 
     await sendEmailWithAttachments({
       to: recipientEmail,
       subject: MESSAGE.subject,
       html: htmlContent,
-      attachments: [{
-        filename: `contrato-${uploadedFile.Key}`,
-        content: pdfBuffer,
-        contentType: 'application/pdf'
-      }]
+      attachments: attachments
     });
 
     return success(200, approvedProgram, ACTION);
   } catch (e) {
-    return unsuccessful(e.statusCode || 500, e, ACTION);
+    console.error('Error en approve-program-v1:', e);
+
+    // Extraer información del error sin referencias circulares
+    const errorInfo = {
+      message: e.message || 'Error desconocido',
+      code: e.code || e.name || 'UNKNOWN_ERROR',
+      statusCode: e.statusCode || e.$metadata?.httpStatusCode || 500,
+      stack: e.stack
+    };
+
+    return unsuccessful(errorInfo.statusCode, errorInfo, ACTION);
   }
 };

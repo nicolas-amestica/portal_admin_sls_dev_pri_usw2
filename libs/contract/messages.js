@@ -1,20 +1,56 @@
 export const APPROVED_PROGRAM = {
     dev: {
-        title: "Giras Indómito DEV - Contrato Aprobado",
-        subject: "Contrato Aprobado - Giras Indómito",
-        body: (username, password) => `Su contrato ha sido aprobado exitosamente. Adjunto encontrará el documento PDF con los detalles del contrato.
-            **Credenciales de Acceso al Portal:**
-            Usuario: ${username}
-            Contraseña temporal: ${password}
-            Por favor, inicie sesión en nuestro portal <a href="https://d2q00w63koc9yz.cloudfront.net/auth/login">www.girasindomito.cl</a> y cambie su contraseña temporal por una de su preferencia.`
+        title: "Contrato Aprobado",
+        subject: "¡Felicitaciones! Su Contrato ha sido Aprobado - Giras Indómito",
+        body: (username, password) => `¡Nos complace informarle que su contrato ha sido aprobado exitosamente!
+
+Adjunto a este correo encontrará el documento PDF con todos los detalles de su contrato.
+
+<div class="credentials-box">
+    <h3>🔐 Credenciales de Acceso al Portal</h3>
+    <div class="credential-item">
+        <span class="credential-label">Usuario:</span>
+        <span class="credential-value">${username}</span>
+    </div>
+    <div class="credential-item">
+        <span class="credential-label">Contraseña:</span>
+        <span class="credential-value">${password}</span>
+    </div>
+</div>
+
+<strong>Próximos pasos:</strong>
+1. Acceda a nuestro portal usando el botón de abajo.
+2. Ingrese con las credenciales proporcionadas.
+3. Por seguridad, cambie su contraseña temporal por una de su preferencia.
+4. Explore las funcionalidades disponibles para gestionar su programa.
+
+Estamos emocionados de acompañarle en esta experiencia inolvidable.`
     },
     prd: {
-        title: "Giras Indómito - Contrato Aprobado",
-        subject: "Contrato Aprobado - Giras Indómito",
-        body: (username, password) => `Su contrato ha sido aprobado exitosamente. Adjunto encontrará el documento PDF con los detalles del contrato.
-            **Credenciales de Acceso al Portal:**
-            Usuario: ${username}
-            Contraseña temporal: ${password}
-            Por favor, inicie sesión en nuestro portal <a href="https://d2e3zvke409odp.cloudfront.net/auth/login">www.girasindomito.cl</a> y cambie su contraseña temporal por una de su preferencia.`
+        title: "Contrato Aprobado",
+        subject: "¡Felicitaciones! Su Contrato ha sido Aprobado - Giras Indómito",
+        body: (username, password) => `¡Nos complace informarle que su contrato ha sido aprobado exitosamente!
+
+Adjunto a este correo encontrará el documento PDF con todos los detalles de su contrato.
+
+<div class="credentials-box">
+    <h3>🔐 Credenciales de Acceso al Portal</h3>
+    <div class="credential-item">
+        <span class="credential-label">Usuario:</span>
+        <span class="credential-value">${username}</span>
+    </div>
+    <div class="credential-item">
+        <span class="credential-label">Contraseña:</span>
+        <span class="credential-value">${password}</span>
+    </div>
+</div>
+
+<strong>Próximos pasos:</strong>
+1. Acceda a nuestro portal usando el botón de abajo.
+2. Ingrese con las credenciales proporcionadas.
+3. Por seguridad, cambie su contraseña temporal por una de su preferencia.
+4. Explore las funcionalidades disponibles para gestionar su programa.
+
+Estamos emocionados de acompañarle en esta experiencia inolvidable.`
     }
 };

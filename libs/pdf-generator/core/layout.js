@@ -29,6 +29,51 @@ export const splitTextIntoLines = (text, maxWidth, font, fontSize) => {
 };
 
 /**
+ * Calcula el espaciado adicional entre palabras para justificar una línea de texto
+ */
+export const calculateJustifiedSpacing = (line, maxWidth, font, fontSize) => {
+  const words = line.trim().split(' ');
+  if (words.length <= 1) return 0; // No justificar líneas con una sola palabra
+
+  const textWithoutSpaces = words.join('');
+  const textWidth = font.widthOfTextAtSize(textWithoutSpaces, fontSize);
+  const totalSpaceNeeded = maxWidth - textWidth;
+  const numberOfSpaces = words.length - 1;
+
+  return totalSpaceNeeded / numberOfSpaces;
+};
+
+/**
+ * Dibuja una línea de texto justificada
+ */
+export const drawJustifiedText = (page, line, x, y, maxWidth, font, fontSize, color, isLastLine = false) => {
+  const words = line.trim().split(' ');
+
+  // No justificar la última línea de un párrafo o líneas con una sola palabra
+  if (isLastLine || words.length <= 1) {
+    page.drawText(line, { x, y, size: fontSize, font, color });
+    return;
+  }
+
+  const extraSpacing = calculateJustifiedSpacing(line, maxWidth, font, fontSize);
+  let currentX = x;
+
+  words.forEach((word, index) => {
+    page.drawText(word, {
+      x: currentX,
+      y,
+      size: fontSize,
+      font,
+      color
+    });
+
+    const wordWidth = font.widthOfTextAtSize(word, fontSize);
+    const spaceWidth = font.widthOfTextAtSize(' ', fontSize);
+    currentX += wordWidth + spaceWidth + extraSpacing;
+  });
+};
+
+/**
  * Crea una función de verificación de salto de página
  */
 export const createPageBreakChecker = (pdfDoc, currentPage, yPosition, onNewPage) => {
