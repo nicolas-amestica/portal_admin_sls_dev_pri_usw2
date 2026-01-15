@@ -13,12 +13,19 @@ custom: ${file(../../common/custom.yml)}
 
 provider:
   name: aws
-  runtime: nodejs18.x
+  runtime: nodejs20.x
   stage: ${opt:stage, 'dev'}
   region: ${opt:region, 'us-west-2'}
   profile: pa-${self:custom.stage}
   lambdaHashingVersion: 20201221
   endpointType: REGIONAL
+  architecture: arm64
+  apiGateway:
+    binaryMediaTypes:
+      - 'multipart/form-data'
+      - 'image/*'
+      - 'application/pdf'
+      - '*/*'
 
   environment:
     STAGE: ${self:custom.stage}
@@ -26,6 +33,8 @@ provider:
     PROGRAM_TABLE: PRG#8e3d823d-9f58-45df-8a8f-6779435a0001
     SECRET_KEY: secret-pri-${self:custom.stage}-${self:custom.shortRegion}
     PROFILE: ${self:provider.profile}
+    NODE_OPTIONS: '--enable-source-maps'
+    BUCKET_INFO_GI: giras-indomito-${self:custom.stage}-info
 
   # Configurar seguimiento mediante aws x-ray para identificar y resolver problemas y errores de rendimiento.
   tracing:
@@ -40,6 +49,7 @@ provider:
     - ${file(../../aws/policies/lambda-policy-xray.yml)}
     - ${file(../../aws/policies/lambda-policy-ssm.yml)}
     - ${file(../../aws/policies/lambda-policy-dynamodb-program.yml)}
+    - ${file(../../aws/policies/lambda-policy-s3.yml)}
 
 functions:
 
@@ -105,6 +115,18 @@ functions:
     events:
       - http:
           path: v1/programas/rechazar
+          method: post
+          cors: true
+          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+
+  approve_program_v1:
+    handler: functions/approve-program-v1.main
+    description: Aprueba el programa, crea cuenta con permiso de usuario, genera contrato pdf, lo almacena en S3, lo envía por correo.
+    timeout: 30
+    memorySize: 1024
+    events:
+      - http:
+          path: v1/programas/aprobar
           method: post
           cors: true
           # authorizer: ${file(../../common/lambda-authorizer.yml)}

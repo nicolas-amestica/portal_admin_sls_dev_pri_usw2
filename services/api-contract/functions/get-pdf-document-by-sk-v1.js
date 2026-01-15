@@ -8,15 +8,12 @@ const {
 } = process.env;
 
 export const main = async (event) => {
-  // console.log("Event ==>", JSON.stringify(event, null, 2));
   const action = "Obtener archivo PDF del documento.";
 
   try {
     const { sk } = event.queryStringParameters;
 
     if (!sk) return unsuccessful(400, { message: 'Falta el identificador del documento.' }, action);
-
-    console.log(sk);
 
     const params = {
       TableName: DYNAMODB_PROGRAM_TABLE,
@@ -33,8 +30,6 @@ export const main = async (event) => {
     };
 
     const results = await dynamoDbLib.query(params);
-
-    console.log(results);
 
     if (results.length === 0) return unsuccessful(404, { message: 'Programa no encontrado.' }, action);
 

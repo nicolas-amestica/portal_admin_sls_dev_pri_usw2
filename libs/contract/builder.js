@@ -1,4 +1,4 @@
-import { formatDate, formatCurrency } from '../../../../libs/pdf-generator/helpers/formatters.js';
+import { formatDate, formatCurrency } from '../pdf-generator/helpers/formatters.js';
 
 /**
  * Genera los servicios incluidos formateados

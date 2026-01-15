@@ -29,26 +29,6 @@ export const splitTextIntoLines = (text, maxWidth, font, fontSize) => {
 };
 
 /**
- * Crea una función de verificación de salto de página
- */
-export const createPageBreakChecker = (pdfDoc, currentPage, yPosition, onNewPage) => {
-  return (requiredSpace = 50) => {
-    const { MARGIN, FOOTER_HEIGHT, PAGE_WIDTH, PAGE_HEIGHT, HEADER_HEIGHT } = PDF_CONFIG;
-
-    if (yPosition < MARGIN + FOOTER_HEIGHT + requiredSpace) {
-      onNewPage(currentPage);
-
-      const newPage = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-      const newYPosition = PAGE_HEIGHT - HEADER_HEIGHT - 40;
-
-      return { newPage, newYPosition, pageChanged: true };
-    }
-
-    return { newPage: currentPage, newYPosition: yPosition, pageChanged: false };
-  };
-};
-
-/**
  * Agrega header y footer a una página
  */
 export const addHeaderAndFooter = (page, pdfDoc, headerImage, footerImage, font) => {

@@ -4,7 +4,6 @@ import { success, unsuccessful } from "../../../helpers/responses";
 const { DYNAMODB_PROGRAM_TABLE } = process.env;
 
 export const main = async (event) => {
-  console.log("event ==>", event);
   const action = "Actualización del programa de viaje.";
   const { content, sk, pk, id, createdAt, status, user } = JSON.parse(event.body);
 

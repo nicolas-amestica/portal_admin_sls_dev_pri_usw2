@@ -1,5 +1,6 @@
 import * as dynamoDbLib from '../../../libs/dynamodb-v3';
 import { success, unsuccessful } from "../../../helpers/responses";
+import { parseEventBody } from '../../../helpers/event-parser.js';
 
 const {
   PROGRAM_TABLE,
@@ -8,10 +9,9 @@ const {
 const ACTION = "Completar el programa.";
 
 export const main = async (event) => {
-  console.log("Event ==>", JSON.stringify(event, null, 2));
   try {
-
-    const { sk } = JSON.parse(event.body);
+    const body = parseEventBody(event);
+    const { sk } = body;
 
     if (!sk) return unsuccessful(400, { message: "Falta el identificador del programa en la solicitud." }, ACTION);
 
@@ -28,9 +28,9 @@ export const main = async (event) => {
 
     program.status = 'completed';
     program.updatedAt = new Date().toISOString();
-    const completedProgram = await dynamoDbLib.put({ TableName: DYNAMODB_PROGRAM_TABLE, Item: program });
+    await dynamoDbLib.put({ TableName: DYNAMODB_PROGRAM_TABLE, Item: program });
 
-    return success(200, completedProgram, ACTION);
+    return success(200, program, ACTION);
   } catch (e) {
     return unsuccessful(e.statusCode || 500, e, ACTION);
   }

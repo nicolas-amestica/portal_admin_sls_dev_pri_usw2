@@ -1,9 +1,10 @@
 import { uuidv7 } from "uuidv7";
-import * as S3 from "../../../libs/s3-v3";
-import * as dynamoDbLib from '../../../libs/dynamodb-v3';
-import { APPROVED_CONTRACT } from '../constants/messages.js';
-import { buildDocumentData } from '../core/contract/builder.js';
-import { success, unsuccessful } from "../../../helpers/responses";
+import * as S3 from "../../../libs/s3-v3.js";
+import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
+import { parseEventBody } from '../../../helpers/event-parser.js';
+import { buildDocumentData } from '../../../libs/contract/builder.js';
+import { success, unsuccessful } from "../../../helpers/responses.js";
+import { APPROVED_CONTRACT } from '../../../libs/contract/messages.js';
 import { generatePDF, loadImages } from '../../../libs/pdf-generator/index.js';
 import { sendEmailWithAttachments, generateEmailHTML } from '../../../libs/nodemailer.js';
 
@@ -13,7 +14,7 @@ const {
   BUCKET_INFO_GI,
   DYNAMODB_PROGRAM_TABLE
 } = process.env;
-const ACTION = "Aprueba el contrato generado, genera pdf y lo almacena en S3.";
+const ACTION = "Aprobar programa.";
 const MESSAGE = STAGE === 'dev' ? APPROVED_CONTRACT.dev : APPROVED_CONTRACT.prd;
 
 const uploadFile = async (content) => {
@@ -39,21 +40,8 @@ const uploadFile = async (content) => {
 };
 
 export const main = async (event) => {
-  console.log("Event ==>", JSON.stringify(event, null, 2));
-
   try {
-    let body;
-    if (typeof event.body === 'string') {
-      if (event.isBase64Encoded) {
-        const decodedBody = Buffer.from(event.body, 'base64').toString('utf-8');
-        body = JSON.parse(decodedBody);
-      } else {
-        body = JSON.parse(event.body);
-      }
-    } else {
-      body = event.body;
-    }
-
+    const body = parseEventBody(event);
     const { sk, formContact } = body;
 
     if (!sk) return unsuccessful(400, { message: "Falta el identificador del programa en la solicitud." }, ACTION);
@@ -92,6 +80,8 @@ export const main = async (event) => {
     program.updatedAt = new Date().toISOString();
     program.content[0].contract.file = uploadedFile;
     const approvedProgram = await dynamoDbLib.put({ TableName: DYNAMODB_PROGRAM_TABLE, Item: program });
+
+    // Crear cuenta de usuario con permiso de usuario (lógica no implementada aquí)
 
     const recipientEmail = formContact.email;
     const recipientName = formContact.name || formContact.email;

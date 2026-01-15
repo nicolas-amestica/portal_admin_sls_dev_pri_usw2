@@ -4,7 +4,6 @@ import { success, unsuccessful } from "../../../helpers/responses";
 const { DYNAMODB_PROGRAM_TABLE, PROGRAM_TABLE } = process.env;
 
 export const main = async (event) => {
-  console.log("event ==>", event);
   const action = "Obtener programas por periodo en sistema.";
   const { periodo } = event.queryStringParameters;
 

@@ -1,6 +1,7 @@
-import { buildDocumentData } from '../core/contract/builder.js';
+import { buildDocumentData } from '../../../libs/contract/builder.js';
 import { success, unsuccessful } from "../../../helpers/responses.js";
 import { generatePDF, loadImages } from '../../../libs/pdf-generator/index.js';
+import { parseEventBody } from '../../../helpers/event-parser.js';
 
 const {
   BUCKET_INFO_GI
@@ -13,23 +14,10 @@ const {
  * @returns {Object} Respuesta con PDF en base64
  */
 export const main = async (event) => {
-  console.log("Event ==>", JSON.stringify(event, null, 2));
   const action = "Generar documento pdf.";
 
   try {
-    let body;
-    if (typeof event.body === 'string') {
-      // Si está en base64, decodificarlo primero
-      if (event.isBase64Encoded) {
-        const decodedBody = Buffer.from(event.body, 'base64').toString('utf-8');
-        body = JSON.parse(decodedBody);
-      } else {
-        body = JSON.parse(event.body);
-      }
-    } else {
-      body = event.body;
-    }
-
+    const body = parseEventBody(event);
     const { documentData } = body;
 
     if (!documentData) {
