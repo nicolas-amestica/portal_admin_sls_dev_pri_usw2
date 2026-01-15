@@ -9,7 +9,7 @@ import {
 } from "./core/layout.js";
 
 // Re-exportar funciones útiles
-export { loadImages, clearImageCache } from "./core/image-loader.js";
+export { loadImages, loadSignatures, clearImageCache } from "./core/image-loader.js";
 export { formatDate, formatCurrency, sanitizeRut as formatRut } from "./helpers/formatters.js";
 export { PDF_CONFIG, PDF_STYLES } from "./core/config.js";
 
@@ -26,6 +26,7 @@ export { PDF_CONFIG, PDF_STYLES } from "./core/config.js";
  * @param {Object} options - Opciones adicionales
  * @param {string} options.watermarkText - Texto de marca de agua (opcional)
  * @param {boolean} options.addWatermark - Si agregar marca de agua (default: true)
+ * @param {Array} options.signatures - Array de firmas {dni, signature (base64), name}
  *
  * @returns {Promise<Buffer>} Buffer del PDF generado
  */
@@ -37,7 +38,8 @@ export const generateContract = async (
 ) => {
   const {
     watermarkText = 'BORRADOR',
-    addWatermark: shouldAddWatermark = true
+    addWatermark: shouldAddWatermark = true,
+    signatures: signatureImages = []
   } = options;
 
   // 1. Crear documento
@@ -53,6 +55,24 @@ export const generateContract = async (
 
   const headerImage = await pdfDoc.embedPng(headerImageBytes);
   const footerImage = await pdfDoc.embedPng(footerImageBytes);
+
+  // Embeder firmas si están disponibles
+  const embeddedSignatures = await Promise.all(
+    signatureImages.map(async (sig) => {
+      try {
+        const signatureBytes = Buffer.from(sig.signature, "base64");
+        const signatureImage = await pdfDoc.embedPng(signatureBytes);
+        return {
+          dni: sig.dni,
+          image: signatureImage,
+          name: sig.name
+        };
+      } catch (error) {
+        console.error(`Error al embeder firma para ${sig.dni}:`, error.message);
+        return null;
+      }
+    })
+  ).then(sigs => sigs.filter(sig => sig !== null));
 
   // 4. Configuración inicial
   const { PAGE_WIDTH, PAGE_HEIGHT, MARGIN, HEADER_HEIGHT, FOOTER_HEIGHT } =
@@ -284,116 +304,178 @@ export const generateContract = async (
 
   const SIGNATURE_SPACE = 90;
   const SIGNATURE_LINE_LENGTH = 200;
+  const SIGNATURE_IMAGE_HEIGHT = 40;
+  const SIGNATURE_IMAGE_WIDTH = 120;
+
+  // Función auxiliar para encontrar la firma por RUT/DNI
+  const findSignature = (rut) => {
+    if (!rut) return null;
+    const cleanRut = rut.replace(/\./g, '').replace(/-/g, '');
+    return embeddedSignatures.find(sig => {
+      const cleanSigDni = sig.dni.replace(/\./g, '').replace(/-/g, '');
+      return cleanSigDni === cleanRut;
+    });
+  };
 
   const totalSignatures = operators.length + clients.length;
   const useDoubleColumn = totalSignatures <= 4;
 
   if (useDoubleColumn && operators.length > 0 && clients.length > 0) {
-    // Layout de 2 columnas
+    // Layout de 2 columnas - dibujar en pares para mantener alineación horizontal
     const col1X = MARGIN + 40;
     const col2X = PAGE_WIDTH / 2 + 40;
 
-    let operatorY = yPosition;
-    let clientY = yPosition;
+    let currentY = yPosition - 35;
 
-    // COLUMNA OPERADORES
-    operatorY -= 12;
-    operatorY -= 35;
+    const maxLength = Math.max(operators.length, clients.length);
 
-    operators.forEach((operator) => {
-      if (operatorY < MARGIN + FOOTER_HEIGHT + SIGNATURE_SPACE) {
+    for (let i = 0; i < maxLength; i++) {
+      if (currentY < MARGIN + FOOTER_HEIGHT + SIGNATURE_SPACE) {
         if (!pagesWithHeaderFooter.has(page)) {
           addHeaderAndFooter(page, pdfDoc, headerImage, footerImage, font);
           pagesWithHeaderFooter.add(page);
         }
         page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-        operatorY = PAGE_HEIGHT - HEADER_HEIGHT - 150;
+        currentY = PAGE_HEIGHT - HEADER_HEIGHT - 150;
       }
 
-      page.drawLine({
-        start: { x: col1X, y: operatorY },
-        end: { x: col1X + SIGNATURE_LINE_LENGTH, y: operatorY },
-        thickness: 1,
-        color: rgb(0, 0, 0),
-      });
-      operatorY -= 15;
+      const operator = operators[i];
+      const client = clients[i];
 
-      page.drawText("El Operador", {
-        x: col1X,
-        y: operatorY,
-        size: PDF_STYLES.signatureDetail.size,
-        font: fontBold,
-        color: rgb(0, 0, 0),
-      });
-      operatorY -= 10;
+      let operatorHeight = 0;
+      let clientHeight = 0;
 
-      page.drawText(operator.name, {
-        x: col1X,
-        y: operatorY - 3,
-        size: PDF_STYLES.signatureDetail.size,
-        font: font,
-        color: rgb(0, 0, 0),
-      });
-      operatorY -= 13;
-
-      page.drawText(`RUT ${sanitizeRut(operator.rut)}`, {
-        x: col1X,
-        y: operatorY - 3,
-        size: PDF_STYLES.signatureDetail.size,
-        font: font,
-        color: rgb(0, 0, 0),
-      });
-      operatorY -= SIGNATURE_SPACE - 28;
-    });
-
-    // COLUMNA CLIENTES
-    clientY -= 47;
-
-    clients.forEach((client) => {
-      if (clientY < MARGIN + FOOTER_HEIGHT + SIGNATURE_SPACE) {
-        if (!pagesWithHeaderFooter.has(page)) {
-          addHeaderAndFooter(page, pdfDoc, headerImage, footerImage, font);
-          pagesWithHeaderFooter.add(page);
+      // Calcular altura del operador
+      if (operator) {
+        const operatorSignature = findSignature(operator.rut);
+        if (operatorSignature && operatorSignature.image) {
+          const signatureDims = operatorSignature.image.scale(0.075);
+          operatorHeight = signatureDims.height + 5 + 10 + 13 + 13; // firma + "El Operador" + nombre + RUT
+        } else {
+          operatorHeight = 15 + 10 + 13 + 13; // línea + "El Operador" + nombre + RUT
         }
-        page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-        clientY = PAGE_HEIGHT - HEADER_HEIGHT - 150;
       }
 
-      page.drawLine({
-        start: { x: col2X, y: clientY },
-        end: { x: col2X + SIGNATURE_LINE_LENGTH, y: clientY },
-        thickness: 1,
-        color: rgb(0, 0, 0),
-      });
-      clientY -= 15;
+      // Calcular altura del cliente
+      if (client) {
+        const clientSignature = findSignature(client.rut);
+        if (clientSignature && clientSignature.image) {
+          const signatureDims = clientSignature.image.scale(0.075);
+          clientHeight = signatureDims.height + 5 + 10 + 14 + 14; // firma + "El Representante" + nombre + RUT
+        } else {
+          clientHeight = 15 + 10 + 14 + 14; // línea + "El Representante" + nombre + RUT
+        }
+      }
 
-      page.drawText("El Representante", {
-        x: col2X,
-        y: clientY,
-        size: PDF_STYLES.signatureDetail.size,
-        font: fontBold,
-        color: rgb(0, 0, 0),
-      });
-      clientY -= 10;
+      // Usar la altura máxima para ambas columnas
+      const maxHeight = Math.max(operatorHeight, clientHeight);
 
-      page.drawText(client.name, {
-        x: col2X,
-        y: clientY - 3,
-        size: PDF_STYLES.signatureDetail.size,
-        font: font,
-        color: rgb(0, 0, 0),
-      });
-      clientY -= 14;
+      let operatorY = currentY;
+      let clientY = currentY;
 
-      page.drawText(`RUT ${sanitizeRut(client.rut)}`, {
-        x: col2X,
-        y: clientY - 3,
-        size: PDF_STYLES.signatureDetail.size,
-        font: font,
-        color: rgb(0, 0, 0),
-      });
-      clientY -= SIGNATURE_SPACE - 29;
-    });
+      // DIBUJAR OPERADOR (columna izquierda)
+      if (operator) {
+        const operatorSignature = findSignature(operator.rut);
+
+        if (operatorSignature && operatorSignature.image) {
+          const signatureDims = operatorSignature.image.scale(0.075);
+          page.drawImage(operatorSignature.image, {
+            x: col1X,
+            y: operatorY - signatureDims.height + 10,
+            width: signatureDims.width,
+            height: signatureDims.height,
+          });
+          operatorY -= signatureDims.height + 5;
+        } else {
+          page.drawLine({
+            start: { x: col1X, y: operatorY },
+            end: { x: col1X + SIGNATURE_LINE_LENGTH, y: operatorY },
+            thickness: 1,
+            color: rgb(0, 0, 0),
+          });
+          operatorY -= 15;
+        }
+
+        page.drawText("El Operador", {
+          x: col1X,
+          y: operatorY,
+          size: PDF_STYLES.signatureDetail.size,
+          font: fontBold,
+          color: rgb(0, 0, 0),
+        });
+        operatorY -= 10;
+
+        page.drawText(operator.name, {
+          x: col1X,
+          y: operatorY - 3,
+          size: PDF_STYLES.signatureDetail.size,
+          font: font,
+          color: rgb(0, 0, 0),
+        });
+        operatorY -= 13;
+
+        page.drawText(`RUT ${sanitizeRut(operator.rut)}`, {
+          x: col1X,
+          y: operatorY - 3,
+          size: PDF_STYLES.signatureDetail.size,
+          font: font,
+          color: rgb(0, 0, 0),
+        });
+      }
+
+      // DIBUJAR CLIENTE (columna derecha)
+      if (client) {
+        const clientSignature = findSignature(client.rut);
+
+        if (clientSignature && clientSignature.image) {
+          const signatureDims = clientSignature.image.scale(0.075);
+          page.drawImage(clientSignature.image, {
+            x: col2X,
+            y: clientY - signatureDims.height + 10,
+            width: signatureDims.width,
+            height: signatureDims.height,
+          });
+          clientY -= signatureDims.height + 5;
+        } else {
+          page.drawLine({
+            start: { x: col2X, y: clientY },
+            end: { x: col2X + SIGNATURE_LINE_LENGTH, y: clientY },
+            thickness: 1,
+            color: rgb(0, 0, 0),
+          });
+          clientY -= 15;
+        }
+
+        page.drawText("El Representante", {
+          x: col2X,
+          y: clientY,
+          size: PDF_STYLES.signatureDetail.size,
+          font: fontBold,
+          color: rgb(0, 0, 0),
+        });
+        clientY -= 10;
+
+        page.drawText(client.name, {
+          x: col2X,
+          y: clientY - 3,
+          size: PDF_STYLES.signatureDetail.size,
+          font: font,
+          color: rgb(0, 0, 0),
+        });
+        clientY -= 14;
+
+        page.drawText(`RUT ${sanitizeRut(client.rut)}`, {
+          x: col2X,
+          y: clientY - 3,
+          size: PDF_STYLES.signatureDetail.size,
+          font: font,
+          color: rgb(0, 0, 0),
+        });
+      }
+
+      // Avanzar Y usando la altura máxima + espacio entre firmas
+      currentY -= maxHeight + 30;
+    }
   } else {
     // Layout de 1 columna
     const centerX = MARGIN + 40;
@@ -428,13 +510,29 @@ export const generateContract = async (
           yPosition = PAGE_HEIGHT - HEADER_HEIGHT - 150;
         }
 
-        page.drawLine({
-          start: { x: centerX, y: yPosition },
-          end: { x: centerX + SIGNATURE_LINE_LENGTH, y: yPosition },
-          thickness: 1,
-          color: rgb(0, 0, 0),
-        });
-        yPosition -= 15;
+        // Buscar firma del operador
+        const operatorSignature = findSignature(operator.rut);
+
+        // Dibujar imagen de firma si existe
+        if (operatorSignature && operatorSignature.image) {
+          const signatureDims = operatorSignature.image.scale(0.075);
+          page.drawImage(operatorSignature.image, {
+            x: centerX,
+            y: yPosition - signatureDims.height + 10,
+            width: signatureDims.width,
+            height: signatureDims.height,
+          });
+          yPosition -= signatureDims.height + 5;
+        } else {
+          // Si no hay firma, dibujar línea tradicional
+          page.drawLine({
+            start: { x: centerX, y: yPosition },
+            end: { x: centerX + SIGNATURE_LINE_LENGTH, y: yPosition },
+            thickness: 1,
+            color: rgb(0, 0, 0),
+          });
+          yPosition -= 15;
+        }
 
         page.drawText(operator.name, {
           x: centerX,
@@ -491,13 +589,29 @@ export const generateContract = async (
           yPosition = PAGE_HEIGHT - HEADER_HEIGHT - 150;
         }
 
-        page.drawLine({
-          start: { x: centerX, y: yPosition },
-          end: { x: centerX + SIGNATURE_LINE_LENGTH, y: yPosition },
-          thickness: 1,
-          color: rgb(0, 0, 0),
-        });
-        yPosition -= 15;
+        // Buscar firma del cliente
+        const clientSignature = findSignature(client.rut);
+
+        // Dibujar imagen de firma si existe
+        if (clientSignature && clientSignature.image) {
+          const signatureDims = clientSignature.image.scale(0.075);
+          page.drawImage(clientSignature.image, {
+            x: centerX,
+            y: yPosition - signatureDims.height + 10,
+            width: signatureDims.width,
+            height: signatureDims.height,
+          });
+          yPosition -= signatureDims.height + 5;
+        } else {
+          // Si no hay firma, dibujar línea tradicional
+          page.drawLine({
+            start: { x: centerX, y: yPosition },
+            end: { x: centerX + SIGNATURE_LINE_LENGTH, y: yPosition },
+            thickness: 1,
+            color: rgb(0, 0, 0),
+          });
+          yPosition -= 15;
+        }
 
         page.drawText(client.name, {
           x: centerX,

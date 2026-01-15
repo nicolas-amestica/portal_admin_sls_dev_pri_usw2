@@ -1,21 +1,23 @@
 import { uuidv7 } from "uuidv7";
+import bcrypt from "bcryptjs";
 import * as S3 from "../../../libs/s3-v3.js";
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { parseEventBody } from '../../../helpers/event-parser.js';
 import { buildDocumentData } from '../../../libs/contract/builder.js';
 import { success, unsuccessful } from "../../../helpers/responses.js";
-import { APPROVED_CONTRACT } from '../../../libs/contract/messages.js';
-import { generateContract, loadImages } from '../../../libs/pdf-generator/index.js';
+import { APPROVED_PROGRAM } from '../../../libs/contract/messages.js';
+import { generateContract, loadImages, loadSignatures } from '../../../libs/pdf-generator/index.js';
 import { sendEmailWithAttachments, generateEmailHTML } from '../../../libs/nodemailer.js';
 
 const {
   STAGE,
   PROGRAM_TABLE,
   BUCKET_INFO_GI,
-  DYNAMODB_PROGRAM_TABLE
+  DYNAMODB_PROGRAM_TABLE,
+  DYNAMODB_USER_TABLE
 } = process.env;
 const ACTION = "Aprobar programa.";
-const MESSAGE = STAGE === 'dev' ? APPROVED_CONTRACT.dev : APPROVED_CONTRACT.prd;
+const MESSAGE = STAGE === 'dev' ? APPROVED_PROGRAM.dev : APPROVED_PROGRAM.prd;
 
 const uploadFile = async (content) => {
   const extension = 'pdf';
@@ -61,20 +63,27 @@ export const main = async (event) => {
 
     const adaptedDocumentData = buildDocumentData(program.content[0].contract);
 
-    /**
-     * Obtener los dnis del contract.representatives.dni (es un array el representatives[]) y 
-     * obtener el dni de cada uno he ir a buscar la firma en S3, está en signatures/signature-<DNI>.png (bucket BUCKET_INFO_GI)
-     * No sé si hacer una función nueva o utilizar la loadImages y adaptarla para que pueda cargar múltiples imágenes
-     * Luego, incrustar cada firma en la sección de firmas del contrato (última hoja) con la función generateContract
-     */
-
+    // Cargar imágenes de header y footer
     const { headerImage, footerImage } = await loadImages(
       BUCKET_INFO_GI,
       'assets/header.png',
       'assets/footer.png'
     );
 
-    const pdfBuffer = await generateContract(adaptedDocumentData, headerImage, footerImage, { addWatermark: false });
+    // Cargar firmas de los representantes desde S3
+    const representatives = program.content[0].contract.representatives || [];
+    const signatureImages = await loadSignatures(BUCKET_INFO_GI, representatives);
+
+    // Generar contrato con firmas incrustadas
+    const pdfBuffer = await generateContract(
+      adaptedDocumentData,
+      headerImage,
+      footerImage,
+      {
+        addWatermark: false,
+        signatures: signatureImages
+      }
+    );
 
     if (!Buffer.isBuffer(pdfBuffer)) return unsuccessful(500, { message: "El PDF generado no es un buffer válido" }, ACTION);
 
@@ -88,50 +97,96 @@ export const main = async (event) => {
     program.content[0].contract.file = uploadedFile;
     const approvedProgram = await dynamoDbLib.put({ TableName: DYNAMODB_PROGRAM_TABLE, Item: program });
 
-    /**
-     * Crear cuenta de usuario con permiso de usuario (perfil ACC#CLI#Cliente), el objeto a crear en DynamoDB es:
-     * {
-     *   "pk": "USR#4f7cb502-4256-11ec-81d3-0242ac130003",
-     *   "sk": "USR#19", <- contract.clientRepresentative.dni (USR#<RUT CON DV SIN PUNTOS NI GUION>)
-     *   "createdAt": "2025-11-08T02:14:10.472Z", <- nueva fecha
-     *   "email": "niamesvi3@gmail.com", <- program.representative.email
-     *   "gsiOne": "19", <- contract.clientRepresentative.dni (<RUT CON DV SIN PUNTOS NI GUION>)
-     *   "id": "4127943b-5c13-48f2-b3f7-aefc0115b582", <- nuevo uuidv7
-     *   "isActive": true, <- por defecto true
-     *   "lastAccess": "2025-12-26T17:52:56.452Z", <- nueva fecha
-     *   "names": "Nicolás", <- contract.clientRepresentative.name
-     *   "password": "$2a$10$LmF0FpKID889ozgC1M.PEe4Bi9sPMrgg0aPsC6eUmyxJnuvXAWeV2", <- password hasheada (por defecto "Indomito1234$")
-     *   "phoneNumber": "+56959139687",  <- program.representative.phone
-     *   "profiles": [ "ACC#CLI#Cliente" ], <- por defecto
-     *   "rut": "1-9", <- contract.clientRepresentative.rut (SIN PUNTOS Y CON GUION)
-     *   "surnames": "Améstica Vidal" <- contract.clientRepresentative.name
-     *   }
-     * Luego enviar email al usuario con el contrato adjunto y el usuario y contraseña provisoria (Indomito1234$), modifica body para enviarlo a generateEmailHTML.
-     */
+    // Crear cuenta de usuario
+    const clientRepresentative = program.content[0].contract.clientRepresentative;
+    const representative = program.content[0].representative;
 
-    const recipientEmail = formContact.email;
-    const recipientName = formContact.name || formContact.email;
+    if (!clientRepresentative || !clientRepresentative.dni) {
+      return unsuccessful(400, { message: "Falta información del representante del cliente." }, ACTION);
+    }
 
-    if (recipientEmail) {
-      const htmlContent = generateEmailHTML({
-        title: MESSAGE.title,
-        recipientName: recipientName,
-        body: MESSAGE.body
-      });
+    // Formatear DNI para username (sin puntos ni guión)
+    const dniClean = clientRepresentative.dni.replace(/\./g, '').replace(/-/g, '');
+    const username = dniClean;
 
-      await sendEmailWithAttachments({
-        to: recipientEmail,
-        subject: MESSAGE.subject,
-        html: htmlContent,
-        attachments: [{
-          filename: `contrato-${uploadedFile.Key}`,
-          content: pdfBuffer,
-          contentType: 'application/pdf'
-        }]
-      });
+    // Formatear RUT para el campo rut (sin puntos, con guión)
+    const rutFormatted = clientRepresentative.dni.replace(/\./g, '');
+
+    // Separar nombres y apellidos
+    const fullName = clientRepresentative.name || '';
+    const nameParts = fullName.trim().split(' ');
+    const names = nameParts.slice(0, Math.ceil(nameParts.length / 2)).join(' ');
+    const surnames = nameParts.slice(Math.ceil(nameParts.length / 2)).join(' ');
+
+    // Contraseña temporal
+    const temporaryPassword = 'Indomito1234$';
+    const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+
+    const currentDate = new Date().toISOString();
+    const userId = uuidv7();
+
+    // Crear objeto de usuario
+    const newUser = {
+      pk: `USR#${userId}`,
+      sk: `USR#${dniClean}`,
+      id: userId,
+      gsiOne: dniClean,
+      email: representative.email,
+      names: names || clientRepresentative.name,
+      surnames: surnames || '',
+      rut: rutFormatted,
+      phoneNumber: representative.phone || '',
+      password: hashedPassword,
+      profiles: ['ACC#CLI#Cliente'],
+      isActive: true,
+      createdAt: currentDate,
+      lastAccess: currentDate
+    };
+
+    // Verificar si el usuario ya existe
+    const existingUserParams = {
+      TableName: DYNAMODB_USER_TABLE,
+      IndexName: 'gsiOne-index',
+      KeyConditionExpression: '#gsiOne = :gsiOne',
+      ExpressionAttributeValues: { ':gsiOne': dniClean },
+      ExpressionAttributeNames: { '#gsiOne': 'gsiOne' }
+    };
+
+    const existingUsers = await dynamoDbLib.query(existingUserParams);
+
+    if (existingUsers && existingUsers.length > 0) {
+      console.log(`Usuario con DNI ${dniClean} ya existe, no se creará uno nuevo.`);
     } else {
+      // Crear usuario en DynamoDB
+      await dynamoDbLib.put({ TableName: DYNAMODB_USER_TABLE, Item: newUser });
+      console.log(`Usuario creado exitosamente con ID: ${userId}`);
+    }
+
+    // Enviar email con credenciales
+    const recipientEmail = representative.email;
+    const recipientName = clientRepresentative.name || representative.email;
+
+    if (!recipientEmail) {
       return unsuccessful(500, { message: "Falta el correo electrónico del destinatario." }, ACTION);
     }
+
+    const emailBody = MESSAGE.body(username, temporaryPassword);
+    const htmlContent = generateEmailHTML({
+      title: MESSAGE.title,
+      recipientName: recipientName,
+      body: emailBody
+    });
+
+    await sendEmailWithAttachments({
+      to: recipientEmail,
+      subject: MESSAGE.subject,
+      html: htmlContent,
+      attachments: [{
+        filename: `contrato-${uploadedFile.Key}`,
+        content: pdfBuffer,
+        contentType: 'application/pdf'
+      }]
+    });
 
     return success(200, approvedProgram, ACTION);
   } catch (e) {

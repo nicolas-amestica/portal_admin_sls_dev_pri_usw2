@@ -30,6 +30,7 @@ provider:
   environment:
     STAGE: ${self:custom.stage}
     DYNAMODB_PROGRAM_TABLE: programs-${self:custom.stage}-pri-${self:custom.shortRegion}
+    DYNAMODB_USER_TABLE: users-${self:custom.stage}-pri-${self:custom.shortRegion}
     PROGRAM_TABLE: PRG#8e3d823d-9f58-45df-8a8f-6779435a0001
     SECRET_KEY: secret-pri-${self:custom.stage}-${self:custom.shortRegion}
     PROFILE: ${self:provider.profile}
@@ -49,6 +50,7 @@ provider:
     - ${file(../../aws/policies/lambda-policy-xray.yml)}
     - ${file(../../aws/policies/lambda-policy-ssm.yml)}
     - ${file(../../aws/policies/lambda-policy-dynamodb-program.yml)}
+    - ${file(../../aws/policies/lambda-policy-dynamodb-user.yml)}
     - ${file(../../aws/policies/lambda-policy-s3.yml)}
 
 functions:
