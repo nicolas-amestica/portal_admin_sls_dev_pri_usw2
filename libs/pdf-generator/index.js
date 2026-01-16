@@ -16,11 +16,11 @@ export { PDF_CONFIG, PDF_STYLES } from "./core/config.js";
 /**
  * Genera un PDF con los datos proporcionados
  *
- * @param {Object} documentData - Datos estructurados del documento
- * @param {string} documentData.title - Título del documento
- * @param {string} documentData.generalData - Datos generales/introducción
- * @param {Array} documentData.clauses - Cláusulas del documento
- * @param {Object} documentData.signatures - Datos de firmas
+ * @param {Object} contract - Datos estructurados del documento
+ * @param {string} contract.title - Título del documento
+ * @param {string} contract.generalData - Datos generales/introducción
+ * @param {Array} contract.clauses - Cláusulas del documento
+ * @param {Object} contract.signatures - Datos de firmas
  * @param {string} headerImageBase64 - Imagen del header en base64
  * @param {string} footerImageBase64 - Imagen del footer en base64
  * @param {Object} options - Opciones adicionales
