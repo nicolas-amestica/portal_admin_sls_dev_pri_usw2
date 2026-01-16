@@ -187,11 +187,14 @@ export const main = async (event) => {
       return unsuccessful(500, { message: "Falta el correo electrónico del destinatario." }, ACTION);
     }
 
-    const emailBody = MESSAGE.body(username, temporaryPassword);
+    // Construir el body HTML con las credenciales
+    const bodyHtml = MESSAGE.buildBody(username, temporaryPassword);
+
+    // Generar el HTML completo del email
     const htmlContent = generateEmailHTML({
       title: MESSAGE.title,
       recipientName: recipientName,
-      body: emailBody,
+      bodyHtml: bodyHtml,
       useCidLogo: useCidLogo
     });
 

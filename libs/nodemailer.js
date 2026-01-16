@@ -5,18 +5,20 @@ let transporter;
 
 /**
  * Genera el contenido HTML con formato estándar para los correos de Giras Indómito.
+ * Esta es una función completamente genérica que solo renderiza el HTML.
+ * El contenido específico (body HTML) debe ser construido por el servicio que la llama.
  *
  * @function
  * @param {Object} params - Parámetros para generar el HTML del correo.
  * @param {string} params.title - Título del correo que aparece en el header.
  * @param {string} params.recipientName - Nombre del destinatario.
- * @param {string} params.body - Cuerpo principal del mensaje.
+ * @param {string} params.bodyHtml - Cuerpo HTML completo del mensaje (puede incluir divs, estilos inline, etc).
  * @param {string} [params.footerText] - Texto del footer (por defecto: mensaje de correo automático).
  * @param {string} [params.logoUrl] - URL del logo de la empresa (opcional).
  * @param {boolean} [params.useCidLogo] - Si usar CID para el logo (default: false).
  * @returns {string} Contenido HTML formateado del correo.
  */
-export const generateEmailHTML = ({ title, recipientName, body, footerText, logoUrl, useCidLogo = false }) => {
+export const generateEmailHTML = ({ title, recipientName, bodyHtml, footerText, logoUrl, useCidLogo = false }) => {
   const defaultFooterText = 'Este es un correo automático, por favor no responder a esta dirección.';
   const defaultLogoUrl = logoUrl || 'https://giras-indomito-dev-info.s3.us-west-2.amazonaws.com/assets/logo-gi.png';
 
@@ -84,7 +86,6 @@ export const generateEmailHTML = ({ title, recipientName, body, footerText, logo
             font-size: 15px;
             line-height: 1.8;
             margin-bottom: 20px;
-            white-space: pre-line;
           }
           .credentials-box {
             background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
@@ -194,21 +195,15 @@ export const generateEmailHTML = ({ title, recipientName, body, footerText, logo
           <div class="content">
             <p class="greeting">Estimado/a ${recipientName},</p>
 
-            <div class="message-body">${body}</div>
-
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="https://www.girasindomito.cl" class="cta-button">Acceder al Portal</a>
+            <div class="message-body">
+              ${bodyHtml}
             </div>
-
-            <p style="color: #6b7280; font-size: 14px; margin-top: 25px;">
-              Por favor, revise el documento adjunto y no dude en contactarnos si tiene alguna pregunta.
-            </p>
 
             <div class="closing">
               <p style="color: #4b5563;">Saludos cordiales,</p>
               <p class="signature">Equipo Giras Indómito</p>
               <p style="color: #6b7280; font-size: 13px; margin-top: 5px;">
-                📧 contacto@girasindomito.cl<br>
+                📧 info@girasindomito.cl<br>
                 🌐 www.girasindomito.cl
               </p>
             </div>
@@ -312,7 +307,7 @@ export const sendEmailWithAttachments = async (options) => {
     }
 
     const mailOptions = {
-      from: options.from || 'no-reply@girasindomito.cl',
+      from: options.from || 'Giras Indómito Ltda. <no-reply@girasindomito.cl>',
       to: options.to,
       subject: options.subject,
       text: options.text,
