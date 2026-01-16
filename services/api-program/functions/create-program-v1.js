@@ -32,8 +32,6 @@ export const main = async (event) => {
 
     return success(200, result, action);
   } catch (e) {
-    let { statusCode } = e;
-    if (!statusCode) statusCode = 500;
-    return unsuccessful(statusCode, e, action);
+    return unsuccessful(e.statusCode || 500, e, action);
   }
 };

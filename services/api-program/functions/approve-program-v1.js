@@ -6,8 +6,8 @@ import { parseEventBody } from '../../../helpers/event-parser.js';
 import { buildDocumentData } from '../../../libs/contract/builder.js';
 import { success, unsuccessful } from "../../../helpers/responses.js";
 import { APPROVED_PROGRAM } from '../../../libs/contract/messages.js';
-import { generateContract, loadImages, loadSignatures } from '../../../libs/pdf-generator/index.js';
 import { sendEmailWithAttachments, generateEmailHTML } from '../../../libs/nodemailer.js';
+import { generateContract, loadImages, loadSignatures } from '../../../libs/pdf-generator/index.js';
 
 const {
   STAGE,
@@ -228,16 +228,6 @@ export const main = async (event) => {
 
     return success(200, approvedProgram, ACTION);
   } catch (e) {
-    console.error('Error en approve-program-v1:', e);
-
-    // Extraer información del error sin referencias circulares
-    const errorInfo = {
-      message: e.message || 'Error desconocido',
-      code: e.code || e.name || 'UNKNOWN_ERROR',
-      statusCode: e.statusCode || e.$metadata?.httpStatusCode || 500,
-      stack: e.stack
-    };
-
-    return unsuccessful(errorInfo.statusCode, errorInfo, ACTION);
+    return unsuccessful(e.statusCode || 500, e, ACTION);
   }
 };

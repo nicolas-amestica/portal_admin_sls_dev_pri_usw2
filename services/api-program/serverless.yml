@@ -123,12 +123,24 @@ functions:
 
   approve_program_v1:
     handler: functions/approve-program-v1.main
-    description: Aprueba el programa, crea cuenta con permiso de usuario, genera contrato pdf, lo almacena en S3, lo envía por correo.
+    description: Aprueba el programa, crea cuenta con permiso de usuario, almacena en el pdf a S3, lo envía por correo.
     timeout: 30
     memorySize: 1024
     events:
       - http:
           path: v1/programas/aprobar
+          method: post
+          cors: true
+          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+
+  confirm_program_v1:
+    handler: functions/confirm-program-v1.main
+    description: Confirma el programa generando el pdf.
+    timeout: 30
+    memorySize: 1024
+    events:
+      - http:
+          path: v1/programas/confirmar
           method: post
           cors: true
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
