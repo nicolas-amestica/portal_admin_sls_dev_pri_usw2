@@ -16,7 +16,7 @@ const ACTION = "Creación de programa de viaje.";
  * @returns {Promise<Object>} Respuesta HTTP con el resultado de la operación.
  * @returns {number} returns.statusCode - Código de estado HTTP (200 para éxito, 400/500 para errores).
  * @returns {Object} returns.body - Datos del programa creado o mensaje de error.
- * 
+ *
  * @throws {Error} Retorna error 400 si el contenido del programa no está presente.
  * @throws {Error} Retorna error 400 si falta el tipo de programa en la solicitud.
  * @throws {Error} Retorna error 400 si la fecha de inicio no está presente.
