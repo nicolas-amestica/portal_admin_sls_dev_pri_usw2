@@ -86,5 +86,17 @@ functions:
           cors: true
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
 
+  get_pdf_document_by_sk_from_program_v1:
+    handler: functions/build-pdf-document-by-sk-from-program-v1.main
+    description: Obtiene el documento PDF en base64 a partir de su sk desde el programa.
+    timeout: 30
+    memorySize: 1024
+    events:
+      - http:
+          path: v1/documentos/pdf/{sk}
+          method: get
+          cors: true
+          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+
 resources:
   - ${file(../../common/apigateway-errors.yml)}
