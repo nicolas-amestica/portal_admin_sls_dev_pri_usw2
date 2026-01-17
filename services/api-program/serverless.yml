@@ -55,28 +55,6 @@ provider:
 
 functions:
 
-  create_program_v1:
-    handler: functions/create-program-v1.main
-    description: Este recurso está relacionado con la creación de un programa de giras de estudios o viajes.
-    timeout: 30
-    events:
-      - http:
-          path: v1/programas/solicitudes/programa
-          method: post
-          cors: true
-          # authorizer: ${file(../../common/lambda-authorizer.yml)}
-
-  update_program_v1:
-    handler: functions/update-program-v1.main
-    description: Este recurso está relacionado con la actualización de un programa de giras de estudios o viajes.
-    timeout: 30
-    events:
-      - http:
-          path: v1/programas/solicitudes/programa
-          method: put
-          cors: true
-          # authorizer: ${file(../../common/lambda-authorizer.yml)}
-
   get_programs_v1:
     handler: functions/get-programs-view-v1.main
     description: Este recurso está relacionado con la obtención de la lista de programas en sistema.
@@ -96,6 +74,28 @@ functions:
       - http:
           path: v1/programas/solicitudes/programa
           method: get
+          cors: true
+          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+
+  create_program_v1:
+    handler: functions/create-program-v1.main
+    description: Creación de un programa.
+    timeout: 30
+    events:
+      - http:
+          path: v1/programas/crear
+          method: post
+          cors: true
+          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+
+  update_program_v1:
+    handler: functions/update-program-v1.main
+    description: Actualización de un programa.
+    timeout: 30
+    events:
+      - http:
+          path: v1/programas/actualizar
+          method: put
           cors: true
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
 
