@@ -11,13 +11,15 @@ const ACTION = "Confirmar programa.";
 export const main = async (event) => {
   try {
     const body = parseEventBody(event);
-    const { sk } = body;
+    const { sk, contract } = body;
 
     if (!sk) return unsuccessful(400, { message: "Falta el identificador del programa en la solicitud." }, ACTION);
 
+    if (!contract) return unsuccessful(400, { message: "Falta el contrato en la solicitud." }, ACTION);
+
     const programs = await dynamoDbLib.query({
       TableName: DYNAMODB_PROGRAM_TABLE,
-      KeyConditionExpression: '#pk = :pk AND begins_with(#sk, :sk)',
+      KeyConditionExpression: '#pk = :pk AND #sk = :sk',
       ExpressionAttributeValues: { ':pk': PROGRAM_TABLE, ':sk': sk },
       ExpressionAttributeNames: { '#pk': 'pk', '#sk': 'sk' }
     });
@@ -28,6 +30,12 @@ export const main = async (event) => {
 
     program.status = 'confirmed';
     program.updatedAt = new Date().toISOString();
+    program.content[0] = {
+      ...program.content[0],
+      contract: {
+        ...contract,
+      }
+    };
 
     const confirmedProgram = await dynamoDbLib.put({ TableName: DYNAMODB_PROGRAM_TABLE, Item: program });
 
