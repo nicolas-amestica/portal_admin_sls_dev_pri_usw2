@@ -11,11 +11,9 @@ const ACTION = "Confirmar programa.";
 export const main = async (event) => {
   try {
     const body = parseEventBody(event);
-    const { sk, contract } = body;
+    const { sk } = body;
 
     if (!sk) return unsuccessful(400, { message: "Falta el identificador del programa en la solicitud." }, ACTION);
-
-    if (!contract) return unsuccessful(400, { message: "Falta el contrato en la solicitud." }, ACTION);
 
     const programs = await dynamoDbLib.query({
       TableName: DYNAMODB_PROGRAM_TABLE,
@@ -30,12 +28,6 @@ export const main = async (event) => {
 
     program.status = 'confirmed';
     program.updatedAt = new Date().toISOString();
-    program.content[0] = {
-      ...program.content[0],
-      contract: {
-        ...contract,
-      }
-    };
 
     const confirmedProgram = await dynamoDbLib.put({ TableName: DYNAMODB_PROGRAM_TABLE, Item: program });
 
