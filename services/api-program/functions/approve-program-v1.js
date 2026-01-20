@@ -3,11 +3,9 @@ import bcrypt from "bcryptjs";
 import * as S3 from "../../../libs/s3-v3.js";
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { parseEventBody } from '../../../helpers/event-parser.js';
-import { buildDocumentData } from '../../../libs/contract/builder.js';
 import { success, unsuccessful } from "../../../helpers/responses.js";
 import { APPROVED_PROGRAM } from '../../../libs/contract/messages.js';
 import { sendEmailWithAttachments, generateEmailHTML } from '../../../libs/nodemailer.js';
-import { generateContract, loadImages, loadSignatures } from '../../../libs/pdf-generator/index.js';
 
 const {
   STAGE,
@@ -19,14 +17,20 @@ const {
 const ACTION = "Aprobar programa.";
 const MESSAGE = STAGE === 'dev' ? APPROVED_PROGRAM.dev : APPROVED_PROGRAM.prd;
 
-const uploadFile = async (content) => {
+/**
+ * Sube un archivo PDF a S3 y retorna la metadata del archivo.
+ *
+ * @param {Buffer} pdfBuffer - Buffer del archivo PDF
+ * @returns {Promise<Object>} Metadata del archivo subido
+ */
+const uploadPdfToS3 = async (pdfBuffer) => {
   const extension = 'pdf';
   const uuid_v7 = uuidv7();
   const params = {
     Bucket: BUCKET_INFO_GI,
     Key: `contratos/${uuid_v7}.${extension}`,
-    Body: content.content,
-    ContentType: content.contentType || "application/octet-stream",
+    Body: pdfBuffer,
+    ContentType: "application/pdf",
   };
 
   await S3.putObject(params);
@@ -37,7 +41,7 @@ const uploadFile = async (content) => {
     isAttached: true,
     Key: `${uuid_v7}.${extension}`,
     path: "contratos",
-    uploadDate: new Date().toISOString(),
+    uploadDate: new Date().toISOString()
   };
 };
 
@@ -46,10 +50,14 @@ export const main = async (event) => {
     const body = parseEventBody(event);
     const { sk, formContact } = body;
 
+    // Validar parámetros requeridos
     if (!sk) return unsuccessful(400, { message: "Falta el identificador del programa en la solicitud." }, ACTION);
-
     if (!formContact) return unsuccessful(400, { message: "Falta el formulario en la solicitud." }, ACTION);
+    if (!formContact.signedContract || !formContact.signedContract.base64) {
+      return unsuccessful(400, { message: "Falta el contrato firmado en la solicitud." }, ACTION);
+    }
 
+    // Buscar el programa en DynamoDB
     const programs = await dynamoDbLib.query({
       TableName: DYNAMODB_PROGRAM_TABLE,
       KeyConditionExpression: '#pk = :pk AND begins_with(#sk, :sk)',
@@ -57,44 +65,32 @@ export const main = async (event) => {
       ExpressionAttributeNames: { '#pk': 'pk', '#sk': 'sk' }
     });
 
-    if (!programs || programs.length === 0) return unsuccessful(404, { message: "Programa no encontrado." }, ACTION);
+    if (!programs || programs.length === 0) {
+      return unsuccessful(404, { message: "Programa no encontrado." }, ACTION);
+    }
 
-    let program = programs[0];
+    const program = programs[0];
 
-    const adaptedDocumentData = buildDocumentData(program.content[0].contract);
+    // Convertir base64 a Buffer
+    const signedContractBuffer = Buffer.from(formContact.signedContract.base64, 'base64');
 
-    // Cargar imágenes de header y footer
-    const { headerImage, footerImage } = await loadImages(
-      BUCKET_INFO_GI,
-      'assets/header.png',
-      'assets/footer.png'
-    );
+    // Subir el contrato firmado a S3
+    const uploadedFile = await uploadPdfToS3(signedContractBuffer);
+    console.log('Contrato firmado subido exitosamente:', uploadedFile.Key);
 
-    // Cargar firmas de los representantes desde S3
-    const representatives = program.content[0].contract.representatives || [];
-    const signatureImages = await loadSignatures(BUCKET_INFO_GI, representatives);
-
-    // Generar contrato con firmas incrustadas
-    const pdfBuffer = await generateContract(
-      adaptedDocumentData,
-      headerImage,
-      footerImage,
-      {
-        addWatermark: false,
-        signatures: signatureImages
-      }
-    );
-
-    if (!Buffer.isBuffer(pdfBuffer)) return unsuccessful(500, { message: "El PDF generado no es un buffer válido" }, ACTION);
-
-    const uploadedFile = await uploadFile({
-      content: pdfBuffer,
-      contentType: 'application/pdf'
-    });
-
+    // Actualizar el programa con el estado y el archivo
     program.status = 'approved';
     program.updatedAt = new Date().toISOString();
-    program.content[0].contract.file = uploadedFile;
+
+    // Inicializar el array de archivos si no existe
+    if (!program.content[0].contract.files) {
+      program.content[0].contract.files = [];
+    }
+
+    // Agregar el contrato firmado al array de archivos
+    program.content[0].contract.files.push(uploadedFile);
+
+    // Guardar el programa actualizado
     const approvedProgram = await dynamoDbLib.put({ TableName: DYNAMODB_PROGRAM_TABLE, Item: program });
 
     // Crear cuenta de usuario
@@ -212,10 +208,10 @@ export const main = async (event) => {
       });
     }
 
-    // Agregar contrato PDF
+    // Agregar contrato PDF firmado
     attachments.push({
-      filename: `contrato-${uploadedFile.Key}`,
-      content: pdfBuffer,
+      filename: `contrato-firmado-${uploadedFile.Key}`,
+      content: signedContractBuffer,
       contentType: 'application/pdf'
     });
 
@@ -228,6 +224,7 @@ export const main = async (event) => {
 
     return success(200, approvedProgram, ACTION);
   } catch (e) {
+    console.error('Error al aprobar programa:', e);
     return unsuccessful(e.statusCode || 500, e, ACTION);
   }
 };
