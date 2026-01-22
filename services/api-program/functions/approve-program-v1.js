@@ -136,7 +136,12 @@ export const main = async (event) => {
       profiles: ['ACC#CLI#Cliente'],
       isActive: true,
       createdAt: currentDate,
-      lastAccess: currentDate
+      lastAccess: currentDate,
+      content: [{
+        createdAt: currentDate,
+        program: sk,
+        isActive: true
+      }]
     };
 
     // Verificar si el usuario ya existe
