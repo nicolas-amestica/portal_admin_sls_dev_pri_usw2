@@ -162,6 +162,8 @@ export const main = async (event) => {
 
     const result = {
       paymentId: payment.id,
+      programId: payment.programId,
+      installmentNumber: payment.installmentNumber,
       status,
       amount: payment.amount,
       authorizationCode: response.authorization_code,

@@ -44,6 +44,11 @@ export const main = async (event) => {
 
     const payments = await dynamoDbLib.query(params);
 
+    // Verificar si hubo un error
+    if (payments instanceof Error) {
+      throw payments;
+    }
+
     // Mapear a formato de respuesta limpio
     const result = (payments || []).map(payment => ({
       pk: payment.pk,

@@ -25,6 +25,9 @@ const FRONTEND_URL = IS_OFFLINE
     ? "https://d2q00w63koc9yz.cloudfront.net" // development
     : "https://d2e3zvke409odp.cloudfront.net/"; // production
 
+// Timeout para pagos PENDING en minutos (después de este tiempo se consideran expirados)
+const PENDING_TIMEOUT_MINUTES = 30;
+
 /**
  * Configura las opciones de Transbank según el ambiente.
  *
@@ -54,6 +57,7 @@ const configureTransbank = async () => {
  * @param {number} event.body.installmentNumber - Número de la cuota
  * @param {number} event.body.amount - Monto de la cuota
  * @param {string} event.body.userId - ID del usuario que realiza el pago
+ * @param {string} [event.body.returnUrl] - URL de retorno después del pago (opcional, se usa FRONTEND_URL si no se proporciona)
  * @returns {Promise<Object>} Respuesta HTTP con el token y URL de pago, o un mensaje de error.
  *
  * @description
@@ -71,7 +75,7 @@ export const main = async (event) => {
 
   try {
     const data = JSON.parse(event.body);
-    const { programId, installmentNumber, amount, userId } = data;
+    const { programId, installmentNumber, amount, userId, returnUrl } = data;
 
     // Validaciones
     if (!programId) return unsuccessful(400, { message: "El programId es requerido." }, action);
@@ -97,20 +101,73 @@ export const main = async (event) => {
     };
 
     const existingPayments = await dynamoDbLib.query(existingPaymentParams);
+
+    // Verificar si hubo un error
+    if (existingPayments instanceof Error) {
+      throw existingPayments;
+    }
+
     if (existingPayments && existingPayments.length > 0) {
-      return unsuccessful(409, { message: "Ya existe un pago pendiente o autorizado para esta cuota." }, action);
+      const payment = existingPayments[0];
+
+      // Si el pago ya fue autorizado, no permitir duplicados
+      if (payment.status === "AUTHORIZED") {
+        return unsuccessful(409, {
+          message: "Esta cuota ya ha sido pagada exitosamente."
+        }, action);
+      }
+
+      // Si el pago está pendiente, verificar antigüedad
+      if (payment.status === "PENDING") {
+        const createdAt = new Date(payment.createdAt);
+        const now = new Date();
+        const minutesDiff = (now - createdAt) / (1000 * 60);
+
+        if (minutesDiff < PENDING_TIMEOUT_MINUTES) {
+          return unsuccessful(409, {
+            message: "Ya existe un pago en proceso para esta cuota. Por favor, espera unos minutos o completa el pago pendiente."
+          }, action);
+        }
+
+        // Pago PENDING antiguo: marcarlo como EXPIRED y permitir nuevo intento
+        console.log(`Marcando pago ${payment.id} como EXPIRED (antigüedad: ${minutesDiff.toFixed(1)} minutos)`);
+        await dynamoDbLib.update({
+          TableName: DYNAMODB_PAYMENT_TABLE,
+          Key: {
+            pk: payment.pk,
+            sk: payment.sk
+          },
+          UpdateExpression: "SET #status = :status, updatedAt = :updatedAt",
+          ExpressionAttributeNames: {
+            "#status": "status"
+          },
+          ExpressionAttributeValues: {
+            ":status": "EXPIRED",
+            ":updatedAt": new Date().toISOString()
+          }
+        });
+        // Continuar con la creación del nuevo pago
+      }
     }
 
     // Generar IDs
     const paymentId = uuidv7();
-    const buyOrder = `PAY-${programId.split('#')[1]?.slice(0, 8)}-INST${installmentNumber}-${Date.now()}`;
+    // Límite de 26 caracteres para buyOrder de Transbank
+    const timestampShort = Date.now().toString().slice(-9); // Últimos 9 dígitos
+    const programCode = programId.split('#')[1]?.slice(0, 6) || 'PROG';
+    const buyOrder = `${programCode}-I${installmentNumber}-${timestampShort}`;
     const sessionId = `SESSION-${paymentId}`;
-    const returnUrl = `${FRONTEND_URL}/app/cliente/pagos?token_ws=`;
+    // Usar returnUrl proporcionado por el frontend o fallback a FRONTEND_URL
+    // Incluir programId en URL de retorno para recargar el programa después del pago
+    // Nota: Transbank automáticamente añade ?token_ws={TOKEN} al returnUrl, no lo incluimos aquí
+    const finalReturnUrl = returnUrl
+      ? `${returnUrl}?programId=${encodeURIComponent(programId)}`
+      : `${FRONTEND_URL}/app/cliente/pagos?programId=${encodeURIComponent(programId)}`;
 
     // Crear transacción en Transbank
     const options = await configureTransbank();
     const transaction = new WebpayPlus.Transaction(options);
-    const response = await transaction.create(buyOrder, sessionId, amount, returnUrl);
+    const response = await transaction.create(buyOrder, sessionId, amount, finalReturnUrl);
 
     // Guardar registro en DynamoDB con nueva estructura
     const timestamp = new Date().toISOString();
