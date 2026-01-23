@@ -169,6 +169,8 @@ export const main = async (event) => {
     const transaction = new WebpayPlus.Transaction(options);
     const response = await transaction.create(buyOrder, sessionId, amount, finalReturnUrl);
 
+    console.log(`Transacción creada en Transbank. Token: ${response.token}, URL: ${response.url}`);
+
     // Guardar registro en DynamoDB con nueva estructura
     const timestamp = new Date().toISOString();
     const params = {
@@ -209,6 +211,8 @@ export const main = async (event) => {
 
     await dynamoDbLib.put(params);
 
+    console.log(`Pago guardado en DynamoDB. PaymentId: ${paymentId}, Token guardado: ${response.token}`);
+
     const result = {
       paymentId,
       token: response.token,
@@ -216,6 +220,8 @@ export const main = async (event) => {
       buyOrder,
       amount,
     };
+
+    console.log("Pago creado exitosamente. Resultado:", JSON.stringify(result, null, 2));
 
     return success(200, result, action);
   } catch (error) {

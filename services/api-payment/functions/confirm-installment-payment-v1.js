@@ -43,6 +43,8 @@ const configureTransbank = async () => {
  */
 const getPaymentByToken = async (token) => {
   try {
+    console.log(`Buscando pago con token: ${token}`);
+
     // Como DynamoDB no permite nested attributes en KeyConditionExpression,
     // hacemos un scan con FilterExpression
     const scanParams = {
@@ -57,8 +59,24 @@ const getPaymentByToken = async (token) => {
       Limit: 1,
     };
 
+    console.log("Parámetros de búsqueda:", JSON.stringify(scanParams, null, 2));
+
     const result = await dynamoDbLib.scan(scanParams);
-    return result && result.length > 0 ? result[0] : null;
+
+    console.log(`Scan completado. Resultados encontrados: ${result ? result.length : 0}`);
+
+    if (result && result.length > 0) {
+      console.log("Pago encontrado:", JSON.stringify({
+        pk: result[0].pk,
+        sk: result[0].sk,
+        status: result[0].status,
+        token: result[0].transbankDetails?.token
+      }));
+      return result[0];
+    }
+
+    console.warn(`No se encontró pago con token: ${token}`);
+    return null;
   } catch (error) {
     console.error("Error al buscar pago por token:", error);
     return null;
@@ -84,19 +102,27 @@ const getPaymentByToken = async (token) => {
  * 5. Retorna los detalles completos del pago confirmado.
  */
 export const main = async (event) => {
-  console.log(event);
+  console.log("Evento recibido:", JSON.stringify(event, null, 2));
   const action = "Confirmar pago de cuota.";
 
   try {
     const data = JSON.parse(event.body);
     const { token } = data;
 
+    console.log(`Token recibido para confirmación: ${token}`);
+
     if (!token) return unsuccessful(400, { message: "El token es requerido." }, action);
 
     // Buscar el pago en DynamoDB
     const payment = await getPaymentByToken(token);
 
-    if (!payment) return unsuccessful(404, { message: "Pago no encontrado." }, action);
+    if (!payment) {
+      console.error(`PAGO NO ENCONTRADO. Token buscado: ${token}`);
+      return unsuccessful(404, {
+        message: `Pago no encontrado para el token proporcionado. Esto puede ocurrir si el pago no se creó correctamente o el token no coincide.`,
+        debug: { token: token.substring(0, 10) + "..." } // Solo mostrar parte del token por seguridad
+      }, action);
+    }
 
     // Si el pago ya fue confirmado, retornar el resultado guardado
     if (payment.status === "AUTHORIZED" || payment.status === "FAILED") {
