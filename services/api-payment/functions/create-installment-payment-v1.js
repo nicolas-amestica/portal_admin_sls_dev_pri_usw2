@@ -1,0 +1,169 @@
+import { WebpayPlus } from "transbank-sdk";
+import {
+  Options,
+  IntegrationApiKeys,
+  Environment,
+  IntegrationCommerceCodes,
+} from "transbank-sdk";
+import { uuidv7 } from "uuidv7";
+import * as dynamoDbLib from "../../../libs/dynamodb-v3";
+import { success, unsuccessful } from "../../../helpers/responses";
+import { getSecretManagerValue } from "../../../libs/secret-manager";
+
+const {
+  STAGE,
+  IS_OFFLINE,
+  TRANSBANK_ENVIRONMENT,
+  DYNAMODB_PAYMENT_TABLE,
+  TRANSBANK_COMMERCE_CODE,
+  TRANSBANK_API_KEY_SECRET,
+} = process.env;
+
+const FRONTEND_URL = IS_OFFLINE
+  ? "http://localhost:4300" // local
+  : STAGE === "dev"
+    ? "https://d2q00w63koc9yz.cloudfront.net" // development
+    : "https://d2e3zvke409odp.cloudfront.net/"; // production
+
+/**
+ * Configura las opciones de Transbank según el ambiente.
+ *
+ * @async
+ * @returns {Promise<Options>} Opciones configuradas para Transbank
+ */
+const configureTransbank = async () => {
+  if (TRANSBANK_ENVIRONMENT === "production") {
+    const apiKey = await getSecretManagerValue(TRANSBANK_API_KEY_SECRET);
+    return new Options(TRANSBANK_COMMERCE_CODE, apiKey, Environment.Production);
+  }
+  return new Options(
+    IntegrationCommerceCodes.WEBPAY_PLUS,
+    IntegrationApiKeys.WEBPAY,
+    Environment.Integration
+  );
+};
+
+/**
+ * Crea una transacción de pago para una cuota específica de un programa.
+ *
+ * @async
+ * @function
+ * @param {Object} event - Objeto de evento recibido de API Gateway.
+ * @param {string} event.body - Cuerpo de la solicitud en formato JSON
+ * @param {string} event.body.programId - ID del programa (sk)
+ * @param {number} event.body.installmentNumber - Número de la cuota
+ * @param {number} event.body.amount - Monto de la cuota
+ * @param {string} event.body.userId - ID del usuario que realiza el pago
+ * @returns {Promise<Object>} Respuesta HTTP con el token y URL de pago, o un mensaje de error.
+ *
+ * @description
+ * Este método:
+ * 1. Valida que todos los campos requeridos estén presentes.
+ * 2. Verifica que el monto sea mayor a 50 CLP (mínimo de Transbank).
+ * 3. Verifica que no exista ya un pago para esta cuota del programa.
+ * 4. Genera un paymentId único y crea la transacción en Transbank.
+ * 5. Guarda el registro inicial en DynamoDB con estructura optimizada.
+ * 6. Retorna el paymentId, token y URL para redirección al formulario de pago.
+ */
+export const main = async (event) => {
+  console.log(event);
+  const action = "Crear pago de cuota de programa.";
+
+  try {
+    const data = JSON.parse(event.body);
+    const { programId, installmentNumber, amount, userId } = data;
+
+    // Validaciones
+    if (!programId) return unsuccessful(400, { message: "El programId es requerido." }, action);
+    if (!installmentNumber || installmentNumber < 1) return unsuccessful(400, { message: "El installmentNumber debe ser mayor a 0." }, action);
+    if (!amount || amount < 50) return unsuccessful(400, { message: "El monto debe ser mayor a 50 CLP." }, action);
+    if (!userId) return unsuccessful(400, { message: "El userId es requerido." }, action);
+
+    // Verificar si ya existe un pago para esta cuota
+    const existingPaymentParams = {
+      TableName: DYNAMODB_PAYMENT_TABLE,
+      IndexName: "gsiOne-index", // GSI para buscar por programId#installmentNumber
+      KeyConditionExpression: "gsiOne = :gsiOne",
+      FilterExpression: "#status = :statusAuthorized OR #status = :statusPending",
+      ExpressionAttributeNames: {
+        "#status": "status",
+      },
+      ExpressionAttributeValues: {
+        ":gsiOne": `${programId}#INST#${installmentNumber}`,
+        ":statusAuthorized": "AUTHORIZED",
+        ":statusPending": "PENDING",
+      },
+      Limit: 1,
+    };
+
+    const existingPayments = await dynamoDbLib.query(existingPaymentParams);
+    if (existingPayments && existingPayments.length > 0) {
+      return unsuccessful(409, { message: "Ya existe un pago pendiente o autorizado para esta cuota." }, action);
+    }
+
+    // Generar IDs
+    const paymentId = uuidv7();
+    const buyOrder = `PAY-${programId.split('#')[1]?.slice(0, 8)}-INST${installmentNumber}-${Date.now()}`;
+    const sessionId = `SESSION-${paymentId}`;
+    const returnUrl = `${FRONTEND_URL}/app/cliente/pagos?token_ws=`;
+
+    // Crear transacción en Transbank
+    const options = await configureTransbank();
+    const transaction = new WebpayPlus.Transaction(options);
+    const response = await transaction.create(buyOrder, sessionId, amount, returnUrl);
+
+    // Guardar registro en DynamoDB con nueva estructura
+    const timestamp = new Date().toISOString();
+    const params = {
+      TableName: DYNAMODB_PAYMENT_TABLE,
+      Item: {
+        // Keys
+        pk: `PAY#${paymentId}`,
+        sk: `PAY#${programId}`,
+
+        // Identificadores
+        id: paymentId,
+        programId,
+        userId,
+        installmentNumber,
+
+        // Monto y estado
+        amount,
+        status: "PENDING",
+
+        // Transbank
+        transbankDetails: {
+          token: response.token,
+          buyOrder,
+          sessionId,
+          url: response.url,
+          environment: TRANSBANK_ENVIRONMENT,
+        },
+
+        // Metadata
+        createdAt: timestamp,
+        updatedAt: timestamp,
+
+        // GSI
+        gsiOne: `${programId}#INST#${installmentNumber}`, // Para buscar por programa + cuota
+        gsiTwo: userId, // Para buscar por usuario
+      },
+    };
+
+    await dynamoDbLib.put(params);
+
+    const result = {
+      paymentId,
+      token: response.token,
+      url: response.url,
+      buyOrder,
+      amount,
+    };
+
+    return success(200, result, action);
+  } catch (error) {
+    console.error("Error al crear pago de cuota:", error);
+    let statusCode = error.statusCode || 500;
+    return unsuccessful(statusCode, { message: error.message || "Error al crear pago de cuota." }, action);
+  }
+};
