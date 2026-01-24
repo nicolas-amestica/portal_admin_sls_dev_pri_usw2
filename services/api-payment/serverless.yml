@@ -140,6 +140,26 @@ functions:
             allowCredentials: false
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
 
+  cancel_installment_payment_v1:
+    handler: functions/cancel-installment-payment-v1.main
+    description: Cancelar un pago PENDING para una cuota específica.
+    timeout: 30
+    events:
+      - http:
+          path: v1/pagos/cuotas/cancelar
+          method: post
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - Authorization
+              - X-Amz-Date
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+            allowCredentials: false
+          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+
   # Endpoints legacy (mantener por compatibilidad)
   create_transaction_v1:
     handler: functions/create-transaction-v1.main
