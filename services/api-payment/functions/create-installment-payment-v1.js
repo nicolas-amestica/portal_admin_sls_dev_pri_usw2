@@ -206,6 +206,7 @@ export const main = async (event) => {
         // GSI
         gsiOne: `${programId}#INST#${installmentNumber}`, // Para buscar por programa + cuota
         gsiTwo: userId, // Para buscar por usuario
+        gsiThree: response.token, // Para buscar por token de Transbank (búsqueda eficiente en confirm)
       },
     };
 

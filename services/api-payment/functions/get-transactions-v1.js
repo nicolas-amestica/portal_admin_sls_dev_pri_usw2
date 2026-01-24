@@ -93,13 +93,23 @@ export const main = async (event) => {
       return success(200, result, action, queryParams);
     }
 
-    // Scan general con filtro de estado si se proporciona
-    if (status) {
-      params.FilterExpression = "#status = :status";
-      params.ExpressionAttributeNames = { "#status": "status" };
-      params.ExpressionAttributeValues = { ":status": status };
+    // ⚠️ IMPORTANTE: No permitir Scan general sin filtros para evitar costos excesivos
+    // Requiere al menos un filtro (userId, buyOrder o status)
+    if (!status) {
+      return unsuccessful(400, {
+        message: "Debe proporcionar al menos un filtro: userId, buyOrder o status. " +
+                 "El escaneo completo de la tabla está deshabilitado para evitar costos elevados y problemas de rendimiento.",
+        suggestion: "Usa uno de los siguientes parámetros: ?userId=... o ?buyOrder=... o ?status=PENDING"
+      }, action);
     }
 
+    // Scan con filtro de estado (limitado para reducir costos)
+    params.FilterExpression = "#status = :status";
+    params.ExpressionAttributeNames = { "#status": "status" };
+    params.ExpressionAttributeValues = { ":status": status };
+    params.Limit = Math.min(parseInt(limit), 100); // Máximo 100 items para evitar scans costosos
+
+    console.warn(`⚠️ Realizando Scan con filtro de estado: ${status}. Límite: ${params.Limit}`);
     const result = await dynamoDbLib.scan(params);
 
     // Formatear la respuesta con nextPageToken si hay más resultados

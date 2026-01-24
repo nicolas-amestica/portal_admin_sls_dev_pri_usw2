@@ -36,69 +36,48 @@ const configureTransbank = async () => {
 
 /**
  * Obtiene el registro de pago desde DynamoDB usando el token de Transbank.
+ * Usa el GSI gsiThree-index para búsqueda eficiente (Query en lugar de Scan).
  *
  * @async
  * @param {string} token - Token de la transacción de Transbank
  * @returns {Promise<Object|null>} Registro del pago o null si no existe
  */
-const getPaymentByToken = async (token, retryCount = 0) => {
-  const MAX_RETRIES = 3;
-  const RETRY_DELAY_MS = 1000; // 1 segundo
-
+const getPaymentByToken = async (token) => {
   try {
-    console.log(`[Intento ${retryCount + 1}/${MAX_RETRIES + 1}] Buscando pago con token: ${token}`);
+    console.log(`🔍 Buscando pago con token usando GSI gsiThree-index (Query eficiente): ${token}`);
 
-    // Como DynamoDB no permite nested attributes en KeyConditionExpression,
-    // hacemos un scan con FilterExpression
-    // NOTA: Esto es ineficiente. Idealmente usar un GSI con el token como key.
-    const scanParams = {
+    // Usar Query con GSI gsiThree para búsqueda eficiente (O(1) vs O(n) del Scan)
+    const queryParams = {
       TableName: DYNAMODB_PAYMENT_TABLE,
-      FilterExpression: "transbankDetails.#token = :token",
-      ExpressionAttributeNames: {
-        "#token": "token",
-      },
+      IndexName: "gsiThree-index", // GSI para buscar por token de Transbank
+      KeyConditionExpression: "gsiThree = :token",
       ExpressionAttributeValues: {
         ":token": token,
       },
+      Limit: 1, // Solo necesitamos un resultado (el token es único)
     };
 
-    console.log("Parámetros de búsqueda:", JSON.stringify(scanParams, null, 2));
+    console.log("📋 Parámetros de Query:", JSON.stringify(queryParams, null, 2));
 
-    const result = await dynamoDbLib.scan(scanParams);
-
-    console.log(`Scan completado. Items escaneados: ${result?.ScannedCount || 0}, Items encontrados: ${result ? result.length : 0}`);
+    const result = await dynamoDbLib.query(queryParams);
 
     if (result && result.length > 0) {
-      console.log("✅ Pago encontrado:", JSON.stringify({
+      console.log("✅ Pago encontrado exitosamente:", JSON.stringify({
         pk: result[0].pk,
         sk: result[0].sk,
         status: result[0].status,
         installmentNumber: result[0].installmentNumber,
-        tokenMatch: result[0].transbankDetails?.token === token
+        gsiThree: result[0].gsiThree,
+        tokenMatch: result[0].gsiThree === token
       }));
       return result[0];
     }
 
-    // Si no se encontró y aún hay reintentos, esperar y reintentar
-    if (retryCount < MAX_RETRIES) {
-      console.warn(`⚠️ Pago no encontrado. Reintentando en ${RETRY_DELAY_MS}ms...`);
-      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
-      return getPaymentByToken(token, retryCount + 1);
-    }
-
-    console.error(`❌ No se encontró pago con token después de ${MAX_RETRIES + 1} intentos: ${token}`);
+    console.warn(`⚠️ No se encontró pago con token: ${token}`);
     return null;
   } catch (error) {
-    console.error("Error al buscar pago por token:", error);
-
-    // Reintentar en caso de error temporal de DynamoDB
-    if (retryCount < MAX_RETRIES && (error.code === 'ProvisionedThroughputExceededException' || error.code === 'InternalServerError')) {
-      console.warn(`⚠️ Error de DynamoDB. Reintentando en ${RETRY_DELAY_MS}ms...`);
-      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
-      return getPaymentByToken(token, retryCount + 1);
-    }
-
-    return null;
+    console.error("❌ Error al buscar pago por token:", error);
+    throw error; // Re-lanzar para que el handler principal lo maneje
   }
 };
 
