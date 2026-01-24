@@ -41,12 +41,16 @@ const configureTransbank = async () => {
  * @param {string} token - Token de la transacción de Transbank
  * @returns {Promise<Object|null>} Registro del pago o null si no existe
  */
-const getPaymentByToken = async (token) => {
+const getPaymentByToken = async (token, retryCount = 0) => {
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY_MS = 1000; // 1 segundo
+
   try {
-    console.log(`Buscando pago con token: ${token}`);
+    console.log(`[Intento ${retryCount + 1}/${MAX_RETRIES + 1}] Buscando pago con token: ${token}`);
 
     // Como DynamoDB no permite nested attributes en KeyConditionExpression,
     // hacemos un scan con FilterExpression
+    // NOTA: Esto es ineficiente. Idealmente usar un GSI con el token como key.
     const scanParams = {
       TableName: DYNAMODB_PAYMENT_TABLE,
       FilterExpression: "transbankDetails.#token = :token",
@@ -56,29 +60,44 @@ const getPaymentByToken = async (token) => {
       ExpressionAttributeValues: {
         ":token": token,
       },
-      Limit: 1,
     };
 
     console.log("Parámetros de búsqueda:", JSON.stringify(scanParams, null, 2));
 
     const result = await dynamoDbLib.scan(scanParams);
 
-    console.log(`Scan completado. Resultados encontrados: ${result ? result.length : 0}`);
+    console.log(`Scan completado. Items escaneados: ${result?.ScannedCount || 0}, Items encontrados: ${result ? result.length : 0}`);
 
     if (result && result.length > 0) {
-      console.log("Pago encontrado:", JSON.stringify({
+      console.log("✅ Pago encontrado:", JSON.stringify({
         pk: result[0].pk,
         sk: result[0].sk,
         status: result[0].status,
-        token: result[0].transbankDetails?.token
+        installmentNumber: result[0].installmentNumber,
+        tokenMatch: result[0].transbankDetails?.token === token
       }));
       return result[0];
     }
 
-    console.warn(`No se encontró pago con token: ${token}`);
+    // Si no se encontró y aún hay reintentos, esperar y reintentar
+    if (retryCount < MAX_RETRIES) {
+      console.warn(`⚠️ Pago no encontrado. Reintentando en ${RETRY_DELAY_MS}ms...`);
+      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+      return getPaymentByToken(token, retryCount + 1);
+    }
+
+    console.error(`❌ No se encontró pago con token después de ${MAX_RETRIES + 1} intentos: ${token}`);
     return null;
   } catch (error) {
     console.error("Error al buscar pago por token:", error);
+
+    // Reintentar en caso de error temporal de DynamoDB
+    if (retryCount < MAX_RETRIES && (error.code === 'ProvisionedThroughputExceededException' || error.code === 'InternalServerError')) {
+      console.warn(`⚠️ Error de DynamoDB. Reintentando en ${RETRY_DELAY_MS}ms...`);
+      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+      return getPaymentByToken(token, retryCount + 1);
+    }
+
     return null;
   }
 };
@@ -113,14 +132,24 @@ export const main = async (event) => {
 
     if (!token) return unsuccessful(400, { message: "El token es requerido." }, action);
 
-    // Buscar el pago en DynamoDB
+    // Buscar el pago en DynamoDB (con reintentos automáticos)
     const payment = await getPaymentByToken(token);
 
     if (!payment) {
-      console.error(`PAGO NO ENCONTRADO. Token buscado: ${token}`);
+      console.error(`❌ PAGO NO ENCONTRADO después de reintentos.`);
+      console.error(`Token completo: ${token}`);
+      console.error(`Posibles causas:`);
+      console.error(`  1. El pago no se creó correctamente en DynamoDB`);
+      console.error(`  2. El token de Transbank no coincide con el guardado`);
+      console.error(`  3. La tabla de pagos está vacía o no contiene este registro`);
+      console.error(`  4. Problema de sincronización/replicación en DynamoDB`);
+
       return unsuccessful(404, {
-        message: `Pago no encontrado para el token proporcionado. Esto puede ocurrir si el pago no se creó correctamente o el token no coincide.`,
-        debug: { token: token.substring(0, 10) + "..." } // Solo mostrar parte del token por seguridad
+        message: `Pago no encontrado. El token de Transbank no coincide con ningún pago en el sistema. Por favor, contacta a soporte con el código de error.`,
+        errorCode: 'PAYMENT_NOT_FOUND',
+        tokenPrefix: token.substring(0, 12),
+        timestamp: new Date().toISOString(),
+        suggestion: 'Verifica que el pago se haya creado correctamente antes de redireccionar a Transbank.'
       }, action);
     }
 

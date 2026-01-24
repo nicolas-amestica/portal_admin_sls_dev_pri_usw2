@@ -211,7 +211,13 @@ export const main = async (event) => {
 
     await dynamoDbLib.put(params);
 
-    console.log(`Pago guardado en DynamoDB. PaymentId: ${paymentId}, Token guardado: ${response.token}`);
+    console.log(`✅ Pago guardado en DynamoDB exitosamente`);
+    console.log(`  PaymentId: ${paymentId}`);
+    console.log(`  Token completo: ${response.token}`);
+    console.log(`  PK: PAY#${paymentId}`);
+    console.log(`  SK: PAY#${programId}`);
+    console.log(`  GSI gsiOne: ${programId}#INST#${installmentNumber}`);
+    console.log(`  Estructura transbankDetails.token verificada: ${params.Item.transbankDetails.token === response.token}`);
 
     const result = {
       paymentId,
