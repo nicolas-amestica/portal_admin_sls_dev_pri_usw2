@@ -1,9 +1,119 @@
 # GEMINI.md
 
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 > **Estado:** CONGELADO
 > **Versión:** 1.0
 > **Fecha de congelamiento:** 2026-01-24
 > **Notas:** Este documento define reglas no negociables. Cualquier cambio requiere versionado explícito (v2.0+) y revisión consciente de impacto técnico y costos.
+
+---
+
+## Comandos de desarrollo
+
+### Desarrollo local
+```bash
+# Iniciar serverless offline (puerto 3200)
+npm start
+# Equivalente a: AWS_PROFILE=pa-dev serverless offline
+
+# Deploy manual de un servicio específico
+cd services/api-<servicio>
+AWS_PROFILE=pa-<stage> serverless deploy --stage <stage> --region <region>
+
+# Invocar función localmente
+serverless invoke local --function <nombre-funcion>
+
+# Ver logs de una función
+serverless logs --function <nombre-funcion> --stage <stage>
+
+# Remover servicio completo de AWS
+serverless remove --stage <stage> --region <region>
+```
+
+### Estructura de perfiles AWS
+- `pa-dev`: Desarrollo
+- `pa-staging`: Staging
+- `pa-prod`: Producción
+
+### Regiones soportadas
+- `us-west-2` (usw2) - región principal
+- `us-east-1` (use1)
+- `sa-east-1` (sae1)
+
+---
+
+## Arquitectura del sistema
+
+### Visión general
+Sistema backend serverless para administración de giras de estudios y viajes, con arquitectura multi-servicio independiente donde cada servicio (`api-*`) tiene su propio `serverless.yml` y se despliega de forma aislada.
+
+### Flujo de datos principal
+1. **Cliente** → API Gateway → Lambda Handler
+2. **Handler** → Valida (validator) → Transforma (mapper) → Persiste (DynamoDB/S3)
+3. **DynamoDB** usa modelo single-table con claves compuestas (`pk`, `sk`)
+4. **Authorizer** centralizado en `job-authorizer` (compartido por todos los servicios)
+
+### Servicios disponibles
+- `api-program`: Gestión de programas de viaje (CRUD, aprobación, confirmación)
+- `api-payment`: Sistema de pagos con Transbank
+- `api-entity`: Gestión de entidades (estudiantes, apoderados, etc.)
+- `api-contract`: Generación de contratos PDF
+- `api-notification`: Envío de emails (Nodemailer)
+- `api-balance`: Gestión de balances y cuotas
+- `api-extraction`: Extracción de datos
+- `api-maintainer`: Tareas de mantenimiento
+- `job-authorizer`: Authorizer Lambda compartido
+
+### Componentes compartidos
+
+**`helpers/`** (funciones puras reutilizables)
+- `responses.js`: `success()`, `unsuccessful()`, `binaryFile()` - respuestas HTTP normalizadas
+- `event-parser.js`: `parseEventBody()` - parseo de eventos Lambda
+- `mapper-tables.js`: Mapeo de nombres de tablas DynamoDB
+
+**`libs/`** (clientes AWS SDK wrapper)
+- `dynamodb-v3.js`: CRUD DynamoDB (`query`, `getOne`, `put`, `update`, `remove`, `scan`, `iterativeQuery`)
+- `s3-v3.js`: Operaciones S3
+- `secret-manager.js`: Acceso a secretos
+- `ssm.js`: Parameter Store
+- `nodemailer.js`: Envío de emails
+- `pdf-generator/`: Generación de PDFs
+- `contract/`: Generación de contratos
+
+**`common/`** (configuración compartida)
+- `custom.yml`: Variables personalizadas globales (shortRegion, buckets, etc.)
+- `apigateway-errors.yml`: Respuestas 4XX/5XX centralizadas
+- `lambda-authorizer.yml`: Referencia al authorizer compartido
+
+### Modelo de datos DynamoDB
+
+Todas las tablas usan **single-table design** con:
+- Claves: `pk` (partition key) + `sk` (sort key)
+- Naming: `<recurso>-<stage>-pri-<shortRegion>` (ej: `programs-dev-pri-usw2`)
+- Billing: `PAY_PER_REQUEST` (Free Tier optimizado)
+- DeletionPolicy: `Retain`
+
+Ejemplo de keys:
+```javascript
+{
+  pk: "PRG#8e3d823d-9f58-45df-8a8f-6779435a0001", // PROGRAM_TABLE constant
+  sk: "PRG#<uuid>",                                // Individual program
+  // ... atributos del programa
+}
+```
+
+### Generación de PDFs
+1. Lambdas que generan PDFs usan `memorySize: 1024` (mayor que default de 128MB)
+2. Biblioteca: `pdf-lib`
+3. Storage: S3 bucket `giras-indomito-<stage>-info`
+4. Path convention: `contracts/{programId}/{version}.pdf`
+
+### Autorización
+- Authorizer centralizado en `job-authorizer/`
+- `resultTtlInSeconds: 0` (no cachear)
+- Inyecta contexto: `userId`, `role`
+- Comentado temporalmente en dev: `# authorizer: ${file(../../common/lambda-authorizer.yml)}`
 
 ## Rol y objetivo
 
@@ -87,7 +197,7 @@ root
 
 - **Servicios (Lambdas)**: `services/api-<recurso>` en **singular**.
 - **Helpers**:
-  - Funciones puras: `helpers/fn-<verbo>-<objeto>.js`
+  - Funciones puras: `helpers/<verbo>-<objeto>.js`
   - Constantes: `helpers/constants/<nombre>.js`
 - Variables y funciones **en inglés**.
 
