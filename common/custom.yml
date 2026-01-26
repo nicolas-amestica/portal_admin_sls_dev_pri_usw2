@@ -12,5 +12,6 @@ stage: ${opt:stage, self:provider.stage}
 
 bucketDeployName: sls-deploys-${self:custom.stage}-pri-${self:custom.shortRegion}
 usersTableName: users-${self:custom.stage}-pri-${self:custom.shortRegion}
+configTableName: config-${self:custom.stage}-pri-${self:custom.shortRegion}
 serverless-offline:
   httpPort: 3200

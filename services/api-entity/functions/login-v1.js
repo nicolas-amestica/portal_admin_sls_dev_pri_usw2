@@ -5,8 +5,9 @@ import * as dynamoDbLib from "../../../libs/dynamodb-v3";
 import { resolvePromises } from "../../../helpers/allsettled";
 import { success, unsuccessful } from "../../../helpers/responses";
 import { getSecretManagerValue } from "../../../libs/secret-manager";
+import { getGlobalConfig } from "../../../helpers/get-global-config";
 
-const { DYNAMODB_USER_TABLE, SECRET_KEY } = process.env;
+const { DYNAMODB_USER_TABLE, DYNAMODB_CONFIG_TABLE, SECRET_KEY } = process.env;
 
 /**
  * Genera un token JWT firmado con los datos proporcionados y una clave secreta.
@@ -39,7 +40,9 @@ const generateToken = (body, SECRET) => {
  * 3. Actualiza la fecha de último acceso del usuario.
  * 4. Verifica la contraseña proporcionada, permitiendo el uso de una clave genérica.
  * 5. Genera un token JWT para el usuario autenticado.
- * 6. Retorna la información del usuario autenticado, excluyendo la contraseña.
+ * 6. Obtiene la configuración global del sistema.
+ * 7. Obtiene o inicializa la configuración de usuario (idioma).
+ * 8. Retorna la información del usuario autenticado con configuraciones, excluyendo la contraseña.
  */
 export const main = async (event) => {
   console.log(event);
@@ -77,7 +80,7 @@ export const main = async (event) => {
         return unsuccessful(
           403,
           { message: "Al usuario le faltan accesos habilitados." },
-          action
+          action,
         );
       accessProfiles.push(...access[0]?.access);
     }
@@ -128,7 +131,7 @@ export const main = async (event) => {
         return unsuccessful(
           401,
           { message: "Credenciales inválidas." },
-          action
+          action,
         );
       }
     }
@@ -139,6 +142,33 @@ export const main = async (event) => {
     const token = generateToken(paramsToken, SECRET);
     user.token = token;
     user.access = access;
+
+    // Obtener configuración global
+    const globalConfig = await getGlobalConfig(DYNAMODB_CONFIG_TABLE);
+
+    // Obtener o inicializar configuración de usuario
+    let userConfig = user.userConfig || { language: "es" };
+
+    // Si el usuario no tiene configuración, inicializarla
+    if (!user.userConfig) {
+      const paramsUpdateConfig = {
+        TableName: DYNAMODB_USER_TABLE,
+        ReturnConsumedCapacity: "TOTAL",
+        Key: {
+          pk: user.pk,
+          sk: user.sk,
+        },
+        UpdateExpression: "SET userConfig = :userConfig",
+        ExpressionAttributeValues: {
+          ":userConfig": userConfig,
+        },
+      };
+      await dynamoDbLib.update(paramsUpdateConfig);
+    }
+
+    // Agregar configuraciones a la respuesta
+    user.globalConfig = globalConfig;
+    user.userConfig = userConfig;
 
     return success(200, user, action);
   } catch (e) {

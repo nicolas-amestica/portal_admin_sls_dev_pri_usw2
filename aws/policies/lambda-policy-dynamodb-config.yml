@@ -1,0 +1,11 @@
+Effect: Allow
+Action:
+  - dynamodb:DescribeTable
+  - dynamodb:Query
+  - dynamodb:Scan
+  - dynamodb:GetItem
+  - dynamodb:PutItem
+  - dynamodb:UpdateItem
+Resource:
+  - arn:aws:dynamodb:us-west-2:691725736887:table/config-${self:custom.stage}-pri-${self:custom.shortRegion}
+  - arn:aws:dynamodb:us-west-2:691725736887:table/config-${self:custom.stage}-pri-${self:custom.shortRegion}/index/*

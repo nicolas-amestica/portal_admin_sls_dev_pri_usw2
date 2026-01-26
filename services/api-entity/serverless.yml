@@ -1,20 +1,19 @@
 service: usuarios
 frameworkVersion: '3'
 
-plugins:
-  - serverless-bundle
-  - serverless-offline
-
-# Configuraciones para evitar alertas de la versión 3 del framework
 disabledDeprecations: '*'
 configValidationMode: off # Esta linea debe ser revisada para evitar el warning del projectDir, cuando eso quede solucionada se debe eliminar la linea actual
 projectDir: ./../../
+
+plugins:
+  - serverless-bundle
+  - serverless-offline
 
 custom: ${file(../../common/custom.yml)}
 
 provider:
   name: aws
-  runtime: nodejs18.x
+  runtime: nodejs20.x
   stage: ${opt:stage, 'dev'}
   region: ${opt:region, 'us-west-2'}
   profile: pa-${self:custom.stage}
@@ -24,6 +23,7 @@ provider:
   environment:
     STAGE: ${self:custom.stage}
     DYNAMODB_USER_TABLE: users-${self:custom.stage}-pri-${self:custom.shortRegion}
+    DYNAMODB_CONFIG_TABLE: config-${self:custom.stage}-pri-${self:custom.shortRegion}
     SECRET_KEY: secret-pri-${self:custom.stage}-${self:custom.shortRegion}
     EMAIL_SECRET_KEY: email-config-${self:custom.stage}-pri-${self:custom.shortRegion}
     PROFILE: ${self:provider.profile}
@@ -40,6 +40,7 @@ provider:
   iamRoleStatements:
     - ${file(../../aws/policies/lambda-policy-xray.yml)}
     - ${file(../../aws/policies/lambda-policy-dynamodb-user.yml)}
+    - ${file(../../aws/policies/lambda-policy-dynamodb-config.yml)}
     - ${file(../../aws/policies/lambda-policy-ssm.yml)}
     - ${file(../../aws/policies/lambda-policy-secretsmanager.yml)}
     - ${file(../../aws/policies/lambda-policy-cloudwatch.yml)}

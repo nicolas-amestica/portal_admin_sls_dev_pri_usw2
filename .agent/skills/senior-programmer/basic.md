@@ -473,7 +473,7 @@ export const main = async (event) => {
 
 ```
 services/api-<resource>/
-├── handlers/
+├── functions/
 │   └── <action>-v1.js
 ├── validators/
 │   └── validate-<resource>-payload.js
@@ -536,7 +536,7 @@ Uso obligatorio en validators y reglas de negocio.
 
 👉 Este ejemplo se limita a **registro de intención de pago** en DynamoDB (Free Tier).
 
-### services/api-payment/handlers/create-payment-intent-v1.js
+### services/api-payment/functions/create-payment-intent-v1.js
 
 ```js
 import { uuidv7 } from 'uuidv7';
@@ -630,7 +630,7 @@ provider:
 
 functions:
   createProgram:
-    handler: services/api-program/handlers/create-program-v1.main
+    handler: services/api-program/functions/create-program-v1.main
     events:
       - http:
           path: programs
@@ -710,7 +710,7 @@ export const main = async (event) => {
 
 ```
 services/api-program/
-├── handlers/
+├── functions/
 ├── validators/
 ├── __tests__/
 │   └── create-program-v1.test.js
