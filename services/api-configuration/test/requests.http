@@ -1,0 +1,57 @@
+### API Configuration - Test Requests
+### Usar con REST Client extension en VSCode o similar
+
+@baseUrl = http://localhost:3001
+@contentType = application/json
+
+### Health Check
+GET {{baseUrl}}/health
+
+### GET - Obtener configuración global
+GET {{baseUrl}}/v1/configuracion/global
+Content-Type: {{contentType}}
+
+### POST - Actualizar configuración global (valores válidos)
+POST {{baseUrl}}/v1/configuracion/global
+Content-Type: {{contentType}}
+
+{
+  "ivaRateCrew": 0.1525,
+  "ivaRateService": 0.19
+}
+
+### POST - Actualizar configuración global (otro ejemplo)
+POST {{baseUrl}}/v1/configuracion/global
+Content-Type: {{contentType}}
+
+{
+  "ivaRateCrew": 0.15,
+  "ivaRateService": 0.20
+}
+
+### POST - Error: ivaRateCrew fuera de rango
+POST {{baseUrl}}/v1/configuracion/global
+Content-Type: {{contentType}}
+
+{
+  "ivaRateCrew": 1.5,
+  "ivaRateService": 0.19
+}
+
+### POST - Error: ivaRateService negativo
+POST {{baseUrl}}/v1/configuracion/global
+Content-Type: {{contentType}}
+
+{
+  "ivaRateCrew": 0.15,
+  "ivaRateService": -0.1
+}
+
+### POST - Error: JSON inválido
+POST {{baseUrl}}/v1/configuracion/global
+Content-Type: {{contentType}}
+
+{
+  "ivaRateCrew": "invalid"
+  "ivaRateService": 0.19
+}

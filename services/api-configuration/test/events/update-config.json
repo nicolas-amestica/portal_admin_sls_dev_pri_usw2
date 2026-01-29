@@ -1,0 +1,24 @@
+{
+  "resource": "/v1/configuracion/global",
+  "path": "/v1/configuracion/global",
+  "httpMethod": "POST",
+  "headers": {
+    "Accept": "application/json",
+    "Content-Type": "application/json"
+  },
+  "queryStringParameters": null,
+  "pathParameters": null,
+  "stageVariables": null,
+  "requestContext": {
+    "requestId": "local-test-update-config",
+    "accountId": "123456789012",
+    "resourceId": "test",
+    "stage": "dev",
+    "requestTimeEpoch": 1234567890,
+    "identity": {
+      "sourceIp": "127.0.0.1"
+    }
+  },
+  "body": "{\"ivaRateCrew\": 0.1525, \"ivaRateService\": 0.19}",
+  "isBase64Encoded": false
+}

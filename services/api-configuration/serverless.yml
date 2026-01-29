@@ -1,22 +1,26 @@
-service: configuracion
+service: configuracion-go
 frameworkVersion: '3'
-
-plugins:
-  - serverless-bundle
-  - serverless-offline
 
 # Configuraciones para evitar alertas de la versión 3 del framework
 disabledDeprecations: '*'
 configValidationMode: off
-projectDir: ./../../
 
-custom: ${file(../../common/custom.yml)}
+custom:
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-west-2'}
+
+  # Nombres de tablas DynamoDB (ya existentes)
+  configTableName: config-${self:custom.stage}-pri-usw2
+  usersTableName: users-${self:custom.stage}-pri-usw2
+
+  # Bucket de deployment
+  bucketDeployName: sls-deploys-${self:custom.stage}-pri-usw2
 
 provider:
   name: aws
-  runtime: nodejs20.x
-  stage: ${opt:stage, 'dev'}
-  region: ${opt:region, 'us-west-2'}
+  runtime: provided.al2023
+  stage: ${self:custom.stage}
+  region: ${self:custom.region}
   profile: pa-${self:custom.stage}
   lambdaHashingVersion: 20201221
   endpointType: REGIONAL
@@ -27,27 +31,62 @@ provider:
     DYNAMODB_CONFIG_TABLE: ${self:custom.configTableName}
     DYNAMODB_USER_TABLE: ${self:custom.usersTableName}
     PROFILE: ${self:provider.profile}
-    NODE_OPTIONS: '--enable-source-maps'
 
   # Configurar seguimiento mediante aws x-ray
   tracing:
     apiGateway: true
     lambda: true
 
-  # Repositorio en S3 para desplegar recursos
+  # Repositorio en S3 para desplegar recursos (usa bucket existente)
   deploymentBucket:
     name: ${self:custom.bucketDeployName}
 
+  # Permisos IAM para acceder a DynamoDB y X-Ray
   iamRoleStatements:
-    - ${file(../../aws/policies/lambda-policy-xray.yml)}
-    - ${file(../../aws/policies/lambda-policy-dynamodb-user.yml)}
-    - ${file(../../aws/policies/lambda-policy-dynamodb-config.yml)}
+    # X-Ray tracing
+    - Effect: Allow
+      Action:
+        - xray:PutTraceSegments
+        - xray:PutTelemetryRecords
+      Resource: '*'
+
+    # DynamoDB - Tabla de configuración
+    - Effect: Allow
+      Action:
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:DescribeTable
+      Resource:
+        - arn:aws:dynamodb:${self:custom.region}:*:table/${self:custom.configTableName}
+        - arn:aws:dynamodb:${self:custom.region}:*:table/${self:custom.configTableName}/*
+
+    # DynamoDB - Tabla de usuarios (si se necesita en el futuro)
+    - Effect: Allow
+      Action:
+        - dynamodb:GetItem
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:DescribeTable
+      Resource:
+        - arn:aws:dynamodb:${self:custom.region}:*:table/${self:custom.usersTableName}
+        - arn:aws:dynamodb:${self:custom.region}:*:table/${self:custom.usersTableName}/*
+
+package:
+  individually: true
+  patterns:
+    - '!./**'
 
 functions:
   get_global_config_v1:
-    handler: handlers/get-global-config-v1.main
-    description: Obtiene la configuración global del portal.
+    handler: bootstrap
+    description: Obtiene la configuración global del portal (Go).
     timeout: 10
+    memorySize: 256
+    package:
+      artifact: bin/get-global-config.zip
     events:
       - http:
           path: v1/configuracion/global
@@ -55,16 +94,44 @@ functions:
           cors: true
 
   update_global_config_v1:
-    handler: functions/update-global-config-v1.main
-    description: Actualiza la configuración global del portal (solo Admin).
+    handler: bootstrap
+    description: Actualiza la configuración global del portal - solo Admin (Go).
     timeout: 10
+    memorySize: 256
+    package:
+      artifact: bin/update-global-config.zip
     events:
       - http:
           path: v1/configuracion/global
           method: post
           cors: true
-          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+          # Descomentar cuando esté listo el authorizer
+          # authorizer:
+          #   type: COGNITO_USER_POOLS
+          #   authorizerId:
+          #     Ref: ApiGatewayAuthorizer
 
+# No creamos recursos de DynamoDB porque ya existen
+# Solo definimos errores de API Gateway
 resources:
-  - ${file(../../common/apigateway-errors.yml)}
-  - ${file(../../common/dynamodb-config-table.yml)}
+  Resources:
+    # Configuración de respuestas de error de API Gateway
+    GatewayResponseDefault4XX:
+      Type: 'AWS::ApiGateway::GatewayResponse'
+      Properties:
+        ResponseParameters:
+          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Headers: "'*'"
+        ResponseType: DEFAULT_4XX
+        RestApiId:
+          Ref: 'ApiGatewayRestApi'
+
+    GatewayResponseDefault5XX:
+      Type: 'AWS::ApiGateway::GatewayResponse'
+      Properties:
+        ResponseParameters:
+          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Headers: "'*'"
+        ResponseType: DEFAULT_5XX
+        RestApiId:
+          Ref: 'ApiGatewayRestApi'
