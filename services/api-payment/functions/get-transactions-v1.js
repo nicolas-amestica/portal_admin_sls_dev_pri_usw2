@@ -93,39 +93,14 @@ export const main = async (event) => {
       return success(200, result, action, queryParams);
     }
 
-    // ⚠️ IMPORTANTE: No permitir Scan general sin filtros para evitar costos excesivos
-    // Requiere al menos un filtro (userId, buyOrder o status)
-    if (!status) {
-      return unsuccessful(400, {
-        message: "Debe proporcionar al menos un filtro: userId, buyOrder o status. " +
-                 "El escaneo completo de la tabla está deshabilitado para evitar costos elevados y problemas de rendimiento.",
-        suggestion: "Usa uno de los siguientes parámetros: ?userId=... o ?buyOrder=... o ?status=PENDING"
-      }, action);
-    }
-
-    // Scan con filtro de estado (limitado para reducir costos)
-    params.FilterExpression = "#status = :status";
-    params.ExpressionAttributeNames = { "#status": "status" };
-    params.ExpressionAttributeValues = { ":status": status };
-    params.Limit = Math.min(parseInt(limit), 100); // Máximo 100 items para evitar scans costosos
-
-    console.warn(`⚠️ Realizando Scan con filtro de estado: ${status}. Límite: ${params.Limit}`);
-    const result = await dynamoDbLib.scan(params);
-
-    // Formatear la respuesta con nextPageToken si hay más resultados
-    const response = {
-      Items: result.Items,
-      Count: result.Count,
-      ScannedCount: result.ScannedCount,
-    };
-
-    if (result.LastEvaluatedKey) {
-      response.nextPageToken = encodeURIComponent(
-        JSON.stringify(result.LastEvaluatedKey)
-      );
-    }
-
-    return success(200, response, action, queryParams);
+    // ⚠️ IMPORTANTE: No permitir Scan para evitar costos excesivos
+    // Se requiere obligatoriamente userId o buyOrder para usar Query eficiente
+    return unsuccessful(400, {
+      message: "Debe proporcionar al menos un filtro: userId o buyOrder. " +
+               "El escaneo completo de la tabla está deshabilitado para evitar costos elevados y problemas de rendimiento.",
+      suggestion: "Usa uno de los siguientes parámetros: ?userId=... o ?buyOrder=...",
+      note: "Si necesitas filtrar solo por estado, combínalo con userId o buyOrder: ?userId=...&status=PENDING"
+    }, action);
   } catch (error) {
     console.error("Error al listar transacciones:", error);
     let statusCode = error.statusCode || 500;
