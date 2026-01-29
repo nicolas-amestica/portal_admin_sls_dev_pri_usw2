@@ -41,14 +41,7 @@ provider:
   iamRoleStatements:
     - ${file(../../aws/policies/lambda-policy-xray.yml)}
     - ${file(../../aws/policies/lambda-policy-dynamodb-user.yml)}
-    - Effect: Allow
-      Action:
-        - dynamodb:GetItem
-        - dynamodb:PutItem
-        - dynamodb:UpdateItem
-        - dynamodb:Query
-      Resource:
-        - arn:aws:dynamodb:${self:provider.region}:*:table/${self:custom.configTableName}
+    - ${file(../../aws/policies/lambda-policy-dynamodb-config.yml)}
 
 functions:
   get_global_config_v1:
@@ -62,7 +55,7 @@ functions:
           cors: true
 
   update_global_config_v1:
-    handler: handlers/update-global-config-v1.main
+    handler: functions/update-global-config-v1.main
     description: Actualiza la configuración global del portal (solo Admin).
     timeout: 10
     events:
