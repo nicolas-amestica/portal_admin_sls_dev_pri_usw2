@@ -51,6 +51,16 @@ provider:
         - arn:aws:dynamodb:${self:provider.region}:*:table/${self:custom.configTableName}
 
 functions:
+  get_global_config_v1:
+    handler: handlers/get-global-config-v1.main
+    description: Obtiene la configuración global del portal.
+    timeout: 10
+    events:
+      - http:
+          path: v1/configuracion/global
+          method: get
+          cors: true
+
   update_global_config_v1:
     handler: handlers/update-global-config-v1.main
     description: Actualiza la configuración global del portal (solo Admin).
@@ -58,17 +68,6 @@ functions:
     events:
       - http:
           path: v1/configuracion/global
-          method: post
-          cors: true
-          # authorizer: ${file(../../common/lambda-authorizer.yml)}
-
-  update_user_config_v1:
-    handler: handlers/update-user-config-v1.main
-    description: Actualiza la configuración de usuario (idioma).
-    timeout: 10
-    events:
-      - http:
-          path: v1/configuracion/usuario
           method: post
           cors: true
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
