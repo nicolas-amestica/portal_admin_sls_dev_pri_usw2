@@ -10,7 +10,7 @@ export const main = async (event) => {
   const action = "Obtener accesos del usuario.";
   const { userId } = event.queryStringParameters;
 
-  const gsi = userId;
+  const gsi = userId.split("#")[1];
   const params = {
     TableName: DYNAMODB_USER_TABLE,
     IndexName: "gsiOne-index",
@@ -40,7 +40,7 @@ export const main = async (event) => {
         return unsuccessful(
           403,
           { message: "Al usuario le faltan accesos habilitados." },
-          action
+          action,
         );
       accessProfiles.push(...access[0]?.access);
     }
