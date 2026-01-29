@@ -92,6 +92,7 @@ functions:
           path: v1/configuracion/global
           method: get
           cors: true
+          authorizer: ${file(../../common/lambda-authorizer.yml)}
 
   update_global_config_v1:
     handler: bootstrap
@@ -105,11 +106,7 @@ functions:
           path: v1/configuracion/global
           method: post
           cors: true
-          # Descomentar cuando esté listo el authorizer
-          # authorizer:
-          #   type: COGNITO_USER_POOLS
-          #   authorizerId:
-          #     Ref: ApiGatewayAuthorizer
+          authorizer: ${file(../../common/lambda-authorizer.yml)}
 
 # No creamos recursos de DynamoDB porque ya existen
 # Solo definimos errores de API Gateway

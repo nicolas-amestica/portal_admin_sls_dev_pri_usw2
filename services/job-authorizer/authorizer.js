@@ -112,6 +112,21 @@ const generatePolicy = async (token, methodArn, method) => {
     const payload = decoded.body;
     const allowances = payload.allowances.toLowerCase();
     const { endpoints } = payload;
+    const profiles = payload.profiles || [];
+
+    // Restricción para api-configuration: solo administradores
+    if (methodArn.includes("v1/configuracion/global")) {
+      const isAdmin = profiles.some((p) => p.includes("ACC#ADMIN"));
+      if (!isAdmin) {
+        console.warn(
+          `Acceso denegado: Se requiere perfil ADMIN para acceder a configuración. Perfiles: ${JSON.stringify(
+            profiles
+          )}`
+        );
+        return createPolicy("Deny", methodArn);
+      }
+    }
+
     const accessToMethod = validateAccessToMethod(method, allowances);
     const accessToEndpoint = validateAccessToEndpoint(methodArn, endpoints);
 
