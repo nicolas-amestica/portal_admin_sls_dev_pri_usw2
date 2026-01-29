@@ -24,7 +24,7 @@ Para mantener el flujo de trabajo simple y evitar la complejidad de la inyecció
 // Lógica de negocio directa como función de paquete
 func CreateOrder(ctx context.Context, cmd CreateOrderCmd) (OrderResponse, error) {
     // Llamada directa al repositorio de paquete
-    return postgres.SaveOrder(ctx, cmd)
+    return dynamodb.SaveOrder(ctx, cmd)
 }
 ```
 

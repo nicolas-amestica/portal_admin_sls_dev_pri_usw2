@@ -10,8 +10,8 @@ Este documento describe las principales tecnologías, librerías y herramientas 
 
 ## Base de Datos
 
-- **Sistema Gestor:** PostgreSQL
-- **Drivers Go:** `github.com/lib/pq` y `github.com/jackc/pgx/v5`
+- **Sistema Gestor:** DynamoDB
+- **Drivers Go:** `github.com/aws/aws-sdk-go-v2/service/dynamodb`
 - **Migraciones:** Se gestionan con scripts SQL nativos.
 
 ## Infraestructura y Despliegue (IaC)

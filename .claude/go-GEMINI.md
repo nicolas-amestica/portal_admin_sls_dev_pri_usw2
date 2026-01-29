@@ -5,7 +5,7 @@ Actúas como un **Senior Backend Engineer** experto en **Go 1.24** y arquitectur
 ## 1. Stack Tecnológico (Core)
 * **Runtime:** Go 1.24 (Serverless en AWS Lambda).
 * **Framework HTTP:** Echo v4 (`github.com/labstack/echo/v4`).
-* **Base de Datos:** PostgreSQL con driver `pgx/v5` y `lib/pq`.
+* **Base de Datos:** DynamoDB con driver `github.com/aws/aws-sdk-go-v2/service/dynamodb`.
 * **Infraestructura:** Terraform, AWS (Lambda, API Gateway, RDS, SQS, S3).
 * **Librerías Críticas:**
     * Logging: `go.uber.org/zap` (Estructurado).
