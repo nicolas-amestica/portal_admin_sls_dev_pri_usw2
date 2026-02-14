@@ -1,9 +1,7 @@
 service: configuracion-go
-frameworkVersion: '3'
+frameworkVersion: '4'
 
-# Configuraciones para evitar alertas de la versión 3 del framework
-disabledDeprecations: '*'
-configValidationMode: off
+configValidationMode: warn
 
 custom:
   stage: ${opt:stage, 'dev'}

@@ -1,19 +1,32 @@
 service: pagos
-frameworkVersion: '3'
+frameworkVersion: '4'
 
-disabledDeprecations: '*'
-configValidationMode: off
+configValidationMode: warn
 projectDir: ./../../
 
 plugins:
-  - serverless-bundle
   - serverless-offline
 
 custom: ${file(../../common/custom.yml)}
 
+build:
+  esbuild:
+    bundle: true
+    minify: true
+    sourcemap: true
+    exclude:
+      - 'aws-sdk'
+      - '@aws-sdk/*'
+    target: 'node20'
+    platform: 'node'
+    format: 'esm'
+
+package:
+  individually: true
+
 provider:
   name: aws
-  runtime: nodejs18.x
+  runtime: nodejs20.x
   stage: ${opt:stage, 'dev'}
   region: ${opt:region, 'us-west-2'}
   profile: pa-${self:custom.stage}

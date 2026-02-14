@@ -1,19 +1,32 @@
 service: extracciones
-frameworkVersion: '3'
+frameworkVersion: '4'
 
-disabledDeprecations: '*'
-configValidationMode: off # Esta linea debe ser revisada para evitar el warning del projectDir, cuando eso quede solucionada se debe eliminar la linea actual
+configValidationMode: warn
 projectDir: ./../../
 
 plugins:
-  - serverless-bundle
   - serverless-offline
 
 custom: ${file(../../common/custom.yml)}
 
+build:
+  esbuild:
+    bundle: true
+    minify: true
+    sourcemap: true
+    exclude:
+      - 'aws-sdk'
+      - '@aws-sdk/*'
+    target: 'node20'
+    platform: 'node'
+    format: 'esm'
+
+package:
+  individually: true
+
 provider:
   name: aws
-  runtime: nodejs18.x
+  runtime: nodejs20.x
   stage: ${opt:stage, 'dev'}
   region: ${opt:region, 'us-west-2'}
   profile: pa-${self:custom.stage}

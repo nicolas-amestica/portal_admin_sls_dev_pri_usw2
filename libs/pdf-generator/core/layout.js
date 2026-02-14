@@ -97,6 +97,12 @@ export const createPageBreakChecker = (pdfDoc, currentPage, yPosition, onNewPage
  * Agrega header y footer a una página
  */
 export const addHeaderAndFooter = (page, pdfDoc, headerImage, footerImage, font) => {
+  // Validar que las imágenes existan antes de intentar usarlas
+  if (!headerImage || !footerImage) {
+    console.warn('addHeaderAndFooter: Imágenes null/undefined, omitiendo header/footer');
+    return;
+  }
+
   const { PAGE_WIDTH, PAGE_HEIGHT, HEADER_HEIGHT } = PDF_CONFIG;
 
   // Header

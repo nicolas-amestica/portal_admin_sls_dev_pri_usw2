@@ -1,7 +1,6 @@
 import * as dynamoDbLib from "../../../libs/dynamodb-v3";
-import { buildDocumentData } from '../../../libs/contract/builder.js';
 import { success, unsuccessful } from "../../../helpers/responses.js";
-import { generateContract, loadImages } from '../../../libs/pdf-generator/index.js';
+import { generateDocument } from '../../../libs/document-generator.js';
 
 const {
   PROGRAM_TABLE,
@@ -70,26 +69,31 @@ export const main = async (event) => {
 
     if (!contract) return unsuccessful(404, { message: 'Documento no encontrado.' }, action);
 
-    // 2. Construir datos del documento dinámicamente
-    const adaptedDocumentData = buildDocumentData(contract);
-
-    // 3. Cargar imágenes desde S3
+    // 2. Validar configuración de bucket S3
     if (!BUCKET_INFO_GI) {
       return unsuccessful(500, { message: 'Configuración de bucket S3 no disponible.' }, action);
     }
 
-    const { headerImage, footerImage } = await loadImages(
-      BUCKET_INFO_GI,
-      'assets/header.png',
-      'assets/footer.png'
-    );
+    // 3. Generar documento usando el módulo central
+    const result = await generateDocument({
+      scope: 'CTT',
+      form: contract,
+      action: {
+        isPreview: true,        // Con marca de agua (borrador)
+        hasSigned: false,       // Con firmas digitales desde S3
+        hasHeaderFooter: true   // Con header y footer
+      },
+      bucket: BUCKET_INFO_GI
+    });
 
-    // 4. Generar PDF
-    const pdfBuffer = await generateContract(adaptedDocumentData, headerImage, footerImage);
-
-    if (!Buffer.isBuffer(pdfBuffer)) return unsuccessful(500, { message: "El PDF generado no es un buffer válido" }, action);
-
-    return success(200, { base64: pdfBuffer.toString('base64') }, action);
+    // 4. Retornar respuesta según resultado
+    if (result.success) {
+      return success(200, { base64: result.base64 }, action);
+    } else {
+      return unsuccessful(result.statusCode || 500, {
+        message: result.error
+      }, action);
+    }
   } catch (e) {
     return unsuccessful(e.statusCode || 500, e, action);
   }

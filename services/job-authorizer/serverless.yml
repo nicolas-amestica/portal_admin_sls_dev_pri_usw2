@@ -1,26 +1,32 @@
 service: autorizador
-# Descripción: Servicio autorizador de acceso seguro a los endpoints
+frameworkVersion: '4'
 
-# Configuraciones para evitar alertas de la versión 3 del framework
-disabledDeprecations: '*'
-configValidationMode: off # Esta linea debe ser revisada para evitar el warning del projectDir. Eliminar cuando sea solucionada.
+configValidationMode: warn
 projectDir: ./../../
 
 plugins:
-  - serverless-bundle
   - serverless-offline
-  # - serverless-domain-manager
 
-# Variables personalizadas compartidas entre los diferentes servicios
 custom: ${file(../../common/custom.yml)}
 
-# Empaquetar cada función del servicio de forma individual para procurar levantamiento rápido de las funciones
+build:
+  esbuild:
+    bundle: true
+    minify: true
+    sourcemap: true
+    exclude:
+      - 'aws-sdk'
+      - '@aws-sdk/*'
+    target: 'node20'
+    platform: 'node'
+    format: 'esm'
+
 package:
   individually: true
 
 provider:
   name: aws
-  runtime: nodejs18.x
+  runtime: nodejs20.x
   stage: ${opt:stage, 'dev'}
   region: ${opt:region, 'us-west-2'}
   profile: pa-${self:custom.stage}

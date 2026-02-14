@@ -21,11 +21,12 @@ export { PDF_CONFIG, PDF_STYLES } from "./core/config.js";
  * @param {string} contract.generalData - Datos generales/introducción
  * @param {Array} contract.clauses - Cláusulas del documento
  * @param {Object} contract.signatures - Datos de firmas
- * @param {string} headerImageBase64 - Imagen del header en base64
- * @param {string} footerImageBase64 - Imagen del footer en base64
+ * @param {string|null} headerImageBase64 - Imagen del header en base64 (null si no hay)
+ * @param {string|null} footerImageBase64 - Imagen del footer en base64 (null si no hay)
  * @param {Object} options - Opciones adicionales
  * @param {string} options.watermarkText - Texto de marca de agua (opcional)
- * @param {boolean} options.addWatermark - Si agregar marca de agua (default: true)
+ * @param {boolean} options.addWatermark - Si agregar marca de agua (default: false)
+ * @param {boolean} options.hasHeaderFooter - Si el documento tiene header/footer (default: false)
  * @param {Array} options.signatures - Array de firmas {dni, signature (base64), name}
  *
  * @returns {Promise<Buffer>} Buffer del PDF generado
@@ -38,7 +39,8 @@ export const generateContract = async (
 ) => {
   const {
     watermarkText = 'BORRADOR',
-    addWatermark: shouldAddWatermark = true,
+    addWatermark: shouldAddWatermark = false,
+    hasHeaderFooter = false,
     signatures: signatureImages = []
   } = options;
 
@@ -49,12 +51,22 @@ export const generateContract = async (
   const font = await pdfDoc.embedFont(StandardFonts.Courier);
   const fontBold = await pdfDoc.embedFont(StandardFonts.CourierBold);
 
-  // 3. Embeber imágenes
-  const headerImageBytes = Buffer.from(headerImageBase64, "base64");
-  const footerImageBytes = Buffer.from(footerImageBase64, "base64");
+  // 3. Embeber imágenes (solo si hasHeaderFooter = true)
+  let headerImage = null;
+  let footerImage = null;
 
-  const headerImage = await pdfDoc.embedPng(headerImageBytes);
-  const footerImage = await pdfDoc.embedPng(footerImageBytes);
+  if (hasHeaderFooter && headerImageBase64 && footerImageBase64) {
+    try {
+      const headerImageBytes = Buffer.from(headerImageBase64, "base64");
+      const footerImageBytes = Buffer.from(footerImageBase64, "base64");
+
+      headerImage = await pdfDoc.embedPng(headerImageBytes);
+      footerImage = await pdfDoc.embedPng(footerImageBytes);
+    } catch (error) {
+      console.warn('Error al embeber imágenes de header/footer:', error.message);
+      // Continuar sin imágenes
+    }
+  }
 
   // Embeder firmas si están disponibles
   const embeddedSignatures = await Promise.all(
@@ -78,21 +90,25 @@ export const generateContract = async (
   const { PAGE_WIDTH, PAGE_HEIGHT, MARGIN, HEADER_HEIGHT, FOOTER_HEIGHT } =
     PDF_CONFIG;
   const contentWidth = getContentWidth();
-  let yPosition = PAGE_HEIGHT - HEADER_HEIGHT - 100;
+
+  // Calcular posición inicial según si hay o no header/footer
+  const topMargin = hasHeaderFooter ? HEADER_HEIGHT + 100 : MARGIN + 20;
+  const bottomMargin = hasHeaderFooter ? MARGIN + FOOTER_HEIGHT : MARGIN;
+  let yPosition = PAGE_HEIGHT - topMargin;
 
   // Track de páginas que ya tienen header/footer para evitar duplicados
   const pagesWithHeaderFooter = new Set();
 
   // Función helper para verificar salto de página
   const checkPageBreak = (requiredSpace = 50) => {
-    if (yPosition < MARGIN + FOOTER_HEIGHT + requiredSpace) {
-      // Solo agregar header/footer si la página no lo tiene
-      if (!pagesWithHeaderFooter.has(page)) {
+    if (yPosition < bottomMargin + requiredSpace) {
+      // Solo agregar header/footer si la página no lo tiene y hasHeaderFooter = true
+      if (hasHeaderFooter && !pagesWithHeaderFooter.has(page) && headerImage && footerImage) {
         addHeaderAndFooter(page, pdfDoc, headerImage, footerImage, font);
         pagesWithHeaderFooter.add(page);
       }
       page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-      yPosition = PAGE_HEIGHT - HEADER_HEIGHT - 100;
+      yPosition = PAGE_HEIGHT - topMargin;
       return true;
     }
     return false;
@@ -343,7 +359,7 @@ export const generateContract = async (
       }
 
       // Buscar firma del operador
-      const operatorSignature = findSignature(operator.rut);
+      const operatorSignature = findSignature(operator.dni);
 
       // Dibujar imagen de firma si existe
       if (operatorSignature && operatorSignature.image) {
@@ -384,7 +400,7 @@ export const generateContract = async (
       });
       operatorY -= 13;
 
-      page.drawText(`RUT ${sanitizeRut(operator.rut)}`, {
+      page.drawText(`RUT ${sanitizeRut(operator.dni)}`, {
         x: col1X,
         y: operatorY - 3,
         size: PDF_STYLES.signatureDetail.size,
@@ -408,7 +424,7 @@ export const generateContract = async (
       }
 
       // Buscar firma del cliente
-      const clientSignature = findSignature(client.rut);
+      const clientSignature = findSignature(client.dni);
 
       // Dibujar imagen de firma si existe
       if (clientSignature && clientSignature.image) {
@@ -449,7 +465,7 @@ export const generateContract = async (
       });
       clientY -= 14;
 
-      page.drawText(`RUT ${sanitizeRut(client.rut)}`, {
+      page.drawText(`RUT ${sanitizeRut(client.dni)}`, {
         x: col2X,
         y: clientY - 3,
         size: PDF_STYLES.signatureDetail.size,
@@ -525,7 +541,7 @@ export const generateContract = async (
         });
         yPosition -= 13;
 
-        page.drawText(`RUT ${sanitizeRut(operator.rut)}`, {
+        page.drawText(`RUT ${sanitizeRut(operator.dni)}`, {
           x: centerX,
           y: yPosition,
           size: PDF_STYLES.signatureDetail.size,
@@ -604,7 +620,7 @@ export const generateContract = async (
         });
         yPosition -= 13;
 
-        page.drawText(`RUT ${sanitizeRut(client.rut)}`, {
+        page.drawText(`RUT ${sanitizeRut(client.dni)}`, {
           x: centerX,
           y: yPosition,
           size: PDF_STYLES.signatureDetail.size,
@@ -616,14 +632,16 @@ export const generateContract = async (
     }
   }
 
-  // Agregar header/footer a todas las páginas que no lo tengan
-  const allPages = pdfDoc.getPages();
+  // Agregar header/footer a todas las páginas que no lo tengan (solo si hasHeaderFooter = true)
+  if (hasHeaderFooter && headerImage && footerImage) {
+    const allPages = pdfDoc.getPages();
 
-  allPages.forEach((p) => {
-    if (!pagesWithHeaderFooter.has(p)) {
-      addHeaderAndFooter(p, pdfDoc, headerImage, footerImage, font);
-    }
-  });
+    allPages.forEach((p) => {
+      if (!pagesWithHeaderFooter.has(p)) {
+        addHeaderAndFooter(p, pdfDoc, headerImage, footerImage, font);
+      }
+    });
+  }
 
   // 7. Generar bytes finales
   const pdfBytes = await pdfDoc.save();

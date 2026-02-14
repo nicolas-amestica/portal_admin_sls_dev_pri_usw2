@@ -43,8 +43,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
-    "serverless": "^3.40.0",
-    "serverless-bundle": "^6.3.1",
+    "serverless": "^4.32.0",
     "serverless-domain-manager": "^8.0.0",
     "serverless-offline": "^14.4.0"
   }

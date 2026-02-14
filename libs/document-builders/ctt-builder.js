@@ -1,6 +1,13 @@
 import { formatDate, formatCurrency } from '../pdf-generator/helpers/formatters.js';
 
 /**
+ * Builder para documentos de tipo CONTRATO (CTT)
+ *
+ * Este builder genera la estructura de datos necesaria para crear un PDF
+ * de contrato de prestación de servicios turísticos.
+ */
+
+/**
  * Genera los servicios incluidos formateados
  */
 const buildServicesIncluded = (services = []) => {
@@ -22,31 +29,34 @@ const buildClientRepresentativesText = (clientRepresentative = [], institutionNa
   if (sameCourse) {
     // Todos del mismo curso: listar nombres y DNIs, curso e institución al final
     const namesWithDNI = clientRepresentative
-      .map(rep => `${rep.name || ':::SIN NOMBRE CLIENTE:::'}, cédula nacional de identidad número ${rep.dni || ':::SIN RUT CLIENTE:::'}`)
+      .map(rep => `${rep.name || ':::SIN NOMBRE CLIENTE:::'}, cédula nacional de identidad número ${rep.dni || ':::SIN DNI CLIENTE:::'}`)
       .join(', y ');
 
     return `${namesWithDNI}, en representación del curso ${courses[0] || ':::SIN CURSO ESPECIFICADO:::'} del ${institutionName || ':::SIN INSTITUCIÓN NO ESPECIFICADA:::'}`;
   } else {
     // Cursos diferentes: incluir curso con cada representante
     return clientRepresentative
-      .map(rep => `${rep.name || ':::SIN NOMBRE CLIENTE:::'}, cédula nacional de identidad número ${rep.dni || ':::SIN RUT CLIENTE:::'}, en representación del curso ${rep.course || ':::SIN CURSO ESPECIFICADO:::'}`)
+      .map(rep => `${rep.name || ':::SIN NOMBRE CLIENTE:::'}, cédula nacional de identidad número ${rep.dni || ':::SIN DNI CLIENTE:::'}, en representación del curso ${rep.course || ':::SIN CURSO ESPECIFICADO:::'}`)
       .join(', y ') + ` del ${institutionName || ':::SIN INSTITUCIÓN NO ESPECIFICADA:::'}`;
   }
 };
 
 /**
  * Construye el contenido completo del contrato para el PDF
+ *
+ * @param {Object} form - Datos del formulario de contrato
+ * @returns {Object} Estructura de datos para generar el PDF
  */
-export const buildDocumentData = (contract = {}) => {
+export const buildDocumentData = (form = {}) => {
 
   const {
     trip = {},
     plan = {},
     institution = {},
-    clientRepresentative: clientRepData = {},  // ← Renombrar
+    clientRepresentative: clientRepData = {},
     representatives = [],
     payments = {}
-  } = contract;
+  } = form;
 
   const clientRepresentative = clientRepData && Object.keys(clientRepData).length > 0 ? [clientRepData] : [];
 
@@ -71,7 +81,7 @@ export const buildDocumentData = (contract = {}) => {
 
   // Construir texto de representantes legales de Giras Indómito
   const representativesText = representatives.length > 0
-    ? representatives.map(rep => `${rep.name || ':::SIN NOMBRE REPRESENTANTE:::'}, cédula nacional de identidad número ${rep.dni || ':::SIN RUT REPRESENTANTE:::'}`).join(', y ')
+    ? representatives.map(rep => `${rep.name || ':::SIN NOMBRE REPRESENTANTE:::'}, cédula nacional de identidad número ${rep.dni || ':::SIN DNI REPRESENTANTE:::'}`).join(', y ')
     : ':::SIN REPRESENTANTE ESPECIFICADO:::';
 
   // Construir texto de representantes del cliente (optimizado para evitar redundancia)
@@ -209,13 +219,13 @@ export const buildDocumentData = (contract = {}) => {
       operators: Array.isArray(representatives)
         ? representatives.map(rep => ({
             name: rep?.name || ':::SIN NOMBRE REPRESENTANTE:::',
-            rut: rep?.dni || ':::SIN RUT REPRESENTANTE:::',
+            dni: rep?.dni || ':::SIN DNI REPRESENTANTE:::',
           }))
         : [],
       clients: Array.isArray(clientRepresentative)
         ? clientRepresentative.map(rep => ({
             name: rep?.name || ':::SIN NOMBRE CLIENTE:::',
-            rut: rep?.dni || ':::SIN RUT CLIENTE:::',
+            dni: rep?.dni || ':::SIN DNI CLIENTE:::',
           }))
         : [],
       companyName: 'GIRAS INDÓMITO LIMITADA',
