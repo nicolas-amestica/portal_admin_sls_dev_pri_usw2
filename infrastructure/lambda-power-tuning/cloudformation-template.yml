@@ -1,0 +1,291 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: AWS Lambda Power Tuning - Optimización de memoria y costos
+
+Parameters:
+  PowerValues:
+    Type: String
+    Default: "128,256,512,768,1024,1536,2048,3008"
+    Description: Valores de memoria a probar (en MB)
+
+Resources:
+  # Step Function para Power Tuning
+  PowerTuningStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      StateMachineName: lambda-power-tuning
+      RoleArn: !GetAtt StepFunctionsRole.Arn
+      DefinitionString: |
+        {
+          "Comment": "AWS Lambda Power Tuning State Machine",
+          "StartAt": "Initializer",
+          "States": {
+            "Initializer": {
+              "Type": "Task",
+              "Resource": "${InitializerArn}",
+              "Next": "Executor",
+              "ResultPath": "$.powerValues"
+            },
+            "Executor": {
+              "Type": "Task",
+              "Resource": "${ExecutorArn}",
+              "Next": "Analyzer",
+              "ResultPath": "$.stats",
+              "Retry": [
+                {
+                  "ErrorEquals": ["States.TaskFailed"],
+                  "IntervalSeconds": 3,
+                  "MaxAttempts": 2,
+                  "BackoffRate": 1.5
+                }
+              ]
+            },
+            "Analyzer": {
+              "Type": "Task",
+              "Resource": "${AnalyzerArn}",
+              "Next": "Optimizer",
+              "ResultPath": "$.analysis"
+            },
+            "Optimizer": {
+              "Type": "Task",
+              "Resource": "${OptimizerArn}",
+              "Next": "Visualizer",
+              "ResultPath": "$.optimal"
+            },
+            "Visualizer": {
+              "Type": "Task",
+              "Resource": "${VisualizerArn}",
+              "End": true,
+              "ResultPath": "$.visualization"
+            }
+          }
+        }
+
+  # IAM Role para Step Functions
+  StepFunctionsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaRole
+      Policies:
+        - PolicyName: InvokeLambda
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: '*'
+
+  # Lambda Initializer
+  InitializerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: lambda-power-tuning-initializer
+      Runtime: python3.11
+      Handler: index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 60
+      Code:
+        ZipFile: |
+          import json
+          def handler(event, context):
+              power_values = event.get('powerValues', '128,256,512,768,1024,1536,2048,3008')
+              return {
+                  'powerValues': [int(x.strip()) for x in power_values.split(',')]
+              }
+
+  # Lambda Executor
+  ExecutorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: lambda-power-tuning-executor
+      Runtime: python3.11
+      Handler: index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import time
+
+          lambda_client = boto3.client('lambda')
+
+          def handler(event, context):
+              function_arn = event['lambdaARN']
+              power_values = event['powerValues']
+              num_invocations = event.get('num', 10)
+              payload = event.get('payload', {})
+
+              results = []
+
+              for power in power_values:
+                  # Update function memory
+                  lambda_client.update_function_configuration(
+                      FunctionName=function_arn,
+                      MemorySize=power
+                  )
+
+                  # Wait for update to complete
+                  time.sleep(5)
+
+                  # Execute invocations and measure
+                  durations = []
+                  for _ in range(num_invocations):
+                      start = time.time()
+                      response = lambda_client.invoke(
+                          FunctionName=function_arn,
+                          Payload=json.dumps(payload)
+                      )
+                      duration = (time.time() - start) * 1000
+                      durations.append(duration)
+
+                  avg_duration = sum(durations) / len(durations)
+                  results.append({
+                      'power': power,
+                      'avgDuration': avg_duration,
+                      'invocations': num_invocations
+                  })
+
+              return {'stats': results}
+
+  # Lambda Analyzer
+  AnalyzerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: lambda-power-tuning-analyzer
+      Runtime: python3.11
+      Handler: index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 60
+      Code:
+        ZipFile: |
+          import json
+
+          def handler(event, context):
+              stats = event['stats']
+
+              # Calculate costs (simplified)
+              COST_PER_GB_SECOND = 0.0000166667
+
+              analysis = []
+              for stat in stats:
+                  memory_gb = stat['power'] / 1024
+                  duration_seconds = stat['avgDuration'] / 1000
+                  cost = memory_gb * duration_seconds * COST_PER_GB_SECOND
+
+                  analysis.append({
+                      'power': stat['power'],
+                      'duration': stat['avgDuration'],
+                      'cost': cost
+                  })
+
+              return {'analysis': analysis}
+
+  # Lambda Optimizer
+  OptimizerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: lambda-power-tuning-optimizer
+      Runtime: python3.11
+      Handler: index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 60
+      Code:
+        ZipFile: |
+          import json
+
+          def handler(event, context):
+              analysis = event['analysis']
+              strategy = event.get('strategy', 'balanced')
+
+              if strategy == 'cost':
+                  optimal = min(analysis, key=lambda x: x['cost'])
+              elif strategy == 'speed':
+                  optimal = min(analysis, key=lambda x: x['duration'])
+              else:  # balanced
+                  # Find best cost/performance ratio
+                  for item in analysis:
+                      item['score'] = item['cost'] * item['duration']
+                  optimal = min(analysis, key=lambda x: x['score'])
+
+              return {'optimal': optimal}
+
+  # Lambda Visualizer
+  VisualizerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: lambda-power-tuning-visualizer
+      Runtime: python3.11
+      Handler: index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 60
+      Code:
+        ZipFile: |
+          import json
+          import base64
+
+          def handler(event, context):
+              analysis = event['analysis']
+              optimal = event['optimal']
+
+              # Create visualization URL (simplified)
+              data = {
+                  'analysis': analysis,
+                  'optimal': optimal
+              }
+
+              encoded = base64.b64encode(json.dumps(data).encode()).decode()
+              url = f"https://lambda-power-tuning.show/#{encoded}"
+
+              return {
+                  'visualization': url,
+                  'optimal': optimal,
+                  'recommendation': f"Optimal memory: {optimal['power']}MB"
+              }
+
+  # IAM Role para Lambda Functions
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: LambdaPermissions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                  - lambda:UpdateFunctionConfiguration
+                  - lambda:GetFunctionConfiguration
+                Resource: '*'
+
+Outputs:
+  StateMachineArn:
+    Description: ARN de la State Machine de Power Tuning
+    Value: !GetAtt PowerTuningStateMachine.Arn
+    Export:
+      Name: lambda-power-tuning-state-machine-arn
+
+  StateMachineName:
+    Description: Nombre de la State Machine
+    Value: !GetAtt PowerTuningStateMachine.Name
+    Export:
+      Name: lambda-power-tuning-state-machine-name

@@ -134,19 +134,24 @@ const insertPaymentToProgram = async (newProgram) => {
  */
 const baseHandler = async (event) => {
   console.log("event ==>", event);
-  const action = "Ingreso de balance al viaje.";
-
-  try {
-    const { sk, amount, paymentObservation, file } = event.body;
+  const action = "Ingreso de balance al viaje.";    const { sk, amount, paymentObservation, file } = event.body;
     const requiredFields = ["sk", "amount", "paymentObservation"];
     const missing = requiredFields.filter((f) => !event.body[f]);
 
     if (missing.length) return unsuccessful(400, { message: `Faltan campos requeridos: ${missing.join(", ")}` }, action);
-    if (!file || !file.content) return unsuccessful(400, { message: "No se encontró archivo adjunto" }, action);
+    if (!file || !file.content) {
+    const error = new Error('No se encontró archivo adjunto');
+    error.statusCode = 400;
+    throw error;
+  }
 
     const [program] = await getProgramFromDynamodb({ sortKey: sk });
 
-    if (!program) return unsuccessful(404, { message: "Programa no encontrado" }, action);
+    if (!program) {
+    const error = new Error('Programa no encontrado');
+    error.statusCode = 400;
+    throw error;
+  }
 
     const fileToUpload = {
       filename: file.filename,
@@ -171,11 +176,6 @@ const baseHandler = async (event) => {
     await insertPaymentToProgram(program);
 
     return success(200, program, action);
-  } catch (e) {
-    console.error("ERROR ==>", e);
-    const statusCode = e.statusCode || 500;
-    return unsuccessful(statusCode, e, action);
-  }
 };
 
 /**

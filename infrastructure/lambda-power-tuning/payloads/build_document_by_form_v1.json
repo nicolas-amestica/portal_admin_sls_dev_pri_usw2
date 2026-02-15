@@ -1,0 +1,15 @@
+{
+  "lambdaARN": "arn:aws:lambda:us-west-2:ACCOUNT_ID:function:contratos-dev-build_document_by_form_v1",
+  "powerValues": [256, 512, 768, 1024, 1536, 2048, 3008],
+  "num": 50,
+  "payload": {
+    "body": "{\"scope\":\"CTT\",\"document\":{\"numero\":\"TEST-TUNING-001\",\"fecha\":\"2024-02-14\",\"monto\":1000000,\"vigencia\":\"2024-12-31\"},\"action\":{\"isPreview\":true}}",
+    "headers": {
+      "Content-Type": "application/json"
+    }
+  },
+  "parallelInvocation": true,
+  "strategy": "balanced",
+  "autoOptimize": false,
+  "dryRun": false
+}

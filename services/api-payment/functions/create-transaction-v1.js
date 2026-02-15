@@ -9,6 +9,7 @@ import { uuidv7 } from "uuidv7";
 import * as dynamoDbLib from "../../../libs/dynamodb-v3";
 import { success, unsuccessful } from "../../../helpers/responses";
 import { getSecretManagerValue } from "../../../libs/secret-manager";
+import { standardMiddleware } from "../../../libs/middleware/index.js";
 
 const {
   STAGE,
@@ -61,15 +62,16 @@ const configureTransbank = async () => {
  * 4. Guarda el registro inicial en DynamoDB.
  * 5. Retorna el token y URL para redirección al formulario de pago.
  */
-export const main = async (event) => {
+const handler = async (event) => {
   console.log(event);
-  const action = "Crear transacción de pago.";
-
-  try {
-    const data = JSON.parse(event.body);
+  const action = "Crear transacción de pago.";    const data = event.body;
     const { amount, orderId, userId, description } = data;
 
-    if (!amount || amount < 50) return unsuccessful(400, { message: "El monto debe ser mayor a 50 CLP." }, action);
+    if (!amount || amount < 50) {
+    const error = new Error('El monto debe ser mayor a 50 CLP.');
+    error.statusCode = 400;
+    throw error;
+  }
 
     const transactionId = uuidv7();
     const buyOrder = orderId || `ORDER-${Date.now()}`;
@@ -115,9 +117,7 @@ export const main = async (event) => {
     };
 
     return success(200, result, action);
-  } catch (error) {
-    console.error("Error al crear transacción:", error);
-    let statusCode = error.statusCode || 500;
-    return unsuccessful(statusCode, { message: error.message || "Error al crear transacción." }, action);
-  }
 };
+
+
+export const main = standardMiddleware(handler);

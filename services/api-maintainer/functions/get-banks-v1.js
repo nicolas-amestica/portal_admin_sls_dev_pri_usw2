@@ -1,11 +1,10 @@
-import * as dynamoDbLib from "../../../libs/dynamodb-v3";
-import { resolvePromises } from "../../../helpers/allsettled";
-import { success, unsuccessful } from "../../../helpers/responses";
+import { standardMiddleware } from "../../../libs/middleware/index.js";
+import { success } from "../../../helpers/responses.js";
+import { CachedDynamoDB, CacheKeys, CacheMetrics } from "../../../libs/cache/index.js";
 
 const { DYNAMODB_MAINTAINER_TABLE } = process.env;
 
-export const main = async (event) => {
-  console.log(event);
+const handler = async (event, context) => {
   const action = "Obtener bancos registrados.";
   const pk = "BNK#ACCOUNT";
 
@@ -21,17 +20,22 @@ export const main = async (event) => {
     },
   };
 
-  try {
-    const result = dynamoDbLib.query(params);
-    let [banks] = await resolvePromises([result]);
+  // Usar caché para la consulta de bancos (TTL: 30 minutos)
+  const cacheKey = CacheKeys.bankList();
+  let banks = await CachedDynamoDB.query(
+    params,
+    cacheKey,
+    CacheKeys.TTL.BANK_LIST
+  );
 
-    if (banks)
-      banks = banks.map(({ pk, sk, ...rest }) => rest);
-
-    return success(200, banks, action);
-  } catch (e) {
-    let { statusCode } = e;
-    if (!statusCode) statusCode = 500;
-    return unsuccessful(statusCode, e, action);
+  if (banks) {
+    banks = banks.map(({ pk, sk, ...rest }) => rest);
   }
+
+  // Log de estadísticas del caché
+  CacheMetrics.logDetailedStats('get-banks-v1', context);
+
+  return success(200, banks, action);
 };
+
+export const main = standardMiddleware(handler);

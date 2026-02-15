@@ -1,5 +1,6 @@
 import * as dynamoDbLib from "../../../libs/dynamodb-v3";
 import { success, unsuccessful } from "../../../helpers/responses";
+import { standardMiddleware } from "../../../libs/middleware/index.js";
 
 const { DYNAMODB_PAYMENT_TABLE } = process.env;
 
@@ -9,24 +10,24 @@ const { DYNAMODB_PAYMENT_TABLE } = process.env;
  * @async
  * @function
  * @param {Object} event - Objeto de evento recibido de API Gateway.
- * @param {Object} event.queryStringParameters - Parámetros de consulta opcionales.
- * @param {string} [event.queryStringParameters.userId] - Filtrar por usuario.
- * @param {string} [event.queryStringParameters.status] - Filtrar por estado (PENDING, AUTHORIZED, FAILED).
- * @param {string} [event.queryStringParameters.buyOrder] - Filtrar por orden de compra.
- * @param {number} [event.queryStringParameters.limit] - Límite de resultados.
- * @param {string} [event.queryStringParameters.lastEvaluatedKey] - Para paginación.
+ * @param {Object} event.queryParams - Parámetros de consulta opcionales.
+ * @param {string} [event.queryParams.userId] - Filtrar por usuario.
+ * @param {string} [event.queryParams.status] - Filtrar por estado (PENDING, AUTHORIZED, FAILED).
+ * @param {string} [event.queryParams.buyOrder] - Filtrar por orden de compra.
+ * @param {number} [event.queryParams.limit] - Límite de resultados.
+ * @param {string} [event.queryParams.lastEvaluatedKey] - Para paginación.
  * @returns {Promise<Object>} Respuesta HTTP con la lista de transacciones.
  *
  * @description
  * Este método lista todas las transacciones almacenadas en DynamoDB
  * con capacidad de filtrado y paginación.
  */
-export const main = async (event) => {
+const handler = async (event) => {
   console.log(event);
   const action = "Listar transacciones de pago.";
 
   try {
-    const queryParams = event.queryStringParameters || {};
+    const queryParams = event.queryParams || {};
     const {
       userId,
       status,
@@ -111,3 +112,6 @@ export const main = async (event) => {
     );
   }
 };
+
+
+export const main = standardMiddleware(handler);

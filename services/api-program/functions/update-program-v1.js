@@ -1,15 +1,18 @@
 import * as dynamoDbLib from '../../../libs/dynamodb-v3';
-import { parseEventBody } from '../../../helpers/event-parser.js';
 import { success, unsuccessful } from "../../../helpers/responses";
+import { standardMiddleware } from "../../../libs/middleware/index.js";
 
 const { DYNAMODB_PROGRAM_TABLE } = process.env;
 const ACTION = "Actualización del programa.";
 
-export const main = async (event) => {
-  try {
-    const { content, sk, pk, id, createdAt, user } = parseEventBody(event);
+const handler = async (event) => {    const { content, sk, pk, id, createdAt, user } = event.body;
 
-    if (!sk) return unsuccessful(400, { message: "Falta el tipo de programa en la solicitud." }, ACTION);
+    if (!sk) {
+      const error = new Error('Falta el tipo de programa en la solicitud.')
+      error.statusCode = 400;
+      throw error;
+    }
+    throw error;
 
     const program = {
         pk: pk,
@@ -32,7 +35,6 @@ export const main = async (event) => {
     const result = await dynamoDbLib.put(params);
 
     return success(200, result, ACTION);
-  } catch (e) {
-    return unsuccessful(e.statusCode || 500, e, ACTION);
-  }
 };
+
+export const main = standardMiddleware(handler);

@@ -31,12 +31,12 @@ provider:
   region: ${opt:region, 'us-west-2'}
   profile: pa-${self:custom.stage}
   lambdaHashingVersion: 20201221
-  endpointType: REGIONAL
+
+  # Usar API Gateway HTTP compartido
+  httpApi:
+    id: ${self:custom.apiGatewayId}
+
   architecture: arm64
-  apiGateway:
-    binaryMediaTypes:
-      - 'multipart/form-data'
-      - 'application/pdf'
 
   environment:
     STAGE: ${self:custom.stage}
@@ -48,7 +48,6 @@ provider:
     BUCKET_INFO_GI: giras-indomito-${self:custom.stage}-info
 
   tracing:
-    apiGateway: true
     lambda: true
 
   deploymentBucket:
@@ -67,12 +66,7 @@ functions:
     timeout: 29
     memorySize: 512
     events:
-      - http:
-          path: v1/notificaciones/contrato
-          method: post
-          cors: true
-          contentHandling: CONVERT_TO_TEXT
+      - httpApi:
+          path: /v1/notificaciones/contrato
+          method: POST
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
-
-resources:
-  - ${file(../../common/apigateway-errors.yml)}

@@ -2,10 +2,10 @@ import { uuidv7 } from "uuidv7";
 import bcrypt from "bcryptjs";
 import * as S3 from "../../../libs/s3-v3.js";
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
-import { parseEventBody } from '../../../helpers/event-parser.js';
 import { success, unsuccessful } from "../../../helpers/responses.js";
 import { APPROVED_PROGRAM } from '../../../libs/contract/messages.js';
 import { sendEmailWithAttachments, generateEmailHTML } from '../../../libs/nodemailer.js';
+import { standardMiddleware } from "../../../libs/middleware/index.js";
 
 const {
   STAGE,
@@ -45,16 +45,26 @@ const uploadPdfToS3 = async (pdfBuffer) => {
   };
 };
 
-export const main = async (event) => {
-  try {
-    const body = parseEventBody(event);
-    const { sk, formContact } = body;
+const handler = async (event) => {    // event.body ya está parseado por middleware
+    const { sk, formContact } = event.body;
 
     // Validar parámetros requeridos
-    if (!sk) return unsuccessful(400, { message: "Falta el identificador del programa en la solicitud." }, ACTION);
-    if (!formContact) return unsuccessful(400, { message: "Falta el formulario en la solicitud." }, ACTION);
+    if (!sk) {
+      const error = new Error('Falta el identificador del programa en la solicitud.')
+      error.statusCode = 400;
+      throw error;
+    }
+    throw error;
+    if (!formContact) {
+      const error = new Error('Falta el formulario en la solicitud.')
+      error.statusCode = 400;
+      throw error;
+    }
+    throw error;
     if (!formContact.signedContract || !formContact.signedContract.base64) {
-      return unsuccessful(400, { message: "Falta el contrato firmado en la solicitud." }, ACTION);
+      const error = new Error('Falta el contrato firmado en la solicitud.');
+    error.statusCode = 400;
+    throw error;
     }
 
     // Buscar el programa en DynamoDB
@@ -66,7 +76,9 @@ export const main = async (event) => {
     });
 
     if (!programs || programs.length === 0) {
-      return unsuccessful(404, { message: "Programa no encontrado." }, ACTION);
+      const error = new Error('Programa no encontrado.');
+    error.statusCode = 404;
+    throw error;
     }
 
     const program = programs[0];
@@ -98,7 +110,9 @@ export const main = async (event) => {
     const representative = program.content[0].representative;
 
     if (!clientRepresentative || !clientRepresentative.dni) {
-      return unsuccessful(400, { message: "Falta información del representante del cliente." }, ACTION);
+      const error = new Error('Falta información del representante del cliente.');
+    error.statusCode = 400;
+    throw error;
     }
 
     // Formatear DNI para username (sin puntos ni guión)
@@ -176,17 +190,6 @@ export const main = async (event) => {
       logoBuffer = Buffer.from(await logoObject.Body.transformToByteArray());
       useCidLogo = true;
       console.log('Logo cargado exitosamente desde S3');
-    } catch (logoError) {
-      console.warn('No se pudo cargar el logo desde S3, se usará URL por defecto:', logoError.message);
-    }
-
-    // Enviar email con credenciales
-    const recipientEmail = representative.email;
-    const recipientName = clientRepresentative.name || representative.email;
-
-    if (!recipientEmail) {
-      return unsuccessful(500, { message: "Falta el correo electrónico del destinatario." }, ACTION);
-    }
 
     // Construir el body HTML con las credenciales
     const bodyHtml = MESSAGE.buildBody(username, temporaryPassword);
@@ -233,3 +236,5 @@ export const main = async (event) => {
     return unsuccessful(e.statusCode || 500, e, ACTION);
   }
 };
+
+export const main = standardMiddleware(handler);

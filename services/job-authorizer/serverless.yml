@@ -31,11 +31,14 @@ provider:
   region: ${opt:region, 'us-west-2'}
   profile: pa-${self:custom.stage}
   lambdaHashingVersion: 20201221
-  endpointType: REGIONAL
+
+  # Usar API Gateway HTTP compartido
+  httpApi:
+    id: ${self:custom.apiGatewayId}
+
 
   # Configurar seguimiento mediante AWS X-Ray para identificar y resolver problemas y errores de rendimiento
   tracing:
-    apiGateway: true
     lambda: true
 
   # Repositorio en S3 que se va a usar para desplegar los recursos en CloudFormation
@@ -54,18 +57,16 @@ functions:
   auth:
     handler: authorizer.authorize
     events:
-      - http:
-          path: v1/autorizador
-          method: post
-          cors: true
+      - httpApi:
+          path: /v1/autorizador
+          method: POST
 
   getToken:
     handler: authorizer.generateToken
     events:
-      - http:
-          path: v1/accesos
-          method: post
-          cors: true
+      - httpApi:
+          path: /v1/accesos
+          method: POST
 
 resources:
   Outputs:

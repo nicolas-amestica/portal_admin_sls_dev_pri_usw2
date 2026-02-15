@@ -1,6 +1,6 @@
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
-import { parseEventBody } from '../../../helpers/event-parser.js';
 import { success, unsuccessful } from "../../../helpers/responses.js";
+import { standardMiddleware } from "../../../libs/middleware/index.js";
 
 const {
   PROGRAM_TABLE,
@@ -8,12 +8,14 @@ const {
 } = process.env;
 const ACTION = "Confirmar programa.";
 
-export const main = async (event) => {
-  try {
-    const body = parseEventBody(event);
-    const { sk } = body;
+const handler = async (event) => {    // event.body ya está parseado por middleware
+    const { sk } = event.body;
 
-    if (!sk) return unsuccessful(400, { message: "Falta el identificador del programa en la solicitud." }, ACTION);
+    if (!sk) {
+      const error = new Error('Falta el identificador del programa en la solicitud.');
+      error.statusCode = 400;
+      throw error;
+    }
 
     const programs = await dynamoDbLib.query({
       TableName: DYNAMODB_PROGRAM_TABLE,
@@ -22,7 +24,11 @@ export const main = async (event) => {
       ExpressionAttributeNames: { '#pk': 'pk', '#sk': 'sk' }
     });
 
-    if (!programs || programs.length === 0) return unsuccessful(404, { message: "Programa no encontrado." }, ACTION);
+    if (!programs || programs.length === 0) {
+      const error = new Error('Programa no encontrado.');
+      error.statusCode = 404;
+      throw error;
+    }
 
     let program = programs[0];
 
@@ -32,7 +38,6 @@ export const main = async (event) => {
     const confirmedProgram = await dynamoDbLib.put({ TableName: DYNAMODB_PROGRAM_TABLE, Item: program });
 
     return success(200, confirmedProgram, ACTION);
-  } catch (e) {
-    return unsuccessful(e.statusCode || 500, e, ACTION);
-  }
 };
+
+export const main = standardMiddleware(handler);

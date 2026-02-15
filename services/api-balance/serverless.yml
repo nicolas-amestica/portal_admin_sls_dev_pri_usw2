@@ -31,13 +31,11 @@ provider:
   region: ${opt:region, 'us-west-2'}
   profile: pa-${self:custom.stage}
   lambdaHashingVersion: 20201221
-  endpointType: REGIONAL
-  apiGateway:
-    binaryMediaTypes:
-      - 'multipart/form-data'
-      - 'image/*'
-      - 'application/pdf'
-      - '*/*'
+
+  # Usar API Gateway HTTP compartido
+  httpApi:
+    id: ${self:custom.apiGatewayId}
+
 
   environment:
     STAGE: ${self:custom.stage}
@@ -49,7 +47,6 @@ provider:
 
   # Configurar seguimiento mediante aws x-ray para identificar y resolver problemas y errores de rendimiento.
   tracing:
-    apiGateway: true
     lambda: true
 
   # Repositorio en S3 que se va a usar para desplegar los recursos en cloudFormation
@@ -68,21 +65,17 @@ functions:
     description: Este recurso crea un balance del programa.
     timeout: 30
     events:
-      - http:
-          path: v1/balances/solicitudes/balance
-          method: post
-          cors: true
+      - httpApi:
+          path: /v1/balances/solicitudes/balance
+          method: POST
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
+
   get_balances_v1:
     handler: functions/get-balances-v1.main
     description: Este recurso obtiene un balance de un programa.
     timeout: 30
     events:
-      - http:
-          path: v1/balances/solicitudes/balance
-          method: get
-          cors: true
+      - httpApi:
+          path: /v1/balances/solicitudes/balance
+          method: GET
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
-
-resources:
-  - ${file(../../common/apigateway-errors.yml)}

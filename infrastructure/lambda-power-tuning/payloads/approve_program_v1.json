@@ -1,0 +1,15 @@
+{
+  "lambdaARN": "arn:aws:lambda:us-west-2:ACCOUNT_ID:function:programas-dev-approve_program_v1",
+  "powerValues": [256, 512, 768, 1024],
+  "num": 30,
+  "payload": {
+    "body": "{\"sk\":\"PRG#2024-01-TEST\",\"approvalNotes\":\"Test for power tuning\"}",
+    "headers": {
+      "Content-Type": "application/json"
+    }
+  },
+  "parallelInvocation": false,
+  "strategy": "balanced",
+  "autoOptimize": false,
+  "dryRun": false
+}

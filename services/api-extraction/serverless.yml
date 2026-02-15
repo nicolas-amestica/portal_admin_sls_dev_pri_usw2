@@ -31,11 +31,12 @@ provider:
   region: ${opt:region, 'us-west-2'}
   profile: pa-${self:custom.stage}
   lambdaHashingVersion: 20201221
-  endpointType: REGIONAL
 
-  apiGateway:
-    binaryMediaTypes:
-      - '*/*'
+  # Usar API Gateway HTTP compartido
+  httpApi:
+    id: ${self:custom.apiGatewayId}
+
+
 
   environment:
     STAGE: ${self:custom.stage}
@@ -50,7 +51,6 @@ provider:
 
   # Configurar seguimiento mediante aws x-ray para identificar y resolver problemas y errores de rendimiento.
   tracing:
-    apiGateway: true
     lambda: true
 
   # Repositorio en S3 que se va a usar para desplegar los recursos en cloudFormation
@@ -69,11 +69,7 @@ functions:
   downloadFile:
     handler: functions/get-object-s3-v1.main
     events:
-      - http:
-          path: v1/extracciones/object
-          method: get
-          cors: true
+      - httpApi:
+          path: /v1/extracciones/object
+          method: GET
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
-
-resources:
-  - ${file(../../common/apigateway-errors.yml)}

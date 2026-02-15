@@ -1,5 +1,6 @@
 import * as dynamoDbLib from "../../../libs/dynamodb-v3";
 import { success, unsuccessful } from "../../../helpers/responses";
+import { standardMiddleware } from "../../../libs/middleware/index.js";
 
 const { DYNAMODB_PAYMENT_TABLE } = process.env;
 
@@ -31,14 +32,14 @@ const { DYNAMODB_PAYMENT_TABLE } = process.env;
  *   "programId": "REQ#01JKXXX..."
  * }
  */
-export const main = async (event) => {
+const handler = async (event) => {
   const action = "cancel-installment-payment-v1";
 
   try {
     console.log(`[${action}] Event:`, JSON.stringify(event, null, 2));
 
-    const body = JSON.parse(event.body);
-    const { programId, installmentNumber } = body;
+    const body = event.body;
+    const { programId, installmentNumber } = event.body;
 
     // Validaciones de entrada
     if (!programId || !installmentNumber) {
@@ -171,3 +172,6 @@ export const main = async (event) => {
     );
   }
 };
+
+
+export const main = standardMiddleware(handler);

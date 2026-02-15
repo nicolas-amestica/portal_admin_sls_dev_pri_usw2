@@ -31,14 +31,12 @@ provider:
   region: ${opt:region, 'us-west-2'}
   profile: pa-${self:custom.stage}
   lambdaHashingVersion: 20201221
-  endpointType: REGIONAL
+
+  # Usar API Gateway HTTP compartido
+  httpApi:
+    id: ${self:custom.apiGatewayId}
+
   architecture: arm64
-  apiGateway:
-    binaryMediaTypes:
-      - 'multipart/form-data'
-      - 'image/*'
-      - 'application/pdf'
-      - '*/*'
 
   environment:
     STAGE: ${self:custom.stage}
@@ -52,7 +50,6 @@ provider:
 
   # Configurar seguimiento mediante aws x-ray para identificar y resolver problemas y errores de rendimiento.
   tracing:
-    apiGateway: true
     lambda: true
 
   # Repositorio en S3 que se va a usar para desplegar los recursos en cloudFormation
@@ -73,10 +70,9 @@ functions:
     description: Este recurso está relacionado con la obtención de la lista de programas en sistema.
     timeout: 30
     events:
-      - http:
-          path: v1/programas/solicitudes/programas
-          method: get
-          cors: true
+      - httpApi:
+          path: /v1/programas/solicitudes/programas
+          method: GET
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
 
   get_program_v1:
@@ -84,10 +80,9 @@ functions:
     description: Este recurso está relacionado con la obtención de un programa en sistema por identificador único.
     timeout: 30
     events:
-      - http:
-          path: v1/programas/solicitudes/programa
-          method: get
-          cors: true
+      - httpApi:
+          path: /v1/programas/solicitudes/programa
+          method: GET
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
 
   create_program_v1:
@@ -95,10 +90,9 @@ functions:
     description: Creación de un programa.
     timeout: 30
     events:
-      - http:
-          path: v1/programas/crear
-          method: post
-          cors: true
+      - httpApi:
+          path: /v1/programas/crear
+          method: POST
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
 
   update_program_v1:
@@ -106,10 +100,9 @@ functions:
     description: Actualización de un programa.
     timeout: 30
     events:
-      - http:
-          path: v1/programas/actualizar
-          method: put
-          cors: true
+      - httpApi:
+          path: /v1/programas/actualizar
+          method: PUT
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
 
   complete_program_v1:
@@ -117,10 +110,9 @@ functions:
     description: Este recurso está relacionado con la completación del programa en sistema por identificador único.
     timeout: 30
     events:
-      - http:
-          path: v1/programas/completar
-          method: post
-          cors: true
+      - httpApi:
+          path: /v1/programas/completar
+          method: POST
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
 
   reject_program_v1:
@@ -128,10 +120,9 @@ functions:
     description: Este recurso está relacionado con el rechazo del programa en sistema por identificador único.
     timeout: 30
     events:
-      - http:
-          path: v1/programas/rechazar
-          method: post
-          cors: true
+      - httpApi:
+          path: /v1/programas/rechazar
+          method: POST
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
 
   approve_program_v1:
@@ -140,10 +131,9 @@ functions:
     timeout: 30
     memorySize: 1024
     events:
-      - http:
-          path: v1/programas/aprobar
-          method: post
-          cors: true
+      - httpApi:
+          path: /v1/programas/aprobar
+          method: POST
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
 
   confirm_program_v1:
@@ -152,11 +142,7 @@ functions:
     timeout: 30
     memorySize: 1024
     events:
-      - http:
-          path: v1/programas/confirmar
-          method: post
-          cors: true
+      - httpApi:
+          path: /v1/programas/confirmar
+          method: POST
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
-
-resources:
-  - ${file(../../common/apigateway-errors.yml)}

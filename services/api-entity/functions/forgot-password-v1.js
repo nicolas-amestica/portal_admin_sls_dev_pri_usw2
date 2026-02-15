@@ -2,8 +2,9 @@ import crypto from "crypto";
 import nodemailer from "nodemailer";
 import * as dynamoDbLib from "../../../libs/dynamodb-v3";
 import { resolvePromises } from "../../../helpers/allsettled";
-import { success, unsuccessful } from "../../../helpers/responses";
+import { success } from "../../../helpers/responses";
 import { getSecretManagerValue } from "../../../libs/secret-manager";
+import { standardMiddleware } from "../../../libs/middleware/index.js";
 
 const {
   STAGE,
@@ -141,14 +142,16 @@ const generateEmailTemplate = (userName, resetUrl) => {
  * 5. Envía un correo electrónico con instrucciones de recuperación.
  * 6. Retorna confirmación del envío sin revelar si el usuario existe (seguridad).
  */
-export const main = async (event) => {
+const handler = async (event) => {
   console.log("Event ==>", event);
   const action = "Recuperación de contraseña.";
-  const data = JSON.parse(event.body);
+  const data = event.body; // Ya parseado por httpJsonBodyParser middleware
 
   // Validar que se haya proporcionado el RUT
   if (!data.rut) {
-    return unsuccessful(400, { message: "El RUT es requerido." }, action);
+    const error = new Error('El RUT es requerido.');
+    error.statusCode = 400;
+    throw error;
   }
 
   // Limpiar el RUT (eliminar puntos y guiones)
@@ -252,3 +255,6 @@ export const main = async (event) => {
     return success(200, { message: "Si el RUT está registrado, recibirás un correo con instrucciones para recuperar tu contraseña.", }, action);
   }
 };
+
+
+export const main = standardMiddleware(handler);

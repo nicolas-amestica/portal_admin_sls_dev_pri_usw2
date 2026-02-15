@@ -1,0 +1,81 @@
+service: portal-admin-infrastructure
+
+frameworkVersion: '4'
+
+provider:
+  name: aws
+  region: us-west-2
+  profile: pa-${opt:stage, 'dev'}
+  stage: ${opt:stage, 'dev'}
+
+resources:
+  Resources:
+    # API Gateway HTTP único para todos los servicios
+    PortalAdminHttpApi:
+      Type: AWS::ApiGatewayV2::Api
+      Properties:
+        Name: portal-admin-${self:provider.stage}
+        Description: API Gateway compartido para todos los servicios del portal admin
+        ProtocolType: HTTP
+        CorsConfiguration:
+          AllowOrigins:
+            - '*'
+          AllowMethods:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - PATCH
+            - OPTIONS
+          AllowHeaders:
+            - Content-Type
+            - Authorization
+            - X-Amz-Date
+            - X-Api-Key
+            - X-Amz-Security-Token
+            - X-Amz-User-Agent
+            - X-Correlation-Id
+          MaxAge: 300
+          AllowCredentials: false
+
+    # Stage de deployment automático
+    PortalAdminHttpApiStage:
+      Type: AWS::ApiGatewayV2::Stage
+      Properties:
+        ApiId: !Ref PortalAdminHttpApi
+        StageName: ${self:provider.stage}
+        AutoDeploy: true
+        AccessLogSettings:
+          DestinationArn: !GetAtt ApiGatewayLogGroup.Arn
+          Format: '$context.requestId $context.error.message $context.error.messageString'
+        DefaultRouteSettings:
+          DetailedMetricsEnabled: true
+          ThrottlingBurstLimit: 5000
+          ThrottlingRateLimit: 10000
+
+    # CloudWatch Log Group para API Gateway logs
+    ApiGatewayLogGroup:
+      Type: AWS::Logs::LogGroup
+      Properties:
+        LogGroupName: /aws/apigateway/portal-admin-${self:provider.stage}
+        RetentionInDays: 7
+
+  Outputs:
+    # Exportar API Gateway ID para que otros servicios lo usen
+    HttpApiId:
+      Description: API Gateway HTTP ID compartido
+      Value: !Ref PortalAdminHttpApi
+      Export:
+        Name: portal-admin-${self:provider.stage}-api-id
+
+    HttpApiUrl:
+      Description: API Gateway HTTP URL base
+      Value: !GetAtt PortalAdminHttpApi.ApiEndpoint
+      Export:
+        Name: portal-admin-${self:provider.stage}-api-url
+
+    HttpApiArn:
+      Description: API Gateway HTTP ARN
+      Value: !Sub 'arn:aws:apigateway:${AWS::Region}::/apis/${PortalAdminHttpApi}'
+      Export:
+        Name: portal-admin-${self:provider.stage}-api-arn

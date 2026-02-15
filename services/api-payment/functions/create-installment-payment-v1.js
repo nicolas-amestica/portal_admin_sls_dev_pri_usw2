@@ -9,6 +9,7 @@ import { uuidv7 } from "uuidv7";
 import * as dynamoDbLib from "../../../libs/dynamodb-v3";
 import { success, unsuccessful } from "../../../helpers/responses";
 import { getSecretManagerValue } from "../../../libs/secret-manager";
+import { standardMiddleware } from "../../../libs/middleware/index.js";
 
 const {
   STAGE,
@@ -69,19 +70,32 @@ const configureTransbank = async () => {
  * 5. Guarda el registro inicial en DynamoDB con estructura optimizada.
  * 6. Retorna el paymentId, token y URL para redirección al formulario de pago.
  */
-export const main = async (event) => {
+const handler = async (event) => {
   console.log(event);
-  const action = "Crear pago de cuota de programa.";
-
-  try {
-    const data = JSON.parse(event.body);
+  const action = "Crear pago de cuota de programa.";    const data = event.body;
     const { programId, installmentNumber, amount, userId, returnUrl } = data;
 
     // Validaciones
-    if (!programId) return unsuccessful(400, { message: "El programId es requerido." }, action);
-    if (!installmentNumber || installmentNumber < 1) return unsuccessful(400, { message: "El installmentNumber debe ser mayor a 0." }, action);
-    if (!amount || amount < 50) return unsuccessful(400, { message: "El monto debe ser mayor a 50 CLP." }, action);
-    if (!userId) return unsuccessful(400, { message: "El userId es requerido." }, action);
+    if (!programId) {
+    const error = new Error('El programId es requerido.');
+    error.statusCode = 400;
+    throw error;
+  }
+    if (!installmentNumber || installmentNumber < 1) {
+    const error = new Error('El installmentNumber debe ser mayor a 0.');
+    error.statusCode = 400;
+    throw error;
+  }
+    if (!amount || amount < 50) {
+    const error = new Error('El monto debe ser mayor a 50 CLP.');
+    error.statusCode = 400;
+    throw error;
+  }
+    if (!userId) {
+    const error = new Error('El userId es requerido.');
+    error.statusCode = 400;
+    throw error;
+  }
 
     // Verificar si ya existe un pago para esta cuota
     const existingPaymentParams = {
@@ -112,9 +126,9 @@ export const main = async (event) => {
 
       // Si el pago ya fue autorizado, no permitir duplicados
       if (payment.status === "AUTHORIZED") {
-        return unsuccessful(409, {
-          message: "Esta cuota ya ha sido pagada exitosamente."
-        }, action);
+        const error = new Error('Esta cuota ya ha sido pagada exitosamente.');
+    error.statusCode = 409;
+    throw error;
       }
 
       // Si el pago está pendiente, verificar antigüedad
@@ -124,9 +138,9 @@ export const main = async (event) => {
         const minutesDiff = (now - createdAt) / (1000 * 60);
 
         if (minutesDiff < PENDING_TIMEOUT_MINUTES) {
-          return unsuccessful(409, {
-            message: "Ya existe un pago en proceso para esta cuota. Por favor, espera unos minutos o completa el pago pendiente."
-          }, action);
+          const error = new Error('Ya existe un pago en proceso para esta cuota. Por favor, espera unos minutos o completa el pago pendiente.');
+    error.statusCode = 409;
+    throw error;
         }
 
         // Pago PENDING antiguo: marcarlo como EXPIRED y permitir nuevo intento
@@ -231,9 +245,7 @@ export const main = async (event) => {
     console.log("Pago creado exitosamente. Resultado:", JSON.stringify(result, null, 2));
 
     return success(200, result, action);
-  } catch (error) {
-    console.error("Error al crear pago de cuota:", error);
-    let statusCode = error.statusCode || 500;
-    return unsuccessful(statusCode, { message: error.message || "Error al crear pago de cuota." }, action);
-  }
 };
+
+
+export const main = standardMiddleware(handler);

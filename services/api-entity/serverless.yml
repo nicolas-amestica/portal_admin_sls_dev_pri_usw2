@@ -3,6 +3,7 @@ frameworkVersion: '4'
 
 configValidationMode: warn
 projectDir: ./../../
+useDotenv: true
 
 plugins:
   - serverless-offline
@@ -17,6 +18,18 @@ build:
     exclude:
       - 'aws-sdk'
       - '@aws-sdk/*'
+    # Marcar como externas las dependencias con require() dinámico
+    external:
+      - 'jsonwebtoken'
+      - 'bcryptjs'
+      - 'winston'
+      - '@colors/colors'
+      - 'logform'
+      - 'nodemailer'
+      - 'dotenv'
+      - 'fs'
+      - 'path'
+      - 'url'
     target: 'node20'
     platform: 'node'
     format: 'esm'
@@ -31,7 +44,11 @@ provider:
   region: ${opt:region, 'us-west-2'}
   profile: pa-${self:custom.stage}
   lambdaHashingVersion: 20201221
-  endpointType: REGIONAL
+
+  # Usar API Gateway HTTP compartido
+  httpApi:
+    id: ${self:custom.apiGatewayId}
+
 
   environment:
     STAGE: ${self:custom.stage}
@@ -43,7 +60,6 @@ provider:
 
   # Configurar seguimiento mediante aws x-ray para identificar y resolver problemas y errores de rendimiento.
   tracing:
-    apiGateway: true
     lambda: true
 
   # Repositorio en S3 que se va a usar para desplegar los recursos en cloudFormation
@@ -62,67 +78,33 @@ functions:
   login:
     handler: functions/login-v1.main
     events:
-      - http:
-          path: v1/sesiones/iniciar-sesion
-          method: post
-          cors:
-            origin: '*'
-            headers:
-              - Content-Type
-              - Authorization
-              - X-Amz-Date
-              - X-Api-Key
-              - X-Amz-Security-Token
-              - X-Amz-User-Agent
-            allowCredentials: false
+      - httpApi:
+          path: /v1/sesiones/iniciar-sesion
+          method: POST
 
   forgot_password_v1:
     handler: functions/forgot-password-v1.main
     description: Envía un correo electrónico con instrucciones para recuperar la contraseña.
     timeout: 30
     events:
-      - http:
-          path: v1/sesiones/recuperar-clave
-          method: post
-          cors:
-            origin: '*'
-            headers:
-              - Content-Type
-              - Authorization
-              - X-Amz-Date
-              - X-Api-Key
-              - X-Amz-Security-Token
-              - X-Amz-User-Agent
-            allowCredentials: false
+      - httpApi:
+          path: /v1/sesiones/recuperar-clave
+          method: POST
 
   reset_password_v1:
     handler: functions/reset-password-v1.main
     description: Valida el token de recuperación y actualiza la contraseña del usuario.
     timeout: 30
     events:
-      - http:
-          path: v1/sesiones/restablecer-clave
-          method: post
-          cors:
-            origin: '*'
-            headers:
-              - Content-Type
-              - Authorization
-              - X-Amz-Date
-              - X-Api-Key
-              - X-Amz-Security-Token
-              - X-Amz-User-Agent
-            allowCredentials: false
+      - httpApi:
+          path: /v1/sesiones/restablecer-clave
+          method: POST
 
   get_access_v1:
     handler: functions/get-access-v1.main
     description: Este recurso está relacionado con la obtención de los accesos de un usuario.
     timeout: 30
     events:
-      - http:
-          path: v1/iam/accesos/aplicaciones/GI/user
-          method: get
-          cors: true
-
-resources:
-  - ${file(../../common/apigateway-errors.yml)}
+      - httpApi:
+          path: /v1/iam/accesos/aplicaciones/GI/user
+          method: GET

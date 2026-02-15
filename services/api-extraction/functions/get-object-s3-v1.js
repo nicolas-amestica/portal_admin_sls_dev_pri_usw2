@@ -1,15 +1,13 @@
 import * as S3 from "../../../libs/s3-v3";
 import { success, unsuccessful } from "../../../helpers/responses";
+import { standardMiddleware } from "../../../libs/middleware/index.js";
 
 const { BUCKET_INFO_GI } = process.env;
 
-export const main = async (event) => {
+const handler = async (event) => {
   console.log("event ==>", event);
   const action = "Obtención de objeto en S3.";
-  const queryParams = event.queryStringParameters;
-
-  try {
-    const { key } = queryParams || {};
+  const queryParams = event.queryParams;    const { key } = queryParams || {};
     if (!key) {
       return unsuccessful(
         400,
@@ -26,9 +24,6 @@ export const main = async (event) => {
     const url = await S3.getObject(params);
 
     return success(200, url, action);
-  } catch (error) {
-    let { statusCode } = error;
-    if (!statusCode) statusCode = 500;
-    return unsuccessful(statusCode, error, action);
-  }
 };
+
+export const main = standardMiddleware(handler);

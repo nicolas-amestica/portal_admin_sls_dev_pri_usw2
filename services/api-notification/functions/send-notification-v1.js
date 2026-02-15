@@ -35,16 +35,18 @@ const MESSAGE = STAGE === 'dev' ? CONTRACT.dev : CONTRACT.prd;
  * genera un correo HTML formateado según el tipo de mensaje (preview o confirmado) y lo envía al destinatario
  * especificado utilizando la función sendEmailWithAttachments.
  */
-const baseHandler = async (event) => {
-  try {
-    const { name, email, file, preview } = event.body;
+const baseHandler = async (event) => {    const { name, email, file, preview } = event.body;
 
     const requiredFields = ["name", "email", "preview", "file"];
     const missing = requiredFields.filter((f) => !event.body[f]);
 
     if (missing.length) return unsuccessful(400, { message: `Faltan campos requeridos: ${missing.join(", ")}` }, ACTION);
 
-    if (!file || !file.content) return unsuccessful(400, { message: "No se encontró archivo adjunto" }, ACTION);
+    if (!file || !file.content) {
+    const error = new Error('No se encontró archivo adjunto');
+    error.statusCode = 400;
+    throw error;
+  }
 
     const typeMessage = preview === '1' ? MESSAGE['preview'] : MESSAGE['confirmed'];
 
@@ -81,9 +83,6 @@ const baseHandler = async (event) => {
       messageId: emailResult.messageId,
       recipient: email
     }, ACTION);
-  } catch (e) {
-    return unsuccessful(e.statusCode || 500, e, ACTION);
-  }
 };
 
 /**

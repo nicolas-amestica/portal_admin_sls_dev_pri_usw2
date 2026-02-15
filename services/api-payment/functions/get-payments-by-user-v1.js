@@ -1,5 +1,6 @@
 import * as dynamoDbLib from "../../../libs/dynamodb-v3";
 import { success, unsuccessful } from "../../../helpers/responses";
+import { standardMiddleware } from "../../../libs/middleware/index.js";
 
 const { DYNAMODB_PAYMENT_TABLE } = process.env;
 
@@ -9,8 +10,8 @@ const { DYNAMODB_PAYMENT_TABLE } = process.env;
  * @async
  * @function
  * @param {Object} event - Objeto de evento recibido de API Gateway.
- * @param {Object} event.queryStringParameters - Parámetros de query
- * @param {string} event.queryStringParameters.userId - ID del usuario
+ * @param {Object} event.queryParams - Parámetros de query
+ * @param {string} event.queryParams.userId - ID del usuario
  * @returns {Promise<Object>} Respuesta HTTP con el array de pagos del usuario.
  *
  * @description
@@ -19,15 +20,14 @@ const { DYNAMODB_PAYMENT_TABLE } = process.env;
  * 2. Busca todos los pagos del usuario usando el GSI gsiTwo.
  * 3. Retorna el array de pagos ordenados por fecha de creación.
  */
-export const main = async (event) => {
+const handler = async (event) => {
   console.log(event);
-  const action = "Obtener pagos por usuario.";
-
-  try {
-    const userId = event.queryStringParameters?.userId;
+  const action = "Obtener pagos por usuario.";    const userId = event.queryParams?.userId;
 
     if (!userId) {
-      return unsuccessful(400, { message: "El userId es requerido como query parameter." }, action);
+      const error = new Error('El userId es requerido como query parameter.');
+    error.statusCode = 400;
+    throw error;
     }
 
     // Construir query para obtener todos los pagos del usuario
@@ -76,9 +76,7 @@ export const main = async (event) => {
     }));
 
     return success(200, result, action);
-  } catch (error) {
-    console.error("Error al obtener pagos por usuario:", error);
-    let statusCode = error.statusCode || 500;
-    return unsuccessful(statusCode, { message: error.message || "Error al obtener pagos por usuario." }, action);
-  }
 };
+
+
+export const main = standardMiddleware(handler);

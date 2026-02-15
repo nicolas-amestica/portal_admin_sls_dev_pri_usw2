@@ -31,7 +31,11 @@ provider:
   region: ${opt:region, 'us-west-2'}
   profile: pa-${self:custom.stage}
   lambdaHashingVersion: 20201221
-  endpointType: REGIONAL
+
+  # Usar API Gateway HTTP compartido
+  httpApi:
+    id: ${self:custom.apiGatewayId}
+
 
   environment:
     STAGE: ${self:custom.stage}
@@ -45,7 +49,6 @@ provider:
 
   # Configurar seguimiento mediante aws x-ray para identificar y resolver problemas y errores de rendimiento.
   tracing:
-    apiGateway: true
     lambda: true
 
   # Repositorio en S3 que se va a usar para desplegar los recursos en cloudFormation
@@ -78,19 +81,9 @@ functions:
     description: Crear un pago para una cuota específica de un programa.
     timeout: 30
     events:
-      - http:
-          path: v1/pagos/cuotas/crear
-          method: post
-          cors:
-            origin: '*'
-            headers:
-              - Content-Type
-              - Authorization
-              - X-Amz-Date
-              - X-Api-Key
-              - X-Amz-Security-Token
-              - X-Amz-User-Agent
-            allowCredentials: false
+      - httpApi:
+          path: /v1/pagos/cuotas/crear
+          method: POST
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
 
   confirm_installment_payment_v1:
@@ -98,19 +91,9 @@ functions:
     description: Confirmar un pago de cuota después de la autorización de Transbank.
     timeout: 30
     events:
-      - http:
-          path: v1/pagos/cuotas/confirmar
-          method: post
-          cors:
-            origin: '*'
-            headers:
-              - Content-Type
-              - Authorization
-              - X-Amz-Date
-              - X-Api-Key
-              - X-Amz-Security-Token
-              - X-Amz-User-Agent
-            allowCredentials: false
+      - httpApi:
+          path: /v1/pagos/cuotas/confirmar
+          method: POST
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
 
   get_payments_by_program_v1:
@@ -118,19 +101,9 @@ functions:
     description: Obtener todos los pagos de un programa específico.
     timeout: 30
     events:
-      - http:
-          path: v1/pagos/programa
-          method: get
-          cors:
-            origin: '*'
-            headers:
-              - Content-Type
-              - Authorization
-              - X-Amz-Date
-              - X-Api-Key
-              - X-Amz-Security-Token
-              - X-Amz-User-Agent
-            allowCredentials: false
+      - httpApi:
+          path: /v1/pagos/programa
+          method: GET
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
 
   get_payments_by_user_v1:
@@ -138,19 +111,9 @@ functions:
     description: Obtener todos los pagos de un usuario específico.
     timeout: 30
     events:
-      - http:
-          path: v1/pagos/usuario
-          method: get
-          cors:
-            origin: '*'
-            headers:
-              - Content-Type
-              - Authorization
-              - X-Amz-Date
-              - X-Api-Key
-              - X-Amz-Security-Token
-              - X-Amz-User-Agent
-            allowCredentials: false
+      - httpApi:
+          path: /v1/pagos/usuario
+          method: GET
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
 
   cancel_installment_payment_v1:
@@ -158,19 +121,9 @@ functions:
     description: Cancelar un pago PENDING para una cuota específica.
     timeout: 30
     events:
-      - http:
-          path: v1/pagos/cuotas/cancelar
-          method: post
-          cors:
-            origin: '*'
-            headers:
-              - Content-Type
-              - Authorization
-              - X-Amz-Date
-              - X-Api-Key
-              - X-Amz-Security-Token
-              - X-Amz-User-Agent
-            allowCredentials: false
+      - httpApi:
+          path: /v1/pagos/cuotas/cancelar
+          method: POST
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
 
   # Endpoints legacy (mantener por compatibilidad)
@@ -179,19 +132,9 @@ functions:
     description: Crear una transacción de pago con Transbank Webpay Plus (legacy).
     timeout: 30
     events:
-      - http:
-          path: v1/pagos/transacciones/crear
-          method: post
-          cors:
-            origin: '*'
-            headers:
-              - Content-Type
-              - Authorization
-              - X-Amz-Date
-              - X-Api-Key
-              - X-Amz-Security-Token
-              - X-Amz-User-Agent
-            allowCredentials: false
+      - httpApi:
+          path: /v1/pagos/transacciones/crear
+          method: POST
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
 
   commit_transaction_v1:
@@ -199,19 +142,9 @@ functions:
     description: Confirmar una transacción de pago con Transbank Webpay Plus (legacy).
     timeout: 30
     events:
-      - http:
-          path: v1/pagos/transacciones/confirmar
-          method: post
-          cors:
-            origin: '*'
-            headers:
-              - Content-Type
-              - Authorization
-              - X-Amz-Date
-              - X-Api-Key
-              - X-Amz-Security-Token
-              - X-Amz-User-Agent
-            allowCredentials: false
+      - httpApi:
+          path: /v1/pagos/transacciones/confirmar
+          method: POST
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
 
   get_transaction_status_v1:
@@ -219,19 +152,9 @@ functions:
     description: Obtener el estado de una transacción de pago (legacy).
     timeout: 30
     events:
-      - http:
-          path: v1/pagos/transacciones/{token}/estado
-          method: get
-          cors:
-            origin: '*'
-            headers:
-              - Content-Type
-              - Authorization
-              - X-Amz-Date
-              - X-Api-Key
-              - X-Amz-Security-Token
-              - X-Amz-User-Agent
-            allowCredentials: false
+      - httpApi:
+          path: /v1/pagos/transacciones/{token}/estado
+          method: GET
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
 
   get_transactions_v1:
@@ -239,20 +162,7 @@ functions:
     description: Listar todas las transacciones de pago (legacy).
     timeout: 30
     events:
-      - http:
-          path: v1/pagos/transacciones
-          method: get
-          cors:
-            origin: '*'
-            headers:
-              - Content-Type
-              - Authorization
-              - X-Amz-Date
-              - X-Api-Key
-              - X-Amz-Security-Token
-              - X-Amz-User-Agent
-            allowCredentials: false
+      - httpApi:
+          path: /v1/pagos/transacciones
+          method: GET
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
-
-resources:
-  - ${file(../../common/apigateway-errors.yml)}

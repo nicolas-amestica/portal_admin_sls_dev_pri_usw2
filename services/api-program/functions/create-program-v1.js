@@ -1,7 +1,7 @@
 import { uuidv7 } from "uuidv7";
 import * as dynamoDbLib from '../../../libs/dynamodb-v3';
-import { parseEventBody } from '../../../helpers/event-parser.js';
 import { success, unsuccessful } from "../../../helpers/responses";
+import { standardMiddleware } from "../../../libs/middleware/index.js";
 
 const { DYNAMODB_PROGRAM_TABLE, PROGRAM_TABLE } = process.env;
 const ACTION = "Creación de programa de viaje.";
@@ -32,17 +32,30 @@ const ACTION = "Creación de programa de viaje.";
  * 6. Crea un registro en DynamoDB con el programa y su información.
  * 7. Retorna una respuesta exitosa con los datos del programa creado.
  */
-export const main = async (event) => {
-  try {
-    const { content, user } = parseEventBody(event);
+const handler = async (event) => {    const { content, user } = event.body;
 
-    if (!content?.[0]) return unsuccessful(400, { message: "El contenido del programa es requerido." }, ACTION);
+    if (!content?.[0]) {
+      const error = new Error('El contenido del programa es requerido.')
+      error.statusCode = 400;
+      throw error;
+    }
+    throw error;
 
     const firstContent = content[0];
 
-    if (!firstContent.type?.id) return unsuccessful(400, { message: "Falta el tipo de programa en la solicitud." }, ACTION);
+    if (!firstContent.type?.id) {
+      const error = new Error('Falta el tipo de programa en la solicitud.')
+      error.statusCode = 400;
+      throw error;
+    }
+    throw error;
 
-    if (!firstContent.dates?.[0]) return unsuccessful(400, { message: "La fecha de inicio es requerida." }, ACTION);
+    if (!firstContent.dates?.[0]) {
+      const error = new Error('La fecha de inicio es requerida.')
+      error.statusCode = 400;
+      throw error;
+    }
+    throw error;
 
     const id = uuidv7();
     const createdAt = new Date().toISOString();
@@ -65,7 +78,6 @@ export const main = async (event) => {
     });
 
     return success(200, result, ACTION);
-  } catch (e) {
-    return unsuccessful(e.statusCode || 500, e, ACTION);
-  }
 };
+
+export const main = standardMiddleware(handler);

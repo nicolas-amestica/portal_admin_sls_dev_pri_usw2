@@ -8,6 +8,7 @@ import {
 import * as dynamoDbLib from "../../../libs/dynamodb-v3";
 import { success, unsuccessful } from "../../../helpers/responses";
 import { getSecretManagerValue } from "../../../libs/secret-manager";
+import { standardMiddleware } from "../../../libs/middleware/index.js";
 
 const {
   DYNAMODB_PAYMENT_TABLE,
@@ -40,23 +41,25 @@ const configureTransbank = async () => {
  * @async
  * @function
  * @param {Object} event - Objeto de evento recibido de API Gateway.
- * @param {Object} event.pathParameters - Parámetros de la ruta.
- * @param {string} event.pathParameters.token - Token de la transacción.
+ * @param {Object} event.pathParams - Parámetros de la ruta.
+ * @param {string} event.pathParams.token - Token de la transacción.
  * @returns {Promise<Object>} Respuesta HTTP con el estado de la transacción.
  *
  * @description
  * Este método consulta el estado actual de una transacción en Transbank
  * y opcionalmente actualiza el registro local en DynamoDB.
  */
-export const main = async (event) => {
+const handler = async (event) => {
   console.log(event);
   const action = "Obtener estado de transacción.";
 
   try {
-    const { token } = event.pathParameters;
+    const { token } = event.pathParams;
 
     if (!token) {
-      return unsuccessful(400, { message: "El token es requerido." }, action);
+      const error = new Error('El token es requerido.');
+    error.statusCode = 400;
+    throw error;
     }
 
     // Buscar en DynamoDB primero
@@ -137,3 +140,6 @@ export const main = async (event) => {
     );
   }
 };
+
+
+export const main = standardMiddleware(handler);
