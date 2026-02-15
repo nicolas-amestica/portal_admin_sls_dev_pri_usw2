@@ -160,13 +160,13 @@ API_URL=$(aws cloudformation describe-stacks \
     --output text 2>/dev/null)
 
 if [ -n "$API_URL" ]; then
-    echo -e "${GREEN}API Base URL: ${API_URL}/${STAGE}${NC}"
+    echo -e "${GREEN}API Base URL: ${API_URL}${NC}"
     echo -e "\n${BLUE}Ejemplos de endpoints:${NC}"
-    echo -e "  ${API_URL}/${STAGE}/v1/mantenedor/bancos"
-    echo -e "  ${API_URL}/${STAGE}/v1/documentos/pdf"
-    echo -e "  ${API_URL}/${STAGE}/v1/programas/solicitudes/programas"
-    echo -e "  ${API_URL}/${STAGE}/v1/sesiones/iniciar-sesion"
-    echo -e "  ${API_URL}/${STAGE}/v1/pagos/cuotas/crear"
+    echo -e "  ${API_URL}/v1/mantenedor/bancos"
+    echo -e "  ${API_URL}/v1/documentos/pdf"
+    echo -e "  ${API_URL}/v1/programas/solicitudes/programas"
+    echo -e "  ${API_URL}/v1/sesiones/iniciar-sesion"
+    echo -e "  ${API_URL}/v1/pagos/cuotas/crear"
 fi
 
 echo -e "\n${GREEN}✅ Deployment completado${NC}\n"

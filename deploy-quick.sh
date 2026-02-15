@@ -56,5 +56,5 @@ API_URL=$(aws cloudformation describe-stacks \
     --output text 2>/dev/null)
 
 if [ -n "$API_URL" ]; then
-    echo "🌐 API URL: ${API_URL}/${STAGE}"
+    echo "🌐 API URL: ${API_URL}"
 fi

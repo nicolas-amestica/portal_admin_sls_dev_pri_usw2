@@ -43,7 +43,7 @@ resources:
       Type: AWS::ApiGatewayV2::Stage
       Properties:
         ApiId: !Ref PortalAdminHttpApi
-        StageName: ${self:provider.stage}
+        StageName: '$default'
         AutoDeploy: true
         AccessLogSettings:
           DestinationArn: !GetAtt ApiGatewayLogGroup.Arn
