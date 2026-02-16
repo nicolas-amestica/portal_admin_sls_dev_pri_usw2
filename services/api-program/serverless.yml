@@ -19,7 +19,7 @@ build:
       - '@aws-sdk/*'
     target: 'node20'
     platform: 'node'
-    format: 'esm'
+    format: 'cjs'
 
 package:
   individually: true
@@ -71,7 +71,7 @@ functions:
     timeout: 30
     events:
       - httpApi:
-          path: /v1/programas/solicitudes/programas
+          path: /v1/programas
           method: GET
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
 

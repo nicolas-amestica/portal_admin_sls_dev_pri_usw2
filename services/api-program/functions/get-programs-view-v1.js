@@ -1,4 +1,4 @@
-import { success, unsuccessful } from "../../../helpers/responses";
+import { success } from "../../../helpers/responses";
 import { standardMiddleware } from "../../../libs/middleware/index.js";
 import { CachedDynamoDB, CacheKeys, CacheMetrics } from "../../../libs/cache/index.js";
 

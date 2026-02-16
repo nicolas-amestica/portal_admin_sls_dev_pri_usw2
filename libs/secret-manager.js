@@ -1,15 +1,26 @@
-import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 import { config } from 'dotenv';
 import { existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join, resolve } from 'path';
+import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 
 // Debug: verificar valor de IS_OFFLINE
 console.log('[SECRET-MANAGER DEBUG] IS_OFFLINE value:', process.env.IS_OFFLINE, 'type:', typeof process.env.IS_OFFLINE);
 
 // Cargar variables de entorno desde .env en modo local
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+// Compatibilidad con ESM y CJS
+let __filename;
+let __dirname;
+
+if (typeof import.meta !== 'undefined' && import.meta.url) {
+  // ESM: usar import.meta.url
+  __filename = fileURLToPath(import.meta.url);
+  __dirname = dirname(__filename);
+} else {
+  // CJS: las variables ya están definidas globalmente en CommonJS
+  __filename = typeof __filename !== 'undefined' ? __filename : '';
+  __dirname = typeof __dirname !== 'undefined' ? __dirname : process.cwd();
+}
 
 // Buscar el .env navegando hacia arriba desde el directorio actual
 function findEnvFile(startDir) {
@@ -30,16 +41,12 @@ function findEnvFile(startDir) {
 const envPath = findEnvFile(__dirname);
 
 if (envPath) {
-  console.log('[SECRET-MANAGER] .env encontrado en:', envPath);
   const result = config({ path: envPath });
 
-  if (result.error) {
+  if (result.error)
     console.log('[SECRET-MANAGER] Error cargando .env:', result.error.message);
-  } else {
+  else
     console.log('[SECRET-MANAGER] ✓ Variables de entorno cargadas exitosamente');
-    console.log('[SECRET-MANAGER] EMAIL_USER:', process.env.EMAIL_USER ? '✓ Configurado' : '✗ NO configurado');
-    console.log('[SECRET-MANAGER] EMAIL_PASSWORD:', process.env.EMAIL_PASSWORD ? '✓ Configurado' : '✗ NO configurado');
-  }
 } else {
   console.log('[SECRET-MANAGER] ⚠️  No se encontró archivo .env en la estructura de directorios');
 }
@@ -79,8 +86,6 @@ export async function getSecretManagerValue(secretName) {
   try {
     // En ambiente local, usar variables de entorno en lugar de Secrets Manager
     if (IS_OFFLINE === 'true') {
-      console.log(`[LOCAL] Obteniendo secreto desde variables de entorno: ${secretName}`);
-
       // Mapeo de secretos a variables de entorno locales
       if (secretName.includes('email-config')) {
         const emailConfig = {

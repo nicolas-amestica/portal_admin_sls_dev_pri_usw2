@@ -1,0 +1,76 @@
+service: autorizador
+frameworkVersion: '4'
+
+configValidationMode: warn
+projectDir: ./../../
+
+plugins:
+  - serverless-offline
+
+custom: ${file(../../common/custom.yml)}
+
+build:
+  esbuild:
+    bundle: true
+    minify: true
+    sourcemap: true
+    exclude:
+      - 'aws-sdk'
+      - '@aws-sdk/*'
+    target: 'node20'
+    platform: 'node'
+    format: 'esm'
+
+package:
+  individually: true
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-west-2'}
+  profile: pa-${self:custom.stage}
+  lambdaHashingVersion: 20201221
+
+  # Usar API Gateway HTTP compartido
+  httpApi:
+    id: ${self:custom.apiGatewayId}
+
+
+  # Configurar seguimiento mediante AWS X-Ray para identificar y resolver problemas y errores de rendimiento
+  tracing:
+    lambda: true
+
+  # Repositorio en S3 que se va a usar para desplegar los recursos en CloudFormation
+  deploymentBucket:
+    name: sls-deploys-${self:custom.stage}-pri-${self:custom.shortRegion}
+
+  environment:
+    STAGE: ${self:custom.stage}
+    SECRET_KEY: secret-pri-${self:custom.stage}-${self:custom.shortRegion}
+    PROFILE: ${self:provider.profile}
+
+  iamRoleStatements:
+    - ${file(../../aws/policies/lambda-policy-ssm.yml)}
+
+functions:
+  auth:
+    handler: authorizer.authorize
+    events:
+      - httpApi:
+          path: /v1/autorizador
+          method: POST
+
+  getToken:
+    handler: authorizer.generateToken
+    events:
+      - httpApi:
+          path: /v1/accesos
+          method: POST
+
+resources:
+  Outputs:
+    authArn:
+      Value: !GetAtt [AuthLambdaFunction, Arn]
+      Export:
+        Name: ${self:custom.stage}-authArn

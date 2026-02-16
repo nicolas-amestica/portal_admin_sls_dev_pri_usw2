@@ -1,0 +1,148 @@
+service: programas
+frameworkVersion: '4'
+
+configValidationMode: warn
+projectDir: ./../../
+
+plugins:
+  - serverless-offline
+
+custom: ${file(../../common/custom.yml)}
+
+build:
+  esbuild:
+    bundle: true
+    minify: true
+    sourcemap: true
+    exclude:
+      - 'aws-sdk'
+      - '@aws-sdk/*'
+    target: 'node20'
+    platform: 'node'
+    format: 'esm'
+
+package:
+  individually: true
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-west-2'}
+  profile: pa-${self:custom.stage}
+  lambdaHashingVersion: 20201221
+
+  # Usar API Gateway HTTP compartido
+  httpApi:
+    id: ${self:custom.apiGatewayId}
+
+  architecture: arm64
+
+  environment:
+    STAGE: ${self:custom.stage}
+    DYNAMODB_PROGRAM_TABLE: programs-${self:custom.stage}-pri-${self:custom.shortRegion}
+    DYNAMODB_USER_TABLE: users-${self:custom.stage}-pri-${self:custom.shortRegion}
+    PROGRAM_TABLE: PRG#8e3d823d-9f58-45df-8a8f-6779435a0001
+    SECRET_KEY: secret-pri-${self:custom.stage}-${self:custom.shortRegion}
+    PROFILE: ${self:provider.profile}
+    NODE_OPTIONS: '--enable-source-maps'
+    BUCKET_INFO_GI: giras-indomito-${self:custom.stage}-info
+
+  # Configurar seguimiento mediante aws x-ray para identificar y resolver problemas y errores de rendimiento.
+  tracing:
+    lambda: true
+
+  # Repositorio en S3 que se va a usar para desplegar los recursos en cloudFormation
+  deploymentBucket:
+    name: sls-deploys-${self:custom.stage}-pri-${self:custom.shortRegion}
+
+  iamRoleStatements:
+    - ${file(../../aws/policies/lambda-policy-xray.yml)}
+    - ${file(../../aws/policies/lambda-policy-ssm.yml)}
+    - ${file(../../aws/policies/lambda-policy-dynamodb-program.yml)}
+    - ${file(../../aws/policies/lambda-policy-dynamodb-user.yml)}
+    - ${file(../../aws/policies/lambda-policy-s3.yml)}
+
+functions:
+
+  get_programs_v1:
+    handler: functions/get-programs-view-v1.main
+    description: Este recurso está relacionado con la obtención de la lista de programas en sistema.
+    timeout: 30
+    events:
+      - httpApi:
+          path: /v1/programas/solicitudes/programas
+          method: GET
+          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+
+  get_program_v1:
+    handler: functions/get-program-v1.main
+    description: Este recurso está relacionado con la obtención de un programa en sistema por identificador único.
+    timeout: 30
+    events:
+      - httpApi:
+          path: /v1/programas/solicitudes/programa
+          method: GET
+          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+
+  create_program_v1:
+    handler: functions/create-program-v1.main
+    description: Creación de un programa.
+    timeout: 30
+    events:
+      - httpApi:
+          path: /v1/programas/crear
+          method: POST
+          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+
+  update_program_v1:
+    handler: functions/update-program-v1.main
+    description: Actualización de un programa.
+    timeout: 30
+    events:
+      - httpApi:
+          path: /v1/programas/actualizar
+          method: PUT
+          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+
+  complete_program_v1:
+    handler: functions/complete-program-v1.main
+    description: Este recurso está relacionado con la completación del programa en sistema por identificador único.
+    timeout: 30
+    events:
+      - httpApi:
+          path: /v1/programas/completar
+          method: POST
+          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+
+  reject_program_v1:
+    handler: functions/reject-program-v1.main
+    description: Este recurso está relacionado con el rechazo del programa en sistema por identificador único.
+    timeout: 30
+    events:
+      - httpApi:
+          path: /v1/programas/rechazar
+          method: POST
+          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+
+  approve_program_v1:
+    handler: functions/approve-program-v1.main
+    description: Aprueba el programa, crea cuenta con permiso de usuario, almacena en el pdf a S3, lo envía por correo.
+    timeout: 30
+    memorySize: 1024
+    events:
+      - httpApi:
+          path: /v1/programas/aprobar
+          method: POST
+          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+
+  confirm_program_v1:
+    handler: functions/confirm-program-v1.main
+    description: Confirma el programa generando el pdf.
+    timeout: 30
+    memorySize: 1024
+    events:
+      - httpApi:
+          path: /v1/programas/confirmar
+          method: POST
+          # authorizer: ${file(../../common/lambda-authorizer.yml)}

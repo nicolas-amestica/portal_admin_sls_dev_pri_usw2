@@ -19,7 +19,7 @@ build:
       - '@aws-sdk/*'
     target: 'node20'
     platform: 'node'
-    format: 'esm'
+    format: 'cjs'
 
 package:
   individually: true

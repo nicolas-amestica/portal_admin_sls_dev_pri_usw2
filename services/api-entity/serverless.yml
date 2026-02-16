@@ -18,21 +18,9 @@ build:
     exclude:
       - 'aws-sdk'
       - '@aws-sdk/*'
-    # Marcar como externas las dependencias con require() dinámico
-    external:
-      - 'jsonwebtoken'
-      - 'bcryptjs'
-      - 'winston'
-      - '@colors/colors'
-      - 'logform'
-      - 'nodemailer'
-      - 'dotenv'
-      - 'fs'
-      - 'path'
-      - 'url'
     target: 'node20'
     platform: 'node'
-    format: 'esm'
+    format: 'cjs'
 
 package:
   individually: true

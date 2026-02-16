@@ -59,7 +59,8 @@ export class CachedDynamoDB {
     const result = await dynamodb.query(params);
 
     // 3. Guardar en caché si hay resultados
-    const items = result.Items || [];
+    // dynamodb.query() retorna directamente el array de items o null
+    const items = result || [];
     if (items.length > 0) {
       cache.set(cacheKey, items, ttl);
       console.log('CACHE_SET', { key: cacheKey, count: items.length, ttl: `${ttl}ms` });

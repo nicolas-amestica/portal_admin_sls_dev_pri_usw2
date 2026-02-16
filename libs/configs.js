@@ -20,8 +20,12 @@ export const getAWSConfigs = async () => {
   if (STAGE === "qa") profile = `pa-${STAGE}`;
   if (STAGE === "prd") profile = `pa-${STAGE}`;
 
-  if (IS_OFFLINE === "true")
-    return { region: AWS_REGION, credentials: fromIni({ profile }) };
+  if (IS_OFFLINE === "true") {
+    const config = { region: AWS_REGION, credentials: fromIni({ profile }) };
+    console.log("AWS_CONFIG_OFFLINE", { region: AWS_REGION, profile });
+    return config;
+  }
 
+  console.log("AWS_CONFIG_ONLINE", { region: AWS_REGION });
   return { region: AWS_REGION };
 };

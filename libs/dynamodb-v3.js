@@ -1,13 +1,7 @@
-import { DynamoDBClient, ScanCommand } from "@aws-sdk/client-dynamodb";
-import { unmarshall } from "@aws-sdk/util-dynamodb";
-import {
-  DeleteCommand,
-  GetCommand,
-  PutCommand,
-  QueryCommand,
-  UpdateCommand,
-} from "@aws-sdk/lib-dynamodb";
 import { getAWSConfigs } from "./configs";
+import { unmarshall } from "@aws-sdk/util-dynamodb";
+import { DynamoDBClient, ScanCommand } from "@aws-sdk/client-dynamodb";
+import { DeleteCommand, GetCommand, PutCommand, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 
 let dynamoDb;
 
@@ -37,11 +31,17 @@ export const query = async (params) => {
   try {
     if (!dynamoDb) await initClient();
     const command = new QueryCommand(params);
-    const { Items } = await dynamoDb.send(command);
+    const result = await dynamoDb.send(command);
 
+    const { Items } = result;
     if (!Items || Items.length === 0) return null;
     return Items;
   } catch (e) {
+    console.log("DYNAMODB_QUERY_ERROR", {
+      error: e.message,
+      code: e.code,
+      statusCode: e.$metadata?.httpStatusCode
+    });
     return e;
   }
 };

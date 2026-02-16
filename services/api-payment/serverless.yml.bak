@@ -1,0 +1,168 @@
+service: pagos
+frameworkVersion: '4'
+
+configValidationMode: warn
+projectDir: ./../../
+
+plugins:
+  - serverless-offline
+
+custom: ${file(../../common/custom.yml)}
+
+build:
+  esbuild:
+    bundle: true
+    minify: true
+    sourcemap: true
+    exclude:
+      - 'aws-sdk'
+      - '@aws-sdk/*'
+    target: 'node20'
+    platform: 'node'
+    format: 'esm'
+
+package:
+  individually: true
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-west-2'}
+  profile: pa-${self:custom.stage}
+  lambdaHashingVersion: 20201221
+
+  # Usar API Gateway HTTP compartido
+  httpApi:
+    id: ${self:custom.apiGatewayId}
+
+
+  environment:
+    STAGE: ${self:custom.stage}
+    DYNAMODB_PAYMENT_TABLE: payments-${self:custom.stage}-pri-${self:custom.shortRegion}
+    TRANSBANK_KEYS: transbank-api-key-${self:custom.stage}-pri-${self:custom.shortRegion}
+    TRANSBANK_ENVIRONMENT: transbank-api-key-${self:custom.stage}-pri-${self:custom.shortRegion}
+    TRANSBANK_COMMERCE_CODE: transbank-api-key-${self:custom.stage}-pri-${self:custom.shortRegion}
+    TRANSBANK_API_KEY_SECRET: transbank-api-key-${self:custom.stage}-pri-${self:custom.shortRegion}
+    SECRET_KEY: secret-pri-${self:custom.stage}-${self:custom.shortRegion}
+    PROFILE: ${self:provider.profile}
+
+  # Configurar seguimiento mediante aws x-ray para identificar y resolver problemas y errores de rendimiento.
+  tracing:
+    lambda: true
+
+  # Repositorio en S3 que se va a usar para desplegar los recursos en cloudFormation
+  deploymentBucket:
+    name: sls-deploys-${self:custom.stage}-pri-${self:custom.shortRegion}
+
+  iamRoleStatements:
+    - ${file(../../aws/policies/lambda-policy-xray.yml)}
+    - ${file(../../aws/policies/lambda-policy-ssm.yml)}
+    - ${file(../../aws/policies/lambda-policy-secretsmanager.yml)}
+    - ${file(../../aws/policies/lambda-policy-cloudwatch.yml)}
+    - Effect: Allow
+      Action:
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+        - dynamodb:BatchGetItem
+        - dynamodb:BatchWriteItem
+      Resource:
+        - arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_PAYMENT_TABLE}
+        - arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_PAYMENT_TABLE}/index/*
+
+functions:
+  # Endpoints de pagos de cuotas (nuevo)
+  create_installment_payment_v1:
+    handler: functions/create-installment-payment-v1.main
+    description: Crear un pago para una cuota específica de un programa.
+    timeout: 30
+    events:
+      - httpApi:
+          path: /v1/pagos/cuotas/crear
+          method: POST
+          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+
+  confirm_installment_payment_v1:
+    handler: functions/confirm-installment-payment-v1.main
+    description: Confirmar un pago de cuota después de la autorización de Transbank.
+    timeout: 30
+    events:
+      - httpApi:
+          path: /v1/pagos/cuotas/confirmar
+          method: POST
+          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+
+  get_payments_by_program_v1:
+    handler: functions/get-payments-by-program-v1.main
+    description: Obtener todos los pagos de un programa específico.
+    timeout: 30
+    events:
+      - httpApi:
+          path: /v1/pagos/programa
+          method: GET
+          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+
+  get_payments_by_user_v1:
+    handler: functions/get-payments-by-user-v1.main
+    description: Obtener todos los pagos de un usuario específico.
+    timeout: 30
+    events:
+      - httpApi:
+          path: /v1/pagos/usuario
+          method: GET
+          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+
+  cancel_installment_payment_v1:
+    handler: functions/cancel-installment-payment-v1.main
+    description: Cancelar un pago PENDING para una cuota específica.
+    timeout: 30
+    events:
+      - httpApi:
+          path: /v1/pagos/cuotas/cancelar
+          method: POST
+          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+
+  # Endpoints legacy (mantener por compatibilidad)
+  create_transaction_v1:
+    handler: functions/create-transaction-v1.main
+    description: Crear una transacción de pago con Transbank Webpay Plus (legacy).
+    timeout: 30
+    events:
+      - httpApi:
+          path: /v1/pagos/transacciones/crear
+          method: POST
+          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+
+  commit_transaction_v1:
+    handler: functions/commit-transaction-v1.main
+    description: Confirmar una transacción de pago con Transbank Webpay Plus (legacy).
+    timeout: 30
+    events:
+      - httpApi:
+          path: /v1/pagos/transacciones/confirmar
+          method: POST
+          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+
+  get_transaction_status_v1:
+    handler: functions/get-transaction-status-v1.main
+    description: Obtener el estado de una transacción de pago (legacy).
+    timeout: 30
+    events:
+      - httpApi:
+          path: /v1/pagos/transacciones/{token}/estado
+          method: GET
+          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+
+  get_transactions_v1:
+    handler: functions/get-transactions-v1.main
+    description: Listar todas las transacciones de pago (legacy).
+    timeout: 30
+    events:
+      - httpApi:
+          path: /v1/pagos/transacciones
+          method: GET
+          # authorizer: ${file(../../common/lambda-authorizer.yml)}
