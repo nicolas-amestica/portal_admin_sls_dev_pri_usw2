@@ -147,3 +147,13 @@ functions:
           path: /v1/programas/confirmar
           method: POST
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
+
+  get_currency_rates_v1:
+    handler: functions/get-currency-rates-v1.main
+    description: Obtiene las tasas de cambio USD y BRL frente al peso chileno (CLP) en una sola llamada.
+    timeout: 15
+    events:
+      - httpApi:
+          path: /v1/programas/monedas/tasas
+          method: GET
+          # authorizer: ${file(../../common/lambda-authorizer.yml)}
