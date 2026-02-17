@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import { getAWSConfigs } from './configs';
+import { getSecretManagerValue } from './secret-manager.js';
 
 let transporter;
 
@@ -229,16 +230,21 @@ export const generateEmailHTML = ({ title, recipientName, bodyHtml, footerText, 
  * @function
  * @returns {Promise<void>} Una promesa que se resuelve cuando el transporter ha sido inicializado.
  */
+const { EMAIL_CONFIG_SECRET_KEY } = process.env;
+
 const initTransporter = async () => {
   await getAWSConfigs();
 
+  const secretValue = await getSecretManagerValue(EMAIL_CONFIG_SECRET_KEY);
+  const emailConfig = JSON.parse(secretValue);
+
   transporter = nodemailer.createTransport({
-    host: 'mail.girasindomito.cl',
-    port: 465,
-    secure: true, // true para puerto 465, false para otros puertos
+    host: emailConfig.host,
+    port: emailConfig.port,
+    secure: emailConfig.secure,
     auth: {
-      user: 'no-reply@girasindomito.cl',
-      pass: 'GirasIndomito20221.'
+      user: emailConfig.user,
+      pass: emailConfig.password
     },
     tls: {
       rejectUnauthorized: false

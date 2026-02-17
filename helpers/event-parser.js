@@ -19,7 +19,11 @@ export const parseEventBody = (event) => {
 
   // Si el body es string, parsearlo como JSON
   if (typeof body === 'string') {
-    return JSON.parse(body);
+    try {
+      return JSON.parse(body);
+    } catch {
+      return {};
+    }
   }
 
   // Si ya es un objeto, retornarlo directamente

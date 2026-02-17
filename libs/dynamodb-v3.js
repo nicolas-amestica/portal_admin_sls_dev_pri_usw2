@@ -42,7 +42,7 @@ export const query = async (params) => {
       code: e.code,
       statusCode: e.$metadata?.httpStatusCode
     });
-    return e;
+    throw e;
   }
 };
 
@@ -63,7 +63,7 @@ export const getOne = async (params) => {
     if (!Item) return null;
     return Item;
   } catch (e) {
-    return e;
+    throw e;
   }
 };
 
@@ -92,7 +92,7 @@ export const iterativeQuery = async (params) => {
     } while (lastEvaluatedKey);
     return items;
   } catch (e) {
-    return e;
+    throw e;
   }
 };
 
@@ -113,7 +113,7 @@ export const put = async (params) => {
     if (!params?.Item) return null;
     return params.Item;
   } catch (e) {
-    return e;
+    throw e;
   }
 };
 
@@ -136,7 +136,7 @@ export const remove = async (params) => {
     if (!Attributes) return null;
     return params.Key;
   } catch (e) {
-    return e;
+    throw e;
   }
 };
 
@@ -160,7 +160,7 @@ export const update = async (params) => {
 
     return Attributes;
   } catch (e) {
-    return e;
+    throw e;
   }
 };
 
@@ -182,6 +182,6 @@ export const scan = async (params) => {
     if (!Items || Items.length === 0) return [];
     return Items.map((item) => unmarshall(item));
   } catch (e) {
-    return e;
+    throw e;
   }
 };

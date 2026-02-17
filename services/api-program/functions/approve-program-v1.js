@@ -1,11 +1,11 @@
-import { uuidv7 } from "uuidv7";
 import bcrypt from "bcryptjs";
+import { uuidv7 } from "uuidv7";
 import * as S3 from "../../../libs/s3-v3.js";
+import { success } from "../../../helpers/responses.js";
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
-import { success, unsuccessful } from "../../../helpers/responses.js";
 import { APPROVED_PROGRAM } from '../../../libs/contract/messages.js';
-import { sendEmailWithAttachments, generateEmailHTML } from '../../../libs/nodemailer.js';
 import { standardMiddleware } from "../../../libs/middleware/index.js";
+import { sendEmailWithAttachments, generateEmailHTML } from '../../../libs/nodemailer.js';
 
 const {
   STAGE,
@@ -45,7 +45,7 @@ const uploadPdfToS3 = async (pdfBuffer) => {
   };
 };
 
-const handler = async (event) => {    // event.body ya está parseado por middleware
+const handler = async (event) => {
     const { sk, formContact } = event.body;
 
     // Validar parámetros requeridos
@@ -54,13 +54,11 @@ const handler = async (event) => {    // event.body ya está parseado por middle
       error.statusCode = 400;
       throw error;
     }
-    throw error;
     if (!formContact) {
       const error = new Error('Falta el formulario en la solicitud.')
       error.statusCode = 400;
       throw error;
     }
-    throw error;
     if (!formContact.signedContract || !formContact.signedContract.base64) {
       const error = new Error('Falta el contrato firmado en la solicitud.');
     error.statusCode = 400;
@@ -177,6 +175,9 @@ const handler = async (event) => {    // event.body ya está parseado por middle
       console.log(`Usuario creado exitosamente con ID: ${userId}`);
     }
 
+    const recipientEmail = representative.email;
+    const recipientName = clientRepresentative.name;
+
     // Cargar logo desde S3 para incrustar en el email (opcional)
     let logoBuffer = null;
     let useCidLogo = false;
@@ -190,6 +191,9 @@ const handler = async (event) => {    // event.body ya está parseado por middle
       logoBuffer = Buffer.from(await logoObject.Body.transformToByteArray());
       useCidLogo = true;
       console.log('Logo cargado exitosamente desde S3');
+    } catch (logoError) {
+      console.warn('No se pudo cargar el logo desde S3, se enviará sin logo:', logoError.message);
+    }
 
     // Construir el body HTML con las credenciales
     const bodyHtml = MESSAGE.buildBody(username, temporaryPassword);
@@ -231,10 +235,6 @@ const handler = async (event) => {    // event.body ya está parseado por middle
     });
 
     return success(200, approvedProgram, ACTION);
-  } catch (e) {
-    console.error('Error al aprobar programa:', e);
-    return unsuccessful(e.statusCode || 500, e, ACTION);
-  }
 };
 
 export const main = standardMiddleware(handler);
