@@ -9,7 +9,7 @@ const handler = async (event) => {
     const { content, sk, pk, id, createdAt, user } = event.body;
 
     if (!sk) {
-        const error = new Error('Falta el identificadoe del programa en la solicitud.')
+        const error = new Error('Falta el identificador del programa en la solicitud.')
         error.statusCode = 400;
         throw error;
     }
@@ -22,6 +22,7 @@ const handler = async (event) => {
         updatedAt: new Date().toISOString(),
         content: content,
         status: 'pending',
+        priority: 1,
         user: user,
         type: content[0].type.id,
         startDate: content[0].dates[0].split('T')[0],

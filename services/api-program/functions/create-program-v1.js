@@ -66,6 +66,7 @@ const handler = async (event) => {
       pk: PROGRAM_TABLE,
       sk: `PRG#${id}`,
       id,
+      priority: 1,
       createdAt,
       content,
       user,
