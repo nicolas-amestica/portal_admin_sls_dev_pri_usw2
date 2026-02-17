@@ -7,6 +7,25 @@ const ACTION = 'Obtención de tasas de cambio USD y BRL a CLP.';
 const TIMEOUT_MS = 10_000;
 const RETRY_OPTIONS = { retries: 3, delay: 500, factor: 2 };
 
+/**
+ * Obtiene las tasas de cambio actuales de USD y BRL a CLP desde una API externa.
+ * 
+ * @async
+ * @function handler
+ * @returns {Promise<object>} Respuesta con código 200 y objeto conteniendo:
+ *   - {string} date - Fecha de las tasas de cambio
+ *   - {object} usd - Objeto con la tasa de cambio USD a CLP redondeada
+ *   - {object} brl - Objeto con la tasa de cambio BRL a CLP redondeada
+ * 
+ * @throws {Error} Si hay error al consultar la API de tasas de cambio
+ * @throws {Error} Si las respuestas no contienen los datos esperados (usd.clp o brl.clp)
+ * 
+ * @description
+ * - Realiza consultas paralelas a dos endpoints para obtener tasas USD y BRL
+ * - Incluye reintentos automáticos en caso de fallo
+ * - Redondea los valores de tasas de cambio
+ * - Genera advertencia si las fechas de las tasas no coinciden
+ */
 const handler = async () => {
   let usdRes, brlRes;
 
@@ -22,13 +41,11 @@ const handler = async () => {
   const usdClp = usdRes.data?.usd?.clp;
   const brlClp = brlRes.data?.brl?.clp;
 
-  if (!usdClp || !brlClp) {
+  if (!usdClp || !brlClp)
     throw new Error(`Respuesta inesperada de la API: usd.clp=${usdClp}, brl.clp=${brlClp}`);
-  }
 
-  if (usdRes.data.date !== brlRes.data.date) {
+  if (usdRes.data.date !== brlRes.data.date)
     console.warn(`Fechas inconsistentes: USD=${usdRes.data.date}, BRL=${brlRes.data.date}`);
-  }
 
   const data = {
     date: usdRes.data.date,

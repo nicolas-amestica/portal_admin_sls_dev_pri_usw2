@@ -46,195 +46,192 @@ const uploadPdfToS3 = async (pdfBuffer) => {
 };
 
 const handler = async (event) => {
-    const { sk, formContact } = event.body;
+  const { sk, formContact } = event.body;
 
-    // Validar parámetros requeridos
-    if (!sk) {
-      const error = new Error('Falta el identificador del programa en la solicitud.')
-      error.statusCode = 400;
-      throw error;
-    }
-    if (!formContact) {
-      const error = new Error('Falta el formulario en la solicitud.')
-      error.statusCode = 400;
-      throw error;
-    }
-    if (!formContact.signedContract || !formContact.signedContract.base64) {
-      const error = new Error('Falta el contrato firmado en la solicitud.');
+  // Validar parámetros requeridos
+  if (!sk) {
+    const error = new Error('Falta el identificador del programa en la solicitud.')
     error.statusCode = 400;
     throw error;
-    }
+  }
 
-    // Buscar el programa en DynamoDB
-    const programs = await dynamoDbLib.query({
-      TableName: DYNAMODB_PROGRAM_TABLE,
-      KeyConditionExpression: '#pk = :pk AND begins_with(#sk, :sk)',
-      ExpressionAttributeValues: { ':pk': PROGRAM_TABLE, ':sk': sk },
-      ExpressionAttributeNames: { '#pk': 'pk', '#sk': 'sk' }
-    });
+  if (!formContact) {
+    const error = new Error('Falta el formulario en la solicitud.')
+    error.statusCode = 400;
+    throw error;
+  }
 
-    if (!programs || programs.length === 0) {
-      const error = new Error('Programa no encontrado.');
+  if (!formContact.signedContract || !formContact.signedContract.base64) {
+    const error = new Error('Falta el contrato firmado en la solicitud.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  // Buscar el programa en DynamoDB
+  const programs = await dynamoDbLib.query({
+    TableName: DYNAMODB_PROGRAM_TABLE,
+    KeyConditionExpression: '#pk = :pk AND begins_with(#sk, :sk)',
+    ExpressionAttributeValues: { ':pk': PROGRAM_TABLE, ':sk': sk },
+    ExpressionAttributeNames: { '#pk': 'pk', '#sk': 'sk' }
+  });
+
+  if (!programs || programs.length === 0) {
+    const error = new Error('Programa no encontrado.');
     error.statusCode = 404;
     throw error;
-    }
+  }
 
-    const program = programs[0];
+  const program = programs[0];
 
-    // Convertir base64 a Buffer
-    const signedContractBuffer = Buffer.from(formContact.signedContract.base64, 'base64');
+  // Convertir base64 a Buffer
+  const signedContractBuffer = Buffer.from(formContact.signedContract.base64, 'base64');
 
-    // Subir el contrato firmado a S3
-    const uploadedFile = await uploadPdfToS3(signedContractBuffer);
-    console.log('Contrato firmado subido exitosamente:', uploadedFile.Key);
+  // Subir el contrato firmado a S3
+  const uploadedFile = await uploadPdfToS3(signedContractBuffer);
 
-    // Actualizar el programa con el estado y el archivo
-    program.status = 'approved';
-    program.updatedAt = new Date().toISOString();
+  // Actualizar el programa con el estado y el archivo
+  program.status = 'approved';
+  program.updatedAt = new Date().toISOString();
 
-    // Inicializar el array de archivos si no existe
-    if (!program.content[0].contract.files) {
-      program.content[0].contract.files = [];
-    }
+  // Inicializar el array de archivos si no existe
+  if (!program.content[0].contract.files) {
+    program.content[0].contract.files = [];
+  }
 
-    // Agregar el contrato firmado al array de archivos
-    program.content[0].contract.files.push(uploadedFile);
+  // Agregar el contrato firmado al array de archivos
+  program.content[0].contract.files.push(uploadedFile);
 
-    // Guardar el programa actualizado
-    const approvedProgram = await dynamoDbLib.put({ TableName: DYNAMODB_PROGRAM_TABLE, Item: program });
+  // Guardar el programa actualizado
+  const approvedProgram = await dynamoDbLib.put({ TableName: DYNAMODB_PROGRAM_TABLE, Item: program });
 
-    // Crear cuenta de usuario
-    const clientRepresentative = program.content[0].contract.clientRepresentative;
-    const representative = program.content[0].representative;
+  // Crear cuenta de usuario
+  const clientRepresentative = program.content[0].contract.clientRepresentative;
+  const representative = program.content[0].representative;
 
-    if (!clientRepresentative || !clientRepresentative.dni) {
-      const error = new Error('Falta información del representante del cliente.');
+  if (!clientRepresentative || !clientRepresentative.dni) {
+    const error = new Error('Falta información del representante del cliente.');
     error.statusCode = 400;
     throw error;
-    }
+  }
 
-    // Formatear DNI para username (sin puntos ni guión)
-    const dniClean = clientRepresentative.dni.replace(/\./g, '').replace(/-/g, '');
-    const username = dniClean;
+  // Formatear DNI para username (sin puntos ni guión)
+  const dniClean = clientRepresentative.dni.replace(/\./g, '').replace(/-/g, '');
+  const username = dniClean;
 
-    // Formatear RUT para el campo rut (sin puntos, con guión)
-    const rutFormatted = clientRepresentative.dni.replace(/\./g, '');
+  // Formatear RUT para el campo rut (sin puntos, con guión)
+  const rutFormatted = clientRepresentative.dni.replace(/\./g, '');
 
-    // Separar nombres y apellidos
-    const fullName = clientRepresentative.name || '';
-    const nameParts = fullName.trim().split(' ');
-    const names = nameParts.slice(0, Math.ceil(nameParts.length / 2)).join(' ');
-    const surnames = nameParts.slice(Math.ceil(nameParts.length / 2)).join(' ');
+  // Separar nombres y apellidos
+  const fullName = clientRepresentative.name || '';
+  const nameParts = fullName.trim().split(' ');
+  const names = nameParts.slice(0, Math.ceil(nameParts.length / 2)).join(' ');
+  const surnames = nameParts.slice(Math.ceil(nameParts.length / 2)).join(' ');
 
-    // Contraseña temporal
-    const temporaryPassword = 'Indomito1234$';
-    const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+  // Contraseña temporal
+  const temporaryPassword = 'Indomito1234$';
+  const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
 
-    const currentDate = new Date().toISOString();
-    const userId = uuidv7();
+  const currentDate = new Date().toISOString();
+  const userId = uuidv7();
 
-    // Crear objeto de usuario
-    const newUser = {
-      pk: `USR#${userId}`,
-      sk: `USR#${dniClean}`,
-      id: userId,
-      gsiOne: dniClean,
-      email: representative.email,
-      names: names || clientRepresentative.name,
-      surnames: surnames || '',
-      rut: rutFormatted,
-      phoneNumber: representative.phone || '',
-      password: hashedPassword,
-      profiles: ['ACC#CLI#Cliente'],
-      isActive: true,
+  // Crear objeto de usuario
+  const newUser = {
+    pk: `USR#${userId}`,
+    sk: `USR#${dniClean}`,
+    id: userId,
+    gsiOne: dniClean,
+    email: representative.email,
+    names: names || clientRepresentative.name,
+    surnames: surnames || '',
+    rut: rutFormatted,
+    phoneNumber: representative.phone || '',
+    password: hashedPassword,
+    profiles: ['ACC#CLI#Cliente'],
+    isActive: true,
+    createdAt: currentDate,
+    lastAccess: currentDate,
+    content: [{
       createdAt: currentDate,
-      lastAccess: currentDate,
-      content: [{
-        createdAt: currentDate,
-        program: sk,
-        isActive: true
-      }]
+      program: sk,
+      isActive: true
+    }]
+  };
+
+  // Verificar si el usuario ya existe
+  const existingUserParams = {
+    TableName: DYNAMODB_USER_TABLE,
+    IndexName: 'gsiOne-index',
+    KeyConditionExpression: '#gsiOne = :gsiOne',
+    ExpressionAttributeValues: { ':gsiOne': dniClean },
+    ExpressionAttributeNames: { '#gsiOne': 'gsiOne' }
+  };
+
+  const existingUsers = await dynamoDbLib.query(existingUserParams);
+
+  if (existingUsers && existingUsers.length > 0)
+    console.log(`Usuario con DNI ${dniClean} ya existe, no se creará uno nuevo.`);
+  else
+    await dynamoDbLib.put({ TableName: DYNAMODB_USER_TABLE, Item: newUser });
+
+  const recipientEmail = representative.email;
+  const recipientName = clientRepresentative.name;
+
+  // Cargar logo desde S3 para incrustar en el email (opcional)
+  let logoBuffer = null;
+  let useCidLogo = false;
+
+  try {
+    const logoParams = {
+      Bucket: BUCKET_INFO_GI,
+      Key: 'assets/logo-gi.png'
     };
+    const logoObject = await S3.getObject(logoParams);
+    logoBuffer = Buffer.from(await logoObject.Body.transformToByteArray());
+    useCidLogo = true;
+  } catch (logoError) {
+    console.warn('No se pudo cargar el logo desde S3, se enviará sin logo:', logoError.message);
+  }
 
-    // Verificar si el usuario ya existe
-    const existingUserParams = {
-      TableName: DYNAMODB_USER_TABLE,
-      IndexName: 'gsiOne-index',
-      KeyConditionExpression: '#gsiOne = :gsiOne',
-      ExpressionAttributeValues: { ':gsiOne': dniClean },
-      ExpressionAttributeNames: { '#gsiOne': 'gsiOne' }
-    };
+  // Construir el body HTML con las credenciales
+  const bodyHtml = MESSAGE.buildBody(username, temporaryPassword);
 
-    const existingUsers = await dynamoDbLib.query(existingUserParams);
+  // Generar el HTML completo del email
+  const htmlContent = generateEmailHTML({
+    title: MESSAGE.title,
+    recipientName: recipientName,
+    bodyHtml: bodyHtml,
+    useCidLogo: useCidLogo
+  });
 
-    if (existingUsers && existingUsers.length > 0) {
-      console.log(`Usuario con DNI ${dniClean} ya existe, no se creará uno nuevo.`);
-    } else {
-      // Crear usuario en DynamoDB
-      await dynamoDbLib.put({ TableName: DYNAMODB_USER_TABLE, Item: newUser });
-      console.log(`Usuario creado exitosamente con ID: ${userId}`);
-    }
+  // Construir attachments
+  const attachments = [];
 
-    const recipientEmail = representative.email;
-    const recipientName = clientRepresentative.name;
-
-    // Cargar logo desde S3 para incrustar en el email (opcional)
-    let logoBuffer = null;
-    let useCidLogo = false;
-
-    try {
-      const logoParams = {
-        Bucket: BUCKET_INFO_GI,
-        Key: 'assets/logo-gi.png'
-      };
-      const logoObject = await S3.getObject(logoParams);
-      logoBuffer = Buffer.from(await logoObject.Body.transformToByteArray());
-      useCidLogo = true;
-      console.log('Logo cargado exitosamente desde S3');
-    } catch (logoError) {
-      console.warn('No se pudo cargar el logo desde S3, se enviará sin logo:', logoError.message);
-    }
-
-    // Construir el body HTML con las credenciales
-    const bodyHtml = MESSAGE.buildBody(username, temporaryPassword);
-
-    // Generar el HTML completo del email
-    const htmlContent = generateEmailHTML({
-      title: MESSAGE.title,
-      recipientName: recipientName,
-      bodyHtml: bodyHtml,
-      useCidLogo: useCidLogo
-    });
-
-    // Construir attachments
-    const attachments = [];
-
-    // Agregar logo si está disponible
-    if (logoBuffer) {
-      attachments.push({
-        filename: 'logo.png',
-        content: logoBuffer,
-        contentType: 'image/png',
-        cid: 'logo-giras-indomito',
-        contentDisposition: 'inline'
-      });
-    }
-
-    // Agregar contrato PDF firmado
+  // Agregar logo si está disponible
+  if (logoBuffer) {
     attachments.push({
-      filename: `contrato-firmado-${uploadedFile.Key}`,
-      content: signedContractBuffer,
-      contentType: 'application/pdf'
+      filename: 'logo.png',
+      content: logoBuffer,
+      contentType: 'image/png',
+      cid: 'logo-giras-indomito',
+      contentDisposition: 'inline'
     });
+  }
 
-    await sendEmailWithAttachments({
-      to: recipientEmail,
-      subject: MESSAGE.subject,
-      html: htmlContent,
-      attachments: attachments
-    });
+  // Agregar contrato PDF firmado
+  attachments.push({
+    filename: `contrato-firmado-${uploadedFile.Key}`,
+    content: signedContractBuffer,
+    contentType: 'application/pdf'
+  });
 
-    return success(200, approvedProgram, ACTION);
+  await sendEmailWithAttachments({
+    to: recipientEmail,
+    subject: MESSAGE.subject,
+    html: htmlContent,
+    attachments: attachments
+  });
+
+  return success(200, approvedProgram, ACTION);
 };
 
 export const main = standardMiddleware(handler);

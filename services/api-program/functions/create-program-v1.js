@@ -1,6 +1,6 @@
 import { uuidv7 } from "uuidv7";
+import { success } from "../../../helpers/responses";
 import * as dynamoDbLib from '../../../libs/dynamodb-v3';
-import { success, unsuccessful } from "../../../helpers/responses";
 import { standardMiddleware } from "../../../libs/middleware/index.js";
 
 const { DYNAMODB_PROGRAM_TABLE, PROGRAM_TABLE } = process.env;
@@ -32,52 +32,50 @@ const ACTION = "Creación de programa de viaje.";
  * 6. Crea un registro en DynamoDB con el programa y su información.
  * 7. Retorna una respuesta exitosa con los datos del programa creado.
  */
-const handler = async (event) => {    const { content, user } = event.body;
+const handler = async (event) => {
+  const { content, user } = event.body;
 
-    if (!content?.[0]) {
-      const error = new Error('El contenido del programa es requerido.')
-      error.statusCode = 400;
-      throw error;
-    }
+  if (!content?.[0]) {
+    const error = new Error('El contenido del programa es requerido.')
+    error.statusCode = 400;
     throw error;
+  }
 
-    const firstContent = content[0];
+  const firstContent = content[0];
 
-    if (!firstContent.type?.id) {
-      const error = new Error('Falta el tipo de programa en la solicitud.')
-      error.statusCode = 400;
-      throw error;
-    }
+  if (!firstContent.type?.id) {
+    const error = new Error('Falta el tipo de programa en la solicitud.')
+    error.statusCode = 400;
     throw error;
+  }
 
-    if (!firstContent.dates?.[0]) {
-      const error = new Error('La fecha de inicio es requerida.')
-      error.statusCode = 400;
-      throw error;
-    }
+  if (!firstContent.dates?.[0]) {
+    const error = new Error('La fecha de inicio es requerida.')
+    error.statusCode = 400;
     throw error;
+  }
 
-    const id = uuidv7();
-    const createdAt = new Date().toISOString();
-    const startDate = firstContent.dates[0].split('T')[0];
+  const id = uuidv7();
+  const createdAt = new Date().toISOString();
+  const startDate = firstContent.dates[0].split('T')[0];
 
-    const result = await dynamoDbLib.put({
-      TableName: DYNAMODB_PROGRAM_TABLE,
-      ReturnConsumedCapacity: 'TOTAL',
-      Item: {
-        pk: PROGRAM_TABLE,
-        sk: `PRG#${id}`,
-        id,
-        createdAt,
-        content,
-        user,
-        status: 'pending',
-        type: firstContent.type.id,
-        startDate,
-      },
-    });
+  const result = await dynamoDbLib.put({
+    TableName: DYNAMODB_PROGRAM_TABLE,
+    ReturnConsumedCapacity: 'TOTAL',
+    Item: {
+      pk: PROGRAM_TABLE,
+      sk: `PRG#${id}`,
+      id,
+      createdAt,
+      content,
+      user,
+      status: 'pending',
+      type: firstContent.type.id,
+      startDate,
+    },
+  });
 
-    return success(200, result, ACTION);
+  return success(200, result, ACTION);
 };
 
 export const main = standardMiddleware(handler);

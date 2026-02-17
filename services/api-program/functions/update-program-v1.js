@@ -1,18 +1,18 @@
+import { success } from "../../../helpers/responses";
 import * as dynamoDbLib from '../../../libs/dynamodb-v3';
-import { success, unsuccessful } from "../../../helpers/responses";
 import { standardMiddleware } from "../../../libs/middleware/index.js";
 
 const { DYNAMODB_PROGRAM_TABLE } = process.env;
 const ACTION = "Actualización del programa.";
 
-const handler = async (event) => {    const { content, sk, pk, id, createdAt, user } = event.body;
+const handler = async (event) => {
+    const { content, sk, pk, id, createdAt, user } = event.body;
 
     if (!sk) {
-      const error = new Error('Falta el tipo de programa en la solicitud.')
-      error.statusCode = 400;
-      throw error;
+        const error = new Error('Falta el identificadoe del programa en la solicitud.')
+        error.statusCode = 400;
+        throw error;
     }
-    throw error;
 
     const program = {
         pk: pk,
@@ -23,7 +23,7 @@ const handler = async (event) => {    const { content, sk, pk, id, createdAt, us
         content: content,
         status: 'pending',
         user: user,
-        type : content[0].type.id,
+        type: content[0].type.id,
         startDate: content[0].dates[0].split('T')[0],
     };
 
