@@ -1,18 +1,19 @@
-import axios from 'axios';
-import { success, error } from '../../../helpers/responses';
+import { getWithRetry } from '../../../libs/axios.js';
+import { success } from '../../../helpers/responses';
 import { standardMiddleware } from '../../../libs/middleware/index.js';
 
 const BASE_URL = 'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies';
 const ACTION = 'Obtención de tasas de cambio USD y BRL a CLP.';
 const TIMEOUT_MS = 10_000;
+const RETRY_OPTIONS = { retries: 3, delay: 500, factor: 2 };
 
 const handler = async () => {
   let usdRes, brlRes;
 
   try {
     [usdRes, brlRes] = await Promise.all([
-      axios.get(`${BASE_URL}/usd.json`, { timeout: TIMEOUT_MS }),
-      axios.get(`${BASE_URL}/brl.json`, { timeout: TIMEOUT_MS }),
+      getWithRetry(`${BASE_URL}/usd.json`, { timeout: TIMEOUT_MS }, RETRY_OPTIONS),
+      getWithRetry(`${BASE_URL}/brl.json`, { timeout: TIMEOUT_MS }, RETRY_OPTIONS),
     ]);
   } catch (err) {
     throw new Error(`Error consultando API de tasas de cambio: ${err.message}`);
