@@ -1,5 +1,5 @@
+import { success } from "../../../helpers/responses";
 import * as dynamoDbLib from "../../../libs/dynamodb-v3";
-import { success, unsuccessful } from "../../../helpers/responses";
 import { standardMiddleware } from "../../../libs/middleware/index.js";
 
 const { DYNAMODB_PAYMENT_TABLE } = process.env;
@@ -21,13 +21,13 @@ const { DYNAMODB_PAYMENT_TABLE } = process.env;
  * 3. Retorna el array de pagos ordenados por fecha de creación.
  */
 const handler = async (event) => {
-  console.log(event);
+  console.log("Event ==>", event);
   const action = "Obtener pagos por usuario.";    const userId = event.queryParams?.userId;
 
     if (!userId) {
       const error = new Error('El userId es requerido como query parameter.');
-    error.statusCode = 400;
-    throw error;
+      error.statusCode = 400;
+      throw error;
     }
 
     // Construir query para obtener todos los pagos del usuario
@@ -77,6 +77,5 @@ const handler = async (event) => {
 
     return success(200, result, action);
 };
-
 
 export const main = standardMiddleware(handler);

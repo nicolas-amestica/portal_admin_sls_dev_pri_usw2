@@ -36,7 +36,6 @@ provider:
   httpApi:
     id: ${self:custom.apiGatewayId}
 
-
   environment:
     STAGE: ${self:custom.stage}
     DYNAMODB_PAYMENT_TABLE: payments-${self:custom.stage}-pri-${self:custom.shortRegion}

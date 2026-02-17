@@ -50,7 +50,7 @@ const configureTransbank = async () => {
  * y opcionalmente actualiza el registro local en DynamoDB.
  */
 const handler = async (event) => {
-  console.log(event);
+  console.log("Event ==>", event);
   const action = "Obtener estado de transacción.";
 
   try {

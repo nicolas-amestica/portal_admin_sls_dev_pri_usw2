@@ -6,7 +6,6 @@ import {
   IntegrationCommerceCodes,
 } from "transbank-sdk";
 import * as dynamoDbLib from "../../../libs/dynamodb-v3";
-import { success, unsuccessful } from "../../../helpers/responses";
 import { getSecretManagerValue } from "../../../libs/secret-manager";
 import { standardMiddleware } from "../../../libs/middleware/index.js";
 

@@ -22,13 +22,13 @@ const { DYNAMODB_PAYMENT_TABLE } = process.env;
  * 4. Retorna el array de pagos ordenados por fecha de creación.
  */
 const handler = async (event) => {
-  console.log(event);
+  console.log("Event ==>", event);
   const action = "Obtener pagos por programa.";    const programId = event.queryParams?.programId;
 
     if (!programId) {
       const error = new Error('El programId es requerido como query parameter.');
-    error.statusCode = 400;
-    throw error;
+      error.statusCode = 400;
+      throw error;
     }
 
     // Construir query para obtener todos los pagos del programa
@@ -78,6 +78,5 @@ const handler = async (event) => {
 
     return success(200, result, action);
 };
-
 
 export const main = standardMiddleware(handler);

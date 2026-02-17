@@ -33,30 +33,6 @@ import { generateContract, loadImages, loadSignatures } from './pdf-generator/in
  * @param {string} params.bucket - Nombre del bucket S3 para assets y firmas
  *
  * @returns {Promise<GenerateDocumentResult>} Resultado de la generación
- *
- * @example
- * // Generar contrato final (sin marca de agua, con firmas)
- * const result = await generateDocument({
- *   scope: 'CTT',
- *   form: { trip: {...}, plan: {...}, payments: {...} },
- *   action: { isPreview: false, hasSigned: true },
- *   bucket: 'my-bucket'
- * });
- *
- * if (result.success) {
- *   console.log('PDF generado:', result.base64);
- * } else {
- *   console.error('Error:', result.error);
- * }
- *
- * @example
- * // Generar borrador para cotización (con marca de agua, sin firmas)
- * const result = await generateDocument({
- *   scope: 'CTT',
- *   form: { ... },
- *   action: { isPreview: true, hasSigned: false },
- *   bucket: 'my-bucket'
- * });
  */
 export const generateDocument = async ({ scope, form, action = {}, bucket }) => {
   try {

@@ -1,6 +1,6 @@
-import { standardMiddleware } from "../../../libs/middleware/index.js";
-import * as dynamoDbLib from "../../../libs/dynamodb-v3";
 import { success } from "../../../helpers/responses.js";
+import * as dynamoDbLib from "../../../libs/dynamodb-v3";
+import { standardMiddleware } from "../../../libs/middleware/index.js";
 import { generateDocument } from '../../../libs/document-generator.js';
 
 const {

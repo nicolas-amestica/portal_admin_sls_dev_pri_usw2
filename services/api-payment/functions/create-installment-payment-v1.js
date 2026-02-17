@@ -6,8 +6,8 @@ import {
   IntegrationCommerceCodes,
 } from "transbank-sdk";
 import { uuidv7 } from "uuidv7";
+import { success } from "../../../helpers/responses";
 import * as dynamoDbLib from "../../../libs/dynamodb-v3";
-import { success, unsuccessful } from "../../../helpers/responses";
 import { getSecretManagerValue } from "../../../libs/secret-manager";
 import { standardMiddleware } from "../../../libs/middleware/index.js";
 
@@ -71,180 +71,180 @@ const configureTransbank = async () => {
  * 6. Retorna el paymentId, token y URL para redirección al formulario de pago.
  */
 const handler = async (event) => {
-  console.log(event);
-  const action = "Crear pago de cuota de programa.";    const data = event.body;
-    const { programId, installmentNumber, amount, userId, returnUrl } = data;
+  console.log("Event ==>", event);
+  const action = "Crear pago de cuota de programa."; const data = event.body;
+  const { programId, installmentNumber, amount, userId, returnUrl } = data;
 
-    // Validaciones
-    if (!programId) {
+  // Validaciones
+  if (!programId) {
     const error = new Error('El programId es requerido.');
     error.statusCode = 400;
     throw error;
   }
-    if (!installmentNumber || installmentNumber < 1) {
+  if (!installmentNumber || installmentNumber < 1) {
     const error = new Error('El installmentNumber debe ser mayor a 0.');
     error.statusCode = 400;
     throw error;
   }
-    if (!amount || amount < 50) {
+  if (!amount || amount < 50) {
     const error = new Error('El monto debe ser mayor a 50 CLP.');
     error.statusCode = 400;
     throw error;
   }
-    if (!userId) {
+  if (!userId) {
     const error = new Error('El userId es requerido.');
     error.statusCode = 400;
     throw error;
   }
 
-    // Verificar si ya existe un pago para esta cuota
-    const existingPaymentParams = {
-      TableName: DYNAMODB_PAYMENT_TABLE,
-      IndexName: "gsiOne-index", // GSI para buscar por programId#installmentNumber
-      KeyConditionExpression: "gsiOne = :gsiOne",
-      FilterExpression: "#status = :statusAuthorized OR #status = :statusPending",
-      ExpressionAttributeNames: {
-        "#status": "status",
-      },
-      ExpressionAttributeValues: {
-        ":gsiOne": `${programId}#INST#${installmentNumber}`,
-        ":statusAuthorized": "AUTHORIZED",
-        ":statusPending": "PENDING",
-      },
-      Limit: 1,
-    };
+  // Verificar si ya existe un pago para esta cuota
+  const existingPaymentParams = {
+    TableName: DYNAMODB_PAYMENT_TABLE,
+    IndexName: "gsiOne-index", // GSI para buscar por programId#installmentNumber
+    KeyConditionExpression: "gsiOne = :gsiOne",
+    FilterExpression: "#status = :statusAuthorized OR #status = :statusPending",
+    ExpressionAttributeNames: {
+      "#status": "status",
+    },
+    ExpressionAttributeValues: {
+      ":gsiOne": `${programId}#INST#${installmentNumber}`,
+      ":statusAuthorized": "AUTHORIZED",
+      ":statusPending": "PENDING",
+    },
+    Limit: 1,
+  };
 
-    const existingPayments = await dynamoDbLib.query(existingPaymentParams);
+  const existingPayments = await dynamoDbLib.query(existingPaymentParams);
 
-    // Verificar si hubo un error
-    if (existingPayments instanceof Error) {
-      throw existingPayments;
+  // Verificar si hubo un error
+  if (existingPayments instanceof Error) {
+    throw existingPayments;
+  }
+
+  if (existingPayments && existingPayments.length > 0) {
+    const payment = existingPayments[0];
+
+    // Si el pago ya fue autorizado, no permitir duplicados
+    if (payment.status === "AUTHORIZED") {
+      const error = new Error('Esta cuota ya ha sido pagada exitosamente.');
+      error.statusCode = 409;
+      throw error;
     }
 
-    if (existingPayments && existingPayments.length > 0) {
-      const payment = existingPayments[0];
+    // Si el pago está pendiente, verificar antigüedad
+    if (payment.status === "PENDING") {
+      const createdAt = new Date(payment.createdAt);
+      const now = new Date();
+      const minutesDiff = (now - createdAt) / (1000 * 60);
 
-      // Si el pago ya fue autorizado, no permitir duplicados
-      if (payment.status === "AUTHORIZED") {
-        const error = new Error('Esta cuota ya ha sido pagada exitosamente.');
-    error.statusCode = 409;
-    throw error;
+      if (minutesDiff < PENDING_TIMEOUT_MINUTES) {
+        const error = new Error('Ya existe un pago en proceso para esta cuota. Por favor, espera unos minutos o completa el pago pendiente.');
+        error.statusCode = 409;
+        throw error;
       }
 
-      // Si el pago está pendiente, verificar antigüedad
-      if (payment.status === "PENDING") {
-        const createdAt = new Date(payment.createdAt);
-        const now = new Date();
-        const minutesDiff = (now - createdAt) / (1000 * 60);
-
-        if (minutesDiff < PENDING_TIMEOUT_MINUTES) {
-          const error = new Error('Ya existe un pago en proceso para esta cuota. Por favor, espera unos minutos o completa el pago pendiente.');
-    error.statusCode = 409;
-    throw error;
-        }
-
-        // Pago PENDING antiguo: marcarlo como EXPIRED y permitir nuevo intento
-        console.log(`Marcando pago ${payment.id} como EXPIRED (antigüedad: ${minutesDiff.toFixed(1)} minutos)`);
-        await dynamoDbLib.update({
-          TableName: DYNAMODB_PAYMENT_TABLE,
-          Key: {
-            pk: payment.pk,
-            sk: payment.sk
-          },
-          UpdateExpression: "SET #status = :status, updatedAt = :updatedAt",
-          ExpressionAttributeNames: {
-            "#status": "status"
-          },
-          ExpressionAttributeValues: {
-            ":status": "EXPIRED",
-            ":updatedAt": new Date().toISOString()
-          }
-        });
-        // Continuar con la creación del nuevo pago
-      }
-    }
-
-    // Generar IDs
-    const paymentId = uuidv7();
-    // Límite de 26 caracteres para buyOrder de Transbank
-    const timestampShort = Date.now().toString().slice(-9); // Últimos 9 dígitos
-    const programCode = programId.split('#')[1]?.slice(0, 6) || 'PROG';
-    const buyOrder = `${programCode}-I${installmentNumber}-${timestampShort}`;
-    const sessionId = `SESSION-${paymentId}`;
-    // Usar returnUrl proporcionado por el frontend o fallback a FRONTEND_URL
-    // Incluir programId en URL de retorno para recargar el programa después del pago
-    // Nota: Transbank automáticamente añade ?token_ws={TOKEN} al returnUrl, no lo incluimos aquí
-    const finalReturnUrl = returnUrl
-      ? `${returnUrl}?programId=${encodeURIComponent(programId)}`
-      : `${FRONTEND_URL}/app/cliente/pagos?programId=${encodeURIComponent(programId)}`;
-
-    // Crear transacción en Transbank
-    const options = await configureTransbank();
-    const transaction = new WebpayPlus.Transaction(options);
-    const response = await transaction.create(buyOrder, sessionId, amount, finalReturnUrl);
-
-    console.log(`Transacción creada en Transbank. Token: ${response.token}, URL: ${response.url}`);
-
-    // Guardar registro en DynamoDB con nueva estructura
-    const timestamp = new Date().toISOString();
-    const params = {
-      TableName: DYNAMODB_PAYMENT_TABLE,
-      Item: {
-        // Keys
-        pk: `PAY#${paymentId}`,
-        sk: `PAY#${programId}`,
-
-        // Identificadores
-        id: paymentId,
-        programId,
-        userId,
-        installmentNumber,
-
-        // Monto y estado
-        amount,
-        status: "PENDING",
-
-        // Transbank
-        transbankDetails: {
-          token: response.token,
-          buyOrder,
-          sessionId,
-          url: response.url,
-          environment: TRANSBANK_ENVIRONMENT,
+      // Pago PENDING antiguo: marcarlo como EXPIRED y permitir nuevo intento
+      console.log(`Marcando pago ${payment.id} como EXPIRED (antigüedad: ${minutesDiff.toFixed(1)} minutos)`);
+      await dynamoDbLib.update({
+        TableName: DYNAMODB_PAYMENT_TABLE,
+        Key: {
+          pk: payment.pk,
+          sk: payment.sk
         },
+        UpdateExpression: "SET #status = :status, updatedAt = :updatedAt",
+        ExpressionAttributeNames: {
+          "#status": "status"
+        },
+        ExpressionAttributeValues: {
+          ":status": "EXPIRED",
+          ":updatedAt": new Date().toISOString()
+        }
+      });
+      // Continuar con la creación del nuevo pago
+    }
+  }
 
-        // Metadata
-        createdAt: timestamp,
-        updatedAt: timestamp,
+  // Generar IDs
+  const paymentId = uuidv7();
+  // Límite de 26 caracteres para buyOrder de Transbank
+  const timestampShort = Date.now().toString().slice(-9); // Últimos 9 dígitos
+  const programCode = programId.split('#')[1]?.slice(0, 6) || 'PROG';
+  const buyOrder = `${programCode}-I${installmentNumber}-${timestampShort}`;
+  const sessionId = `SESSION-${paymentId}`;
+  // Usar returnUrl proporcionado por el frontend o fallback a FRONTEND_URL
+  // Incluir programId en URL de retorno para recargar el programa después del pago
+  // Nota: Transbank automáticamente añade ?token_ws={TOKEN} al returnUrl, no lo incluimos aquí
+  const finalReturnUrl = returnUrl
+    ? `${returnUrl}?programId=${encodeURIComponent(programId)}`
+    : `${FRONTEND_URL}/app/cliente/pagos?programId=${encodeURIComponent(programId)}`;
 
-        // GSI
-        gsiOne: `${programId}#INST#${installmentNumber}`, // Para buscar por programa + cuota
-        gsiTwo: userId, // Para buscar por usuario
-        gsiThree: response.token, // Para buscar por token de Transbank (búsqueda eficiente en confirm)
-      },
-    };
+  // Crear transacción en Transbank
+  const options = await configureTransbank();
+  const transaction = new WebpayPlus.Transaction(options);
+  const response = await transaction.create(buyOrder, sessionId, amount, finalReturnUrl);
 
-    await dynamoDbLib.put(params);
+  console.log(`Transacción creada en Transbank. Token: ${response.token}, URL: ${response.url}`);
 
-    console.log(`✅ Pago guardado en DynamoDB exitosamente`);
-    console.log(`  PaymentId: ${paymentId}`);
-    console.log(`  Token completo: ${response.token}`);
-    console.log(`  PK: PAY#${paymentId}`);
-    console.log(`  SK: PAY#${programId}`);
-    console.log(`  GSI gsiOne: ${programId}#INST#${installmentNumber}`);
-    console.log(`  Estructura transbankDetails.token verificada: ${params.Item.transbankDetails.token === response.token}`);
+  // Guardar registro en DynamoDB con nueva estructura
+  const timestamp = new Date().toISOString();
+  const params = {
+    TableName: DYNAMODB_PAYMENT_TABLE,
+    Item: {
+      // Keys
+      pk: `PAY#${paymentId}`,
+      sk: `PAY#${programId}`,
 
-    const result = {
-      paymentId,
-      token: response.token,
-      url: response.url,
-      buyOrder,
+      // Identificadores
+      id: paymentId,
+      programId,
+      userId,
+      installmentNumber,
+
+      // Monto y estado
       amount,
-    };
+      status: "PENDING",
 
-    console.log("Pago creado exitosamente. Resultado:", JSON.stringify(result, null, 2));
+      // Transbank
+      transbankDetails: {
+        token: response.token,
+        buyOrder,
+        sessionId,
+        url: response.url,
+        environment: TRANSBANK_ENVIRONMENT,
+      },
 
-    return success(200, result, action);
+      // Metadata
+      createdAt: timestamp,
+      updatedAt: timestamp,
+
+      // GSI
+      gsiOne: `${programId}#INST#${installmentNumber}`, // Para buscar por programa + cuota
+      gsiTwo: userId, // Para buscar por usuario
+      gsiThree: response.token, // Para buscar por token de Transbank (búsqueda eficiente en confirm)
+    },
+  };
+
+  await dynamoDbLib.put(params);
+
+  console.log(`✅ Pago guardado en DynamoDB exitosamente`);
+  console.log(`  PaymentId: ${paymentId}`);
+  console.log(`  Token completo: ${response.token}`);
+  console.log(`  PK: PAY#${paymentId}`);
+  console.log(`  SK: PAY#${programId}`);
+  console.log(`  GSI gsiOne: ${programId}#INST#${installmentNumber}`);
+  console.log(`  Estructura transbankDetails.token verificada: ${params.Item.transbankDetails.token === response.token}`);
+
+  const result = {
+    paymentId,
+    token: response.token,
+    url: response.url,
+    buyOrder,
+    amount,
+  };
+
+  console.log("Pago creado exitosamente. Resultado:", JSON.stringify(result, null, 2));
+
+  return success(200, result, action);
 };
 
 

@@ -1,5 +1,5 @@
-import { standardMiddleware } from "../../../libs/middleware/index.js";
 import { success } from "../../../helpers/responses.js";
+import { standardMiddleware } from "../../../libs/middleware/index.js";
 import { generateDocument } from '../../../libs/document-generator.js';
 
 const {
@@ -35,7 +35,7 @@ const handler = async (event) => {
   // 3. Generar documento usando el módulo central
   const result = await generateDocument({
     scope,
-    form: document,
+    form: document.contract,
     action,
     bucket: BUCKET_INFO_GI
   });

@@ -46,7 +46,7 @@ const generateToken = (body, SECRET) => {
  * 8. Retorna la información del usuario autenticado con configuraciones, excluyendo la contraseña.
  */
 const handler = async (event) => {
-  console.log(event);
+  console.log("Event ==>", event);
   const SECRET = await getSecretManagerValue(SECRET_KEY);
   const action = "Identificación de usuario.";
   const data = event.body;

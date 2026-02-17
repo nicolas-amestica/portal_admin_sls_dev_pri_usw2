@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
+import { success } from "../../../helpers/responses";
 import * as dynamoDbLib from "../../../libs/dynamodb-v3";
 import { resolvePromises } from "../../../helpers/allsettled";
-import { success, unsuccessful } from "../../../helpers/responses";
 import { standardMiddleware } from "../../../libs/middleware/index.js";
 
 const { DYNAMODB_USER_TABLE } = process.env;
@@ -28,7 +28,7 @@ const { DYNAMODB_USER_TABLE } = process.env;
  * 7. Retorna confirmación del restablecimiento exitoso.
  */
 const handler = async (event) => {
-  // console.log(event);
+  console.log("Event ==>", event);
   const action = "Restablecimiento de contraseña.";
   const data = event.body;
 
@@ -71,6 +71,7 @@ const handler = async (event) => {
 
   // Validar que el usuario existe
   if (!resultPromises[0]) {
+    console.log(`Token inválido o expirado: ${data.token}`);
     const error = new Error('Token inválido o expirado.');
     error.statusCode = 400;
     throw error;
@@ -124,6 +125,5 @@ const handler = async (event) => {
     message: "Contraseña restablecida exitosamente. Ahora puedes iniciar sesión con tu nueva contraseña."
   }, action);
 };
-
 
 export const main = standardMiddleware(handler);

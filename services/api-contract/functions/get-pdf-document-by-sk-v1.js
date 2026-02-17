@@ -1,6 +1,6 @@
-import { standardMiddleware } from "../../../libs/middleware/index.js";
 import { getObject } from "../../../libs/s3-v3";
 import { success } from "../../../helpers/responses.js";
+import { standardMiddleware } from "../../../libs/middleware/index.js";
 import { CachedDynamoDB, CacheKeys, CacheMetrics } from "../../../libs/cache/index.js";
 
 const {
@@ -21,6 +21,38 @@ const streamToBuffer = async (stream) => {
   return Buffer.concat(chunks);
 };
 
+/**
+ * Obtiene los archivos PDF de un documento de contrato desde S3 y los convierte a base64.
+ * 
+ * La función realiza las siguientes operaciones:
+ * 1. Valida que se proporcione el identificador del documento (sk)
+ * 2. Consulta la metadata del documento en DynamoDB con soporte de caché
+ * 3. Extrae los archivos del contrato (soporta formato nuevo 'files' y antiguo 'file')
+ * 4. Descarga cada archivo PDF desde S3
+ * 5. Convierte los PDFs a base64 para su transmisión
+ * 6. Retorna un array con los documentos codificados en base64
+ * 
+ * @async
+ * @function handler
+ * @param {Object} event - Evento de entrada de AWS Lambda
+ * @param {Object} event.queryParams - Parámetros de query de la solicitud
+ * @param {string} event.queryParams.sk - Identificador único del documento (requerido)
+ * @param {Object} context - Contexto de ejecución de AWS Lambda
+ * @param {string} context.requestId - ID de la solicitud
+ * 
+ * @returns {Promise<Object>} Objeto de respuesta con status 200 y array de PDFs en base64
+ * @returns {Promise<Object>} return[].base64 - Contenido del PDF codificado en base64
+ * @returns {Promise<Object>} return[].fileName - Nombre del archivo
+ * @returns {Promise<Object>} return[].uploadDate - Fecha de carga del archivo
+ * @returns {Promise<Object>} return[].type - Tipo de documento
+ * @returns {Promise<Object>} return[].description - Descripción del archivo
+ * 
+ * @throws {Error} Error 400 si falta el parámetro 'sk'
+ * @throws {Error} Error 404 si el programa no se encuentra en DynamoDB
+ * @throws {Error} Error 404 si no existe contrato en el documento
+ * @throws {Error} Error 404 si no se encuentran archivos en el contrato
+ * @throws {Error} Error si falla la descarga desde S3 o la conversión a base64
+ */
 const handler = async (event, context) => {
   const action = "Obtener archivos PDF del documento.";
 
