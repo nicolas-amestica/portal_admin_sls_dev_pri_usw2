@@ -43,6 +43,7 @@ provider:
     DYNAMODB_PROGRAM_TABLE: programs-${self:custom.stage}-pri-${self:custom.shortRegion}
     PROGRAM_TABLE: PRG#8e3d823d-9f58-45df-8a8f-6779435a0001
     SECRET_KEY: secret-pri-${self:custom.stage}-${self:custom.shortRegion}
+    EMAIL_CONFIG_SECRET_KEY: email-config-${self:custom.stage}-pri-${self:custom.shortRegion}
     PROFILE: ${self:provider.profile}
     NODE_OPTIONS: '--enable-source-maps'
     BUCKET_INFO_GI: giras-indomito-${self:custom.stage}-info
@@ -58,6 +59,7 @@ provider:
     - ${file(../../aws/policies/lambda-policy-ssm.yml)}
     - ${file(../../aws/policies/lambda-policy-dynamodb-program.yml)}
     - ${file(../../aws/policies/lambda-policy-s3.yml)}
+    - ${file(../../aws/policies/lambda-policy-secretsmanager.yml)}
 
 functions:
   send_notification_contract_v1:

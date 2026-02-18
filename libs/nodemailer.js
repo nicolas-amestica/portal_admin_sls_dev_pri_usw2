@@ -230,11 +230,10 @@ export const generateEmailHTML = ({ title, recipientName, bodyHtml, footerText, 
  * @function
  * @returns {Promise<void>} Una promesa que se resuelve cuando el transporter ha sido inicializado.
  */
-const { EMAIL_CONFIG_SECRET_KEY } = process.env;
-
 const initTransporter = async () => {
   await getAWSConfigs();
 
+  const { EMAIL_CONFIG_SECRET_KEY } = process.env;
   const secretValue = await getSecretManagerValue(EMAIL_CONFIG_SECRET_KEY);
   const emailConfig = JSON.parse(secretValue);
 

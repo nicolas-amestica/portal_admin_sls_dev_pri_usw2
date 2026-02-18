@@ -84,6 +84,13 @@ const secretsClient = new SecretsManagerClient({ region: AWS_REGION });
  */
 export async function getSecretManagerValue(secretName) {
   try {
+    if (!secretName) {
+      throw new Error(
+        'secretName es requerido. ' +
+        'Verifica que EMAIL_CONFIG_SECRET_KEY esté configurado en tu archivo .env'
+      );
+    }
+
     // En ambiente local, usar variables de entorno en lugar de Secrets Manager
     if (IS_OFFLINE === 'true') {
       // Mapeo de secretos a variables de entorno locales

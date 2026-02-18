@@ -35,54 +35,55 @@ const MESSAGE = STAGE === 'dev' ? CONTRACT.dev : CONTRACT.prd;
  * genera un correo HTML formateado según el tipo de mensaje (preview o confirmado) y lo envía al destinatario
  * especificado utilizando la función sendEmailWithAttachments.
  */
-const baseHandler = async (event) => {    const { name, email, file, preview } = event.body;
+const baseHandler = async (event) => {
+  const { name, email, file, preview } = event.body;
 
-    const requiredFields = ["name", "email", "preview", "file"];
-    const missing = requiredFields.filter((f) => !event.body[f]);
+  const requiredFields = ["name", "email", "preview", "file"];
+  const missing = requiredFields.filter((f) => !event.body[f]);
 
-    if (missing.length) return unsuccessful(400, { message: `Faltan campos requeridos: ${missing.join(", ")}` }, ACTION);
+  if (missing.length) return unsuccessful(400, { message: `Faltan campos requeridos: ${missing.join(", ")}` }, ACTION);
 
-    if (!file || !file.content) {
+  if (!file || !file.content) {
     const error = new Error('No se encontró archivo adjunto');
     error.statusCode = 400;
     throw error;
   }
 
-    const typeMessage = preview === '1' ? MESSAGE['preview'] : MESSAGE['confirmed'];
+  const typeMessage = preview === '1' ? MESSAGE['preview'] : MESSAGE['confirmed'];
 
-    const htmlContent = generateEmailHTML({
-      title: typeMessage.title,
-      recipientName: name,
-      body: typeMessage.body
-    });
+  const htmlContent = generateEmailHTML({
+    title: typeMessage.title,
+    recipientName: name,
+    bodyHtml: typeMessage.body
+  });
 
-    let fileContent = file.content;
-    if (!Buffer.isBuffer(fileContent)) {
-      if (typeof fileContent === 'string') {
-        fileContent = Buffer.from(fileContent, 'base64');
-      } else if (fileContent.type === 'Buffer' && Array.isArray(fileContent.data)) {
-        fileContent = Buffer.from(fileContent.data);
-      }
+  let fileContent = file.content;
+  if (!Buffer.isBuffer(fileContent)) {
+    if (typeof fileContent === 'string') {
+      fileContent = Buffer.from(fileContent, 'base64');
+    } else if (fileContent.type === 'Buffer' && Array.isArray(fileContent.data)) {
+      fileContent = Buffer.from(fileContent.data);
     }
+  }
 
-    const attachments = [{
-      filename: file.filename || 'contrato.pdf',
-      content: fileContent,
-      contentType: file.contentType || file.mimetype || 'application/pdf'
-    }];
+  const attachments = [{
+    filename: file.filename || 'contrato.pdf',
+    content: fileContent,
+    contentType: file.contentType || file.mimetype || 'application/pdf'
+  }];
 
-    const emailResult = await sendEmailWithAttachments({
-      to: email,
-      subject: `${typeMessage.subject}`,
-      html: htmlContent,
-      attachments: attachments
-    });
+  const emailResult = await sendEmailWithAttachments({
+    to: email,
+    subject: `${typeMessage.subject}`,
+    html: htmlContent,
+    attachments: attachments
+  });
 
-    return success(200, {
-      message: "Correo enviado exitosamente",
-      messageId: emailResult.messageId,
-      recipient: email
-    }, ACTION);
+  return success(200, {
+    message: "Correo enviado exitosamente",
+    messageId: emailResult.messageId,
+    recipient: email
+  }, ACTION);
 };
 
 /**
