@@ -1,10 +1,13 @@
 import { success } from "../../../helpers/responses";
-import * as dynamoDbLib from '../../../libs/dynamodb-v3';
 import { standardMiddleware } from "../../../libs/middleware/index.js";
+import { CachedDynamoDB, CacheKeys } from "../../../libs/cache/index.js";
 
 const { DYNAMODB_PROGRAM_TABLE } = process.env;
 const ACTION = "Actualización del programa.";
 
+/**
+ * Actualiza un programa en DynamoDB con los datos proporcionados y gestiona el caché.
+ */
 const handler = async (event) => {
     const { content, sk, pk, id, createdAt, user } = event.body;
 
@@ -33,7 +36,7 @@ const handler = async (event) => {
         ReturnConsumedCapacity: 'TOTAL',
         Item: program
     };
-    const result = await dynamoDbLib.put(params);
+    const result = await CachedDynamoDB.put(params, CacheKeys.program(sk));
 
     return success(200, result, ACTION);
 };

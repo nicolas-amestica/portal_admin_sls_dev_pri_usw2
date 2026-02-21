@@ -1,6 +1,7 @@
 import { success } from "../../../helpers/responses";
 import * as dynamoDbLib from '../../../libs/dynamodb-v3';
 import { standardMiddleware } from "../../../libs/middleware/index.js";
+import { CachedDynamoDB, CacheKeys } from '../../../libs/cache/index.js';
 
 const {
   PROGRAM_TABLE,
@@ -8,6 +9,9 @@ const {
 } = process.env;
 const ACTION = "Rechazar el programa.";
 
+/**
+ * Rechaza un programa especificado por su identificador, asignando una razón de rechazo y actualizando su estado.
+ */
 const handler = async (event) => {
   const { sk, rejectReason } = event.body;
 
@@ -41,7 +45,7 @@ const handler = async (event) => {
   program.status = 'rejected';
   program.rejectedReason = rejectReason;
   program.updatedAt = new Date().toISOString();
-  await dynamoDbLib.put({ TableName: DYNAMODB_PROGRAM_TABLE, Item: program });
+  await CachedDynamoDB.put({ TableName: DYNAMODB_PROGRAM_TABLE, Item: program }, CacheKeys.program(sk));
 
   return success(200, program, ACTION);
 };

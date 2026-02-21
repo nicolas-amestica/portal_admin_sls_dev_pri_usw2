@@ -5,6 +5,7 @@ import { success } from "../../../helpers/responses.js";
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { APPROVED_PROGRAM } from '../../../libs/contract/messages.js';
 import { standardMiddleware } from "../../../libs/middleware/index.js";
+import { CachedDynamoDB, CacheKeys } from '../../../libs/cache/index.js';
 import { sendEmailWithAttachments, generateEmailHTML } from '../../../libs/nodemailer.js';
 
 const {
@@ -19,9 +20,6 @@ const MESSAGE = STAGE === 'dev' ? APPROVED_PROGRAM.dev : APPROVED_PROGRAM.prd;
 
 /**
  * Sube un archivo PDF a S3 y retorna la metadata del archivo.
- *
- * @param {Buffer} pdfBuffer - Buffer del archivo PDF
- * @returns {Promise<Object>} Metadata del archivo subido
  */
 const uploadPdfToS3 = async (pdfBuffer) => {
   const extension = 'pdf';
@@ -101,8 +99,8 @@ const handler = async (event) => {
   // Agregar el contrato firmado al array de archivos
   program.content[0].contract.files.push(uploadedFile);
 
-  // Guardar el programa actualizado
-  const approvedProgram = await dynamoDbLib.put({ TableName: DYNAMODB_PROGRAM_TABLE, Item: program });
+  // Guardar el programa actualizado e invalidar caché
+  const approvedProgram = await CachedDynamoDB.put({ TableName: DYNAMODB_PROGRAM_TABLE, Item: program }, CacheKeys.program(sk));
 
   // Crear cuenta de usuario
   const clientRepresentative = program.content[0].contract.clientRepresentative;

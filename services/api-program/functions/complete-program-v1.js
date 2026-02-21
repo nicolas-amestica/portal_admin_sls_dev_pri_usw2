@@ -1,6 +1,7 @@
 import { success } from "../../../helpers/responses";
 import * as dynamoDbLib from '../../../libs/dynamodb-v3';
 import { standardMiddleware } from "../../../libs/middleware/index.js";
+import { CachedDynamoDB, CacheKeys } from '../../../libs/cache/index.js';
 
 const {
   PROGRAM_TABLE,
@@ -8,6 +9,9 @@ const {
 } = process.env;
 const ACTION = "Completar el programa.";
 
+/**
+ * Marca un programa como completado y actualiza su registro en DynamoDB.
+ */
 const handler = async (event) => {
   const { sk } = event.body;
 
@@ -34,7 +38,7 @@ const handler = async (event) => {
 
   program.status = 'completed';
   program.updatedAt = new Date().toISOString();
-  await dynamoDbLib.put({ TableName: DYNAMODB_PROGRAM_TABLE, Item: program });
+  await CachedDynamoDB.put({ TableName: DYNAMODB_PROGRAM_TABLE, Item: program }, CacheKeys.program(sk));
 
   return success(200, program, ACTION);
 };
