@@ -1,8 +1,8 @@
 import { getObject } from "../../../libs/s3-v3";
 import { success } from "../../../helpers/responses.js";
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
-import { standardMiddleware } from "../../../libs/middleware/index.js";
 import { cache, CacheKeys } from '../../../libs/cache/index.js';
+import { standardMiddleware } from "../../../libs/middleware/index.js";
 
 const {
   PROGRAM_TABLE,

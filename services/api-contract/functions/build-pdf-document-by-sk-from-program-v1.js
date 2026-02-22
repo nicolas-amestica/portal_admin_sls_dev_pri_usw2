@@ -1,7 +1,7 @@
 import { success } from "../../../helpers/responses.js";
-import * as dynamoDbLib from "../../../libs/dynamodb-v3";
 import { standardMiddleware } from "../../../libs/middleware/index.js";
 import { generateDocument } from '../../../libs/document-generator.js';
+import { CachedDynamoDB, CacheKeys, cache } from '../../../libs/cache/index.js';
 
 const {
   PROGRAM_TABLE,
@@ -11,31 +11,9 @@ const {
 
 /**
  * Genera un documento PDF de contrato en formato base64 a partir de un SK de programa.
- *
- * @async
- * @function handler
- * @param {Object} event - Objeto de evento de AWS Lambda
- * @param {Object} event.pathParams - Parámetros de ruta (parseados por middleware)
- * @param {string} event.pathParams.sk - Sort key del programa en DynamoDB
- * @returns {Promise<Object>} Respuesta HTTP con el PDF en base64 o mensaje de error
- * @returns {number} return.statusCode - Código de estado HTTP (200, 400, 404, 500)
- * @returns {Object} return.body - Cuerpo de la respuesta
- * @returns {string} [return.body.base64] - PDF generado en formato base64 (en caso de éxito)
- * @returns {string} [return.body.message] - Mensaje de error (en caso de fallo)
- *
- * @throws {Error} Error 400 - Si falta el parámetro sk en la petición
- * @throws {Error} Error 404 - Si no se encuentra el programa o el contrato
- * @throws {Error} Error 500 - Si hay problemas con la configuración de S3 o la generación del PDF
- *
- * @description
- * Esta función realiza los siguientes pasos:
- * 1. Valida la presencia del parámetro sk
- * 2. Consulta el programa en DynamoDB usando pk y sk
- * 3. Extrae los datos del contrato del programa
- * 4. Construye los datos del documento de forma dinámica
- * 5. Carga las imágenes de encabezado y pie de página desde S3
- * 6. Genera el PDF del contrato
- * 7. Retorna el PDF codificado en base64
+ * Implementa caché en dos niveles:
+ *   1. PDF completo (base64) — evita query + generación (TTL: 15 min)
+ *   2. Query DynamoDB del programa (TTL: 10 min)
  */
 const handler = async (event) => {
   const action = "Generar contrato pdf en base64.";
@@ -49,7 +27,15 @@ const handler = async (event) => {
     throw error;
   }
 
-  const params = {
+  // Nivel 1: caché del PDF completo
+  const pdfCacheKey = CacheKeys.contractPdf(decodedSk);
+  const cachedPdf = cache.get(pdfCacheKey);
+  if (cachedPdf !== null) {
+    return success(200, { base64: cachedPdf }, action);
+  }
+
+  // Nivel 2: caché del query DynamoDB
+  const queryParams = {
     TableName: DYNAMODB_PROGRAM_TABLE,
     ReturnConsumedCapacity: 'TOTAL',
     KeyConditionExpression: '#pk = :pk AND #sk = :sk',
@@ -63,7 +49,7 @@ const handler = async (event) => {
     }
   };
 
-  const results = await dynamoDbLib.query(params);
+  const results = await CachedDynamoDB.query(queryParams, CacheKeys.program(decodedSk), CacheKeys.TTL.PROGRAM);
 
   if (results.length === 0) {
     const error = new Error('Programa no encontrado.');
@@ -99,8 +85,9 @@ const handler = async (event) => {
     bucket: BUCKET_INFO_GI
   });
 
-  // Retornar respuesta según resultado
+  // Retornar respuesta según resultado y guardar PDF en caché
   if (result.success) {
+    cache.set(pdfCacheKey, result.base64, CacheKeys.TTL.CONTRACT_PDF);
     return success(200, { base64: result.base64 }, action);
   } else {
     const error = new Error(result.error);
