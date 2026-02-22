@@ -32,6 +32,12 @@ const handler = async (event) => {
 
   const result = results && results.length > 0 ? results[0] : null;
 
+  if (!result) {
+    const error = new Error('Programa no encontrado.');
+    error.statusCode = 404;
+    throw error;
+  }
+
   return success(200, result, action);
 };
 
