@@ -22,7 +22,7 @@ const MESSAGE = STAGE === 'dev' ? CONTRACT.dev : CONTRACT.prd;
  * @param {string} [event.body.file.filename='contrato.pdf'] - Nombre del archivo adjunto
  * @param {string} [event.body.file.contentType='application/pdf'] - Tipo MIME del archivo
  * @param {string} [event.body.file.mimetype] - Tipo MIME alternativo del archivo
- * @param {string} event.body.preview - Indicador de tipo de mensaje ('1' para preview, otro valor para confirmado)
+ * @param {string} event.body.preview - Indicador de tipo de mensaje ('1' para borrador, 'resend' para reenvío, otro valor para confirmado)
  * @returns {Promise<Object>} Objeto de respuesta con el resultado del envío
  * @returns {number} return.statusCode - Código de estado HTTP
  * @returns {Object} return.data - Datos de la respuesta
@@ -49,7 +49,9 @@ const baseHandler = async (event) => {
     throw error;
   }
 
-  const typeMessage = preview === '1' ? MESSAGE['preview'] : MESSAGE['confirmed'];
+  const typeMessage = preview === '1' ? MESSAGE['preview']
+    : preview === 'resend' ? MESSAGE['resend']
+    : MESSAGE['confirmed'];
 
   const htmlContent = generateEmailHTML({
     title: typeMessage.title,

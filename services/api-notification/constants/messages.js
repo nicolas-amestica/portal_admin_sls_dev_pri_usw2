@@ -9,6 +9,11 @@ export const CONTRACT = {
             title: "Giras Indómito DEV",
             subject: "Contrato de viaje confirmado",
             body: 'Adjunto encontrará el contrato del viaje:'
+        },
+        resend: {
+            title: "Giras Indómito DEV",
+            subject: "Reenvío de contrato de viaje aprobado",
+            body: 'Le reenviamos el contrato aprobado de su viaje:'
         }
     },
     prd: {
@@ -21,6 +26,11 @@ export const CONTRACT = {
             title: "Giras Indómito",
             subject: "Contrato de viaje confirmado",
             body: 'Adjunto encontrará el contrato del viaje:'
+        },
+        resend: {
+            title: "Giras Indómito",
+            subject: "Reenvío de contrato de viaje aprobado",
+            body: 'Le reenviamos el contrato aprobado de su viaje:'
         }
     }
 };
