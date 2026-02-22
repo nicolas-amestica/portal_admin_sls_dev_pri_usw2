@@ -1,7 +1,6 @@
 import { success } from "../../../helpers/responses.js";
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { standardMiddleware } from "../../../libs/middleware/index.js";
-import { CachedDynamoDB, CacheKeys } from '../../../libs/cache/index.js';
 
 const {
   PROGRAM_TABLE,
@@ -39,7 +38,7 @@ const handler = async (event) => {
   program.status = 'confirmed';
   program.updatedAt = new Date().toISOString();
 
-  const confirmedProgram = await CachedDynamoDB.put({ TableName: DYNAMODB_PROGRAM_TABLE, Item: program }, CacheKeys.program(sk));
+  const confirmedProgram = await dynamoDbLib.put({ TableName: DYNAMODB_PROGRAM_TABLE, Item: program });
 
   return success(200, confirmedProgram, ACTION);
 };

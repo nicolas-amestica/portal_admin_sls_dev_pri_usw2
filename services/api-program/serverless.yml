@@ -60,6 +60,7 @@ provider:
   iamRoleStatements:
     - ${file(../../aws/policies/lambda-policy-xray.yml)}
     - ${file(../../aws/policies/lambda-policy-ssm.yml)}
+    - ${file(../../aws/policies/lambda-policy-secretsmanager.yml)}
     - ${file(../../aws/policies/lambda-policy-dynamodb-program.yml)}
     - ${file(../../aws/policies/lambda-policy-dynamodb-user.yml)}
     - ${file(../../aws/policies/lambda-policy-s3.yml)}
@@ -82,7 +83,7 @@ functions:
     timeout: 30
     events:
       - httpApi:
-          path: /v1/programas/solicitudes/programa
+          path: /v1/programas/{programId}
           method: GET
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
 

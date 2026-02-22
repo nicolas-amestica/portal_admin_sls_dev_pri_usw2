@@ -1,32 +1,24 @@
 import { getWithRetry } from '../../../libs/axios.js';
 import { success } from '../../../helpers/responses';
 import { standardMiddleware } from '../../../libs/middleware/index.js';
+import { cache, CacheKeys } from '../../../libs/cache/index.js';
 
 const BASE_URL = 'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies';
 const ACTION = 'Obtención de tasas de cambio USD y BRL a CLP.';
 const TIMEOUT_MS = 10_000;
 const RETRY_OPTIONS = { retries: 3, delay: 500, factor: 2 };
 
-/**
- * Obtiene las tasas de cambio actuales de USD y BRL a CLP desde una API externa.
- * 
- * @async
- * @function handler
- * @returns {Promise<object>} Respuesta con código 200 y objeto conteniendo:
- *   - {string} date - Fecha de las tasas de cambio
- *   - {object} usd - Objeto con la tasa de cambio USD a CLP redondeada
- *   - {object} brl - Objeto con la tasa de cambio BRL a CLP redondeada
- * 
- * @throws {Error} Si hay error al consultar la API de tasas de cambio
- * @throws {Error} Si las respuestas no contienen los datos esperados (usd.clp o brl.clp)
- * 
- * @description
- * - Realiza consultas paralelas a dos endpoints para obtener tasas USD y BRL
- * - Incluye reintentos automáticos en caso de fallo
- * - Redondea los valores de tasas de cambio
- * - Genera advertencia si las fechas de las tasas no coinciden
- */
 const handler = async () => {
+  const cacheKey = CacheKeys.currencyRates();
+  const cached = cache.get(cacheKey);
+
+  if (cached) {
+    console.log('CACHE_HIT', { key: cacheKey });
+    return success(200, cached, ACTION);
+  }
+
+  console.log('CACHE_MISS', { key: cacheKey });
+
   let usdRes, brlRes;
 
   try {
@@ -52,6 +44,9 @@ const handler = async () => {
     usd: { clp: Math.round(usdClp) },
     brl: { clp: Math.round(brlClp) },
   };
+
+  cache.set(cacheKey, data, CacheKeys.TTL.CURRENCY_RATES);
+  console.log('CACHE_SET', { key: cacheKey, ttl: `${CacheKeys.TTL.CURRENCY_RATES}ms` });
 
   return success(200, data, ACTION);
 };

@@ -1,13 +1,13 @@
 import { success } from "../../../helpers/responses";
+import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { standardMiddleware } from "../../../libs/middleware/index.js";
-import { CachedDynamoDB, CacheKeys, CacheMetrics } from "../../../libs/cache/index.js";
 
 const { DYNAMODB_PROGRAM_TABLE, PROGRAM_TABLE } = process.env;
 
 /**
- * Obtiene un programa del sistema utilizando caché de DynamoDB.
+ * Obtiene un programa del sistema por su identificador único.
  */
-const handler = async (event, context) => {
+const handler = async (event) => {
   const action = "Obtención de programa en sistema.";
   const { programId } = event.pathParams || {};
 
@@ -17,29 +17,20 @@ const handler = async (event, context) => {
     throw error;
   }
 
-  // Usar caché para la consulta
-  const cacheKey = CacheKeys.program(programId);
-  const results = await CachedDynamoDB.query(
-    {
-      TableName: DYNAMODB_PROGRAM_TABLE,
-      KeyConditionExpression: '#pk = :pk AND begins_with(#sk, :sk)',
-      ExpressionAttributeValues: {
-        ':pk': PROGRAM_TABLE,
-        ':sk': programId,
-      },
-      ExpressionAttributeNames: {
-        '#pk': 'pk',
-        '#sk': 'sk'
-      }
+  const results = await dynamoDbLib.query({
+    TableName: DYNAMODB_PROGRAM_TABLE,
+    KeyConditionExpression: '#pk = :pk AND begins_with(#sk, :sk)',
+    ExpressionAttributeValues: {
+      ':pk': PROGRAM_TABLE,
+      ':sk': programId,
     },
-    cacheKey,
-    CacheKeys.TTL.PROGRAM
-  );
+    ExpressionAttributeNames: {
+      '#pk': 'pk',
+      '#sk': 'sk'
+    }
+  });
 
   const result = results && results.length > 0 ? results[0] : null;
-
-  // Log de estadísticas del caché
-  CacheMetrics.logDetailedStats('get-program-v1', context);
 
   return success(200, result, action);
 };

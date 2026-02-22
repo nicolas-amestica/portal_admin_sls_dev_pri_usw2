@@ -3,36 +3,11 @@ import { success } from "../../../helpers/responses";
 import * as dynamoDbLib from "../../../libs/dynamodb-v3";
 import { resolvePromises } from "../../../helpers/allsettled";
 import { standardMiddleware } from "../../../libs/middleware/index.js";
-import { cache, CacheKeys, CacheMetrics } from "../../../libs/cache/index.js";
+import { cache, CacheKeys } from "../../../libs/cache/index.js";
 
 const { DYNAMODB_USER_TABLE } = process.env;
 
-/**
- * Obtiene los permisos de acceso de un usuario desde caché o base de datos.
- * 
- * Realiza consultas a DynamoDB utilizando un índice GSI para recuperar los perfiles
- * y permisos del usuario. Los resultados se cachean para optimizar consultas posteriores.
- * 
- * @async
- * @function handler
- * @param {Object} event - Evento de la solicitud Lambda
- * @param {Object} event.queryParams - Parámetros de consulta
- * @param {string} event.queryParams.userId - ID del usuario en formato "prefix#gsi"
- * @param {Object} context - Contexto de ejecución Lambda
- * @returns {Promise<Object>} Respuesta con código 200 y array de permisos de acceso
- * @throws {Error} Error 403 si el usuario no tiene perfiles, accesos habilitados o está restringido
- * 
- * @description
- * - Intenta obtener los accesos del caché mediante la clave del usuario
- * - Si no existe en caché (CACHE_MISS), consulta DynamoDB usando el GSI
- * - Extrae el valor GSI del userId (parte después del "#")
- * - Recupera los perfiles asociados al usuario
- * - Para cada perfil, obtiene sus permisos de acceso
- * - Combina accesos directos del usuario con accesos heredados de perfiles
- * - Almacena el resultado en caché con TTL configurado
- * - Registra métricas detalladas de caché
- */
-const handler = async (event, context) => {
+const handler = async (event) => {
   console.log("Event ==>", event);
   const action = "Obtener accesos del usuario.";
   const { userId } = event.queryParams;
@@ -45,7 +20,6 @@ const handler = async (event, context) => {
 
   if (cachedAccess) {
     console.log('CACHE_HIT', { key: cacheKey });
-    CacheMetrics.logDetailedStats('get-access-v1', context);
     return success(200, cachedAccess, action);
   }
 
@@ -107,8 +81,6 @@ const handler = async (event, context) => {
   // Guardar en caché
   cache.set(cacheKey, access, CacheKeys.TTL.USER_ACCESS);
   console.log('CACHE_SET', { key: cacheKey, ttl: `${CacheKeys.TTL.USER_ACCESS}ms` });
-
-  CacheMetrics.logDetailedStats('get-access-v1', context);
 
   return success(200, access, action);
 };

@@ -1,6 +1,6 @@
 import { success } from "../../../helpers/responses";
+import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { standardMiddleware } from "../../../libs/middleware/index.js";
-import { CachedDynamoDB, CacheKeys } from "../../../libs/cache/index.js";
 
 const { DYNAMODB_PROGRAM_TABLE } = process.env;
 const ACTION = "Actualización del programa.";
@@ -36,7 +36,7 @@ const handler = async (event) => {
         ReturnConsumedCapacity: 'TOTAL',
         Item: program
     };
-    const result = await CachedDynamoDB.put(params, CacheKeys.program(sk));
+    const result = await dynamoDbLib.put(params);
 
     return success(200, result, ACTION);
 };

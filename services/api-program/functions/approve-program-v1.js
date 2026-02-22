@@ -5,7 +5,6 @@ import { success } from "../../../helpers/responses.js";
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { APPROVED_PROGRAM } from '../../../libs/contract/messages.js';
 import { standardMiddleware } from "../../../libs/middleware/index.js";
-import { CachedDynamoDB, CacheKeys } from '../../../libs/cache/index.js';
 import { sendEmailWithAttachments, generateEmailHTML } from '../../../libs/nodemailer.js';
 
 const {
@@ -99,8 +98,8 @@ const handler = async (event) => {
   // Agregar el contrato firmado al array de archivos
   program.content[0].contract.files.push(uploadedFile);
 
-  // Guardar el programa actualizado e invalidar caché
-  const approvedProgram = await CachedDynamoDB.put({ TableName: DYNAMODB_PROGRAM_TABLE, Item: program }, CacheKeys.program(sk));
+  // Guardar el programa actualizado
+  const approvedProgram = await dynamoDbLib.put({ TableName: DYNAMODB_PROGRAM_TABLE, Item: program });
 
   // Crear cuenta de usuario
   const clientRepresentative = program.content[0].contract.clientRepresentative;
@@ -171,8 +170,15 @@ const handler = async (event) => {
   else
     await dynamoDbLib.put({ TableName: DYNAMODB_USER_TABLE, Item: newUser });
 
-  const recipientEmail = representative.email;
-  const recipientName = clientRepresentative.name;
+  const emailSet = new Set();
+  if (formContact?.email) {
+    formContact.email.split(',').map(e => e.trim()).filter(Boolean).forEach(e => emailSet.add(e.toLowerCase()));
+  }
+  if (representative?.email) {
+    representative.email.split(',').map(e => e.trim()).filter(Boolean).forEach(e => emailSet.add(e.toLowerCase()));
+  }
+  const recipientEmail = [...emailSet].join(', ');
+  const recipientName = clientRepresentative?.name || representative?.name || '';
 
   // Cargar logo desde S3 para incrustar en el email (opcional)
   let logoBuffer = null;
