@@ -12,14 +12,18 @@ import { standardMiddleware } from "../../../libs/middleware/index.js";
 import { generatePaymentReceipt } from "../../../libs/receipt-generator.js";
 import { sendEmailWithAttachments, generateEmailHTML } from "../../../libs/nodemailer.js";
 import { putObject } from "../../../libs/s3-v3.js";
+import { PAYMENT_RECEIPT } from "../../../libs/payment/messages.js";
 
 const {
+  STAGE,
   TRANSBANK_ENVIRONMENT,
   DYNAMODB_PAYMENT_TABLE,
   TRANSBANK_COMMERCE_CODE,
   TRANSBANK_API_KEY_SECRET,
   BUCKET_INFO_GI,
 } = process.env;
+
+const MESSAGE = STAGE === 'prd' ? PAYMENT_RECEIPT.prd : PAYMENT_RECEIPT.dev;
 
 /**
  * Configura las opciones de Transbank según el ambiente.
@@ -204,40 +208,21 @@ const handler = async (event) => {
 
     // Enviar email si hay correo del pagador
     if (paymentRecord.payerEmail) {
-      const formatCLP = (n) =>
-        new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP" }).format(n);
-
-      const bodyHtml = `
-        <p>Tu pago ha sido procesado exitosamente. Adjunto encontrarás tu comprobante en formato PDF.</p>
-        <div class="credentials-box">
-          <h3>Resumen del Pago</h3>
-          <div class="credential-item">
-            <span class="credential-label">Cuota N°:</span>
-            <span class="credential-value">${paymentRecord.installmentNumber}</span>
-          </div>
-          <div class="credential-item">
-            <span class="credential-label">Monto:</span>
-            <span class="credential-value">${formatCLP(paymentRecord.amount)}</span>
-          </div>
-          <div class="credential-item">
-            <span class="credential-label">Autorización:</span>
-            <span class="credential-value">${transbankResponse.authorization_code || "N/A"}</span>
-          </div>
-        </div>
-        <p style="margin-top: 16px; font-size: 13px; color: #6b7280;">
-          Guarda este comprobante como respaldo de tu transacción.
-        </p>
-      `;
+      const bodyHtml = MESSAGE.buildBody({
+        installmentNumber: paymentRecord.installmentNumber,
+        amount: paymentRecord.amount,
+        authorizationCode: transbankResponse.authorization_code || null,
+      });
 
       const html = generateEmailHTML({
-        title: "Comprobante de Pago",
+        title: MESSAGE.title,
         recipientName: paymentRecord.payerEmail,
         bodyHtml,
       });
 
       await sendEmailWithAttachments({
         to: paymentRecord.payerEmail,
-        subject: `Comprobante de Pago - Cuota #${paymentRecord.installmentNumber} | Giras Indómito`,
+        subject: MESSAGE.buildSubject(paymentRecord.installmentNumber),
         html,
         attachments: [{
           filename: `comprobante-cuota-${paymentRecord.installmentNumber}.pdf`,
