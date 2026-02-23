@@ -1,239 +1,268 @@
-# API Payment - Transbank Webpay Plus
+# api-payment — Pagos con Transbank Webpay Plus
 
-Servicio de pagos integrado con Transbank Webpay Plus para el portal administrativo de Giras Indómito.
+Servicio de pagos integrado con **Transbank Webpay Plus** para el portal administrativo de Giras Indómito. Gestiona el flujo completo de pagos de cuotas y transacciones legacy.
 
-## Características
+**Nombre SLS:** `pagos` · **Runtime:** Node.js 20.x · **Framework:** Serverless v4
 
-- ✅ Creación de transacciones de pago
-- ✅ Confirmación de transacciones
-- ✅ Consulta de estado de transacciones
-- ✅ Listado de transacciones con filtros
-- ✅ Almacenamiento en DynamoDB
-- ✅ Soporte para ambiente de integración y producción
+---
 
 ## Endpoints
 
-### 1. Crear Transacción
-**POST** `/v1/pagos/transacciones/crear`
+### Pagos de cuotas (nuevo)
 
-Crea una nueva transacción de pago y retorna el token y URL para redirección a Webpay.
+| Método | Ruta | Handler | Descripción |
+|---|---|---|---|
+| `POST` | `/v1/pagos/cuotas/crear` | `create-installment-payment-v1` | Crear pago para una cuota |
+| `POST` | `/v1/pagos/cuotas/confirmar` | `confirm-installment-payment-v1` | Confirmar pago de cuota tras autorización Transbank |
+| `POST` | `/v1/pagos/cuotas/cancelar` | `cancel-installment-payment-v1` | Cancelar pago en estado PENDING |
+| `GET` | `/v1/pagos/programa` | `get-payments-by-program-v1` | Obtener pagos de un programa |
+| `GET` | `/v1/pagos/usuario` | `get-payments-by-user-v1` | Obtener pagos de un usuario |
 
-**Body:**
+### Transacciones legacy (compatibilidad)
+
+| Método | Ruta | Handler | Descripción |
+|---|---|---|---|
+| `POST` | `/v1/pagos/transacciones/crear` | `create-transaction-v1` | Crear transacción Webpay (legacy) |
+| `POST` | `/v1/pagos/transacciones/confirmar` | `commit-transaction-v1` | Confirmar transacción (legacy) |
+| `GET` | `/v1/pagos/transacciones/{token}/estado` | `get-transaction-status-v1` | Estado de transacción (legacy) |
+| `GET` | `/v1/pagos/transacciones` | `get-transactions-v1` | Listar transacciones (legacy) |
+
+---
+
+## Flujo de pago de cuotas
+
+```
+1. POST /v1/pagos/cuotas/crear
+   → Crea transacción en Transbank
+   → Guarda en DynamoDB con estado PENDING
+   → Retorna { token, url } para redirección
+
+2. Usuario completa pago en Webpay
+   → Transbank redirige con token_ws
+
+3. POST /v1/pagos/cuotas/confirmar
+   → Confirma con Transbank
+   → Actualiza estado en DynamoDB (AUTHORIZED | FAILED)
+   → Genera comprobante PDF
+   → Envía email de confirmación
+```
+
+---
+
+## Flujo de pago legacy (Transbank directo)
+
+```
+1. POST /v1/pagos/transacciones/crear       → token + URL de Webpay
+2. Usuario paga en Webpay
+3. POST /v1/pagos/transacciones/confirmar   → confirmación con Transbank
+4. GET  /v1/pagos/transacciones/{token}/estado → estado actual
+```
+
+---
+
+## Payloads
+
+### Crear pago de cuota
+
 ```json
+POST /v1/pagos/cuotas/crear
 {
-  "amount": 5000,
-  "orderId": "ORDER-123" (opcional),
-  "userId": "user-uuid" (opcional),
-  "description": "Pago de gira" (opcional)
+  "programId": "uuid-v7",
+  "installmentId": "uuid-v7",
+  "amount": 150000,
+  "userId": "uuid-v7",
+  "description": "Cuota 1 - Gira Argentina 2025"
 }
 ```
 
-**Response:**
+**Respuesta:**
 ```json
 {
   "state": true,
-  "metadata": {
-    "statusCode": 200,
-    "action": "Crear transacción de pago."
-  },
+  "metadata": { "statusCode": 200, "action": "Crear pago de cuota." },
   "data": {
     "transactionId": "uuid-v7",
     "token": "token-webpay",
     "url": "https://webpay3gint.transbank.cl/...",
     "buyOrder": "ORDER-123",
-    "amount": 5000
+    "amount": 150000
   }
 }
 ```
 
-### 2. Confirmar Transacción
-**POST** `/v1/pagos/transacciones/confirmar`
+### Confirmar pago de cuota
 
-Confirma una transacción después de que el usuario completa el pago en Webpay.
-
-**Body:**
 ```json
+POST /v1/pagos/cuotas/confirmar
 {
   "token": "token-webpay-retornado"
 }
 ```
 
-**Response:**
+**Respuesta:**
 ```json
 {
   "state": true,
-  "metadata": {
-    "statusCode": 200,
-    "action": "Confirmar transacción de pago."
-  },
+  "metadata": { "statusCode": 200, "action": "Confirmar pago de cuota." },
   "data": {
     "transactionId": "uuid-v7",
-    "buyOrder": "ORDER-123",
-    "amount": 5000,
     "status": "AUTHORIZED",
-    "vci": "TSY",
     "authorizationCode": "1213",
-    "responseCode": 0,
-    "paymentTypeCode": "VN",
-    "accountingDate": "1122",
-    "transactionDate": "2024-11-22T10:30:00Z",
-    "cardDetail": {
-      "cardNumber": "6623"
-    },
-    "installmentsNumber": 0
+    "amount": 150000,
+    "cardNumber": "6623"
   }
 }
 ```
 
-### 3. Obtener Estado
-**GET** `/v1/pagos/transacciones/{token}/estado`
+### Obtener pagos por programa
 
-Consulta el estado actual de una transacción.
+```
+GET /v1/pagos/programa?programId=<uuid>
+```
 
-**Response:** Similar a confirmar transacción.
+### Obtener pagos por usuario
 
-### 4. Listar Transacciones
-**GET** `/v1/pagos/transacciones`
+```
+GET /v1/pagos/usuario?userId=<uuid>
+```
 
-Lista las transacciones con filtros opcionales.
+---
 
-**Query Parameters:**
-- `userId`: Filtrar por usuario
-- `status`: Filtrar por estado (PENDING, AUTHORIZED, FAILED)
-- `buyOrder`: Filtrar por orden de compra
-- `limit`: Límite de resultados (default: 20)
-- `lastEvaluatedKey`: Para paginación
+## Estados de pago
 
-**Response:**
-```json
+| Estado | Descripción |
+|---|---|
+| `PENDING` | Pago iniciado, esperando autorización |
+| `AUTHORIZED` | Pago aprobado por Transbank |
+| `FAILED` | Pago rechazado |
+
+---
+
+## Modelo de datos (DynamoDB)
+
+**Tabla:** `payments-<stage>-pri-<shortRegion>`
+
+```javascript
 {
-  "state": true,
-  "metadata": {
-    "statusCode": 200,
-    "action": "Listar transacciones de pago.",
-    "count": 10,
-    "scannedCount": 10
-  },
-  "data": {
-    "Items": [...],
-    "Count": 10,
-    "ScannedCount": 10,
-    "nextPageToken": "encoded-token"
-  }
+  pk: "PAYMENT#<transactionId>",
+  sk: "METADATA",
+  transactionId: "uuid-v7",
+  token: "token-webpay",
+  buyOrder: "ORDER-123",
+  sessionId: "SESSION-123",
+  amount: 150000,
+  userId: "uuid-v7",
+  programId: "uuid-v7",
+  installmentId: "uuid-v7",
+  description: "Cuota 1 - Gira Argentina 2025",
+  status: "PENDING | AUTHORIZED | FAILED",
+  authorizationCode: "1213",
+  responseCode: 0,
+  vci: "TSY",
+  paymentTypeCode: "VN",
+  accountingDate: "1122",
+  transactionDate: "2025-01-20T14:00:00Z",
+  cardNumber: "6623",        // Últimos 4 dígitos
+  installmentsNumber: 0,
+  transbankUrl: "https://...",
+  returnUrl: "https://...",
+  environment: "integration | production",
+  createdAt: "2025-01-20T14:00:00Z",
+  updatedAt: "2025-01-20T14:00:00Z",
+  gsiOne: "ORDER-123",       // Para búsqueda por buyOrder
+  gsiTwo: "uuid-v7"          // Para búsqueda por userId
 }
 ```
 
-## Variables de Entorno
+**Índices GSI:**
+- `token-index`: búsqueda por token
+- `gsiOne-index`: búsqueda por buyOrder
+- `gsiTwo-index`: búsqueda por userId
 
-Configurar en AWS Systems Manager Parameter Store:
+---
+
+## Variables de entorno
+
+| Variable | Descripción |
+|---|---|
+| `DYNAMODB_PAYMENT_TABLE` | Tabla DynamoDB de pagos |
+| `TRANSBANK_KEYS` | Clave del secreto con credenciales Transbank |
+| `TRANSBANK_ENVIRONMENT` | Ambiente Transbank (integration / production) |
+| `TRANSBANK_COMMERCE_CODE` | Código de comercio Transbank |
+| `TRANSBANK_API_KEY_SECRET` | API key secret Transbank |
+| `BUCKET_INFO_GI` | Bucket S3 para comprobantes PDF |
+| `EMAIL_CONFIG_SECRET_KEY` | Clave del secreto con credenciales de email |
+| `SECRET_KEY` | Clave del secreto JWT |
+| `STAGE` | Entorno de ejecución |
+
+### AWS Secrets Manager
+
+```
+transbank-api-key-<stage>-pri-usw2   # Credenciales Transbank
+email-config-<stage>-pri-usw2        # Credenciales email
+```
+
+### AWS SSM Parameter Store
+
+```
+/transbank/<stage>/environment        # integration | production
+/transbank/<stage>/commerce-code      # Código de comercio (solo producción)
+/transbank/<stage>/frontend-url       # URL del frontend para returnUrl
+```
+
+---
+
+## IAM Policies utilizadas
+
+- `lambda-policy-xray.yml` — AWS X-Ray
+- `lambda-policy-ssm.yml` — Parameter Store
+- `lambda-policy-secretsmanager.yml` — Secrets Manager
+- `lambda-policy-cloudwatch.yml` — CloudWatch
+- Política inline — DynamoDB tabla payments (CRUD + índices)
+- Política inline — S3 put en `comprobantes/*`
+
+---
+
+## Códigos de respuesta Transbank
+
+| Código | Significado |
+|---|---|
+| `0` | Transacción aprobada |
+| `-1` | Rechazo de transacción |
+| `-2` | Transacción debe reintentarse |
+| `-3` | Error en transacción |
+| `-4` | Rechazo de transacción |
+| `-5` | Rechazo por error de tasa |
+| `-6` | Excede cupo máximo mensual |
+| `-7` | Excede límite diario por transacción |
+| `-8` | Rubro no autorizado |
+
+---
+
+## Consideraciones importantes
+
+- Monto mínimo: **50 CLP** (requisito Transbank)
+- Los tokens de transacción **expiran en 10 minutos**
+- Una transacción solo puede confirmarse **una vez**
+- En ambiente `integration`, usar tarjetas de prueba de Transbank
+- El comprobante PDF se genera y envía por email solo en confirmaciones exitosas
+
+---
+
+## Desarrollo local
 
 ```bash
-# Ambiente (integration o production)
-/transbank/dev/environment
-
-# Código de comercio (solo producción)
-/transbank/dev/commerce-code
-
-# URL del frontend para return
-/transbank/dev/frontend-url
-```
-
-Configurar en AWS Secrets Manager:
-
-```bash
-# API Key de Transbank (solo producción)
-transbank-api-key-dev-pri-usw2
-```
-
-## DynamoDB
-
-**Tabla:** `payments-dev-pri-usw2`
-
-**Estructura:**
-```
-pk: PAYMENT#{transactionId}
-sk: METADATA
-transactionId: uuid-v7
-token: token-webpay
-buyOrder: string
-sessionId: string
-amount: number
-userId: string | null
-description: string | null
-status: PENDING | AUTHORIZED | FAILED
-authorizationCode: string
-responseCode: number
-vci: string
-paymentTypeCode: string
-accountingDate: string
-transactionDate: string
-cardNumber: string (últimos 4 dígitos)
-installmentsNumber: number
-transbankUrl: string
-returnUrl: string
-environment: integration | production
-createdAt: ISO timestamp
-updatedAt: ISO timestamp
-gsiOne: buyOrder (para búsqueda)
-gsiTwo: userId (para búsqueda)
-```
-
-**Índices Globales (GSI):**
-1. `token-index`: token (PK)
-2. `gsiOne-index`: gsiOne (PK) - para buscar por buyOrder
-3. `gsiTwo-index`: gsiTwo (PK) - para buscar por userId
-
-## Deploy
-
-```bash
-# Instalar dependencias
-npm install
+# Desde raíz del proyecto
+npm start
 
 # Deploy del servicio
 cd services/api-payment
-serverless deploy --stage dev --region us-west-2 --aws-profile pa-dev
+AWS_PROFILE=pa-dev serverless deploy --stage dev --region us-west-2
+
+# Ver logs
+serverless logs --function confirm_installment_payment_v1 --stage dev
 ```
 
-## Testing Local
+---
 
-```bash
-# Iniciar serverless offline
-serverless offline --stage dev
-```
-
-## Flujo de Pago
-
-1. Frontend llama a `POST /v1/pagos/transacciones/crear`
-2. Backend crea transacción en Transbank y guarda en DB
-3. Frontend recibe token y URL
-4. Frontend hace POST del token a la URL de Transbank (formulario HTML)
-5. Usuario completa el pago en Webpay
-6. Transbank redirige a `returnUrl` con `token_ws` en query params
-7. Frontend llama a `POST /v1/pagos/transacciones/confirmar` con el token
-8. Backend confirma con Transbank y actualiza DB
-9. Frontend muestra resultado al usuario
-
-## Estados de Transacción
-
-- `PENDING`: Transacción creada, esperando pago
-- `AUTHORIZED`: Pago aprobado
-- `FAILED`: Pago rechazado
-
-## Códigos de Respuesta Transbank
-
-- `0`: Transacción aprobada
-- `-1`: Rechazo de transacción
-- `-2`: Transacción debe reintentarse
-- `-3`: Error en transacción
-- `-4`: Rechazo de transacción
-- `-5`: Rechazo por error de tasa
-- `-6`: Excede cupo máximo mensual
-- `-7`: Excede límite diario por transacción
-- `-8`: Rubro no autorizado
-
-## Notas Importantes
-
-1. El monto mínimo es 50 CLP (requisito de Transbank)
-2. Los tokens de transacción expiran después de 10 minutos
-3. Una transacción solo puede confirmarse una vez
-4. En ambiente de integración, usar tarjetas de prueba de Transbank
+**Última actualización:** 2026-02-23
