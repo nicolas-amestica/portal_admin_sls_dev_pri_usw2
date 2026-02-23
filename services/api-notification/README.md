@@ -1,6 +1,6 @@
 # api-notification — Envío de Notificaciones
 
-Servicio de envío de notificaciones por email para el portal administrativo de Giras Indómito. Utiliza **Nodemailer** con credenciales almacenadas en AWS Secrets Manager.
+Servicio de envío de notificaciones por email para el portal administrativo de Giras Indómito. Utiliza **Nodemailer** con credenciales almacenadas en AWS Secrets Manager. Acepta archivos adjuntos como `multipart/form-data`.
 
 **Nombre SLS:** `notificaciones` · **Runtime:** Node.js 20.x (ARM64) · **Framework:** Serverless v4
 
@@ -10,23 +10,28 @@ Servicio de envío de notificaciones por email para el portal administrativo de 
 
 | Método | Ruta | Handler | Descripción |
 |---|---|---|---|
-| `POST` | `/v1/notificaciones/contrato` | `send-notification-v1` | Enviar notificación de contrato por email |
+| `POST` | `/v1/notificaciones/contrato` | `send-notification-v1` | Enviar contrato PDF por email |
 
 ---
 
 ## Funciones Lambda
 
 ### `send-notification-v1`
-Envía una notificación por email relacionada con contratos de programas. Recupera los datos del programa desde DynamoDB, genera el contenido del email y lo envía mediante Nodemailer.
+Envía un contrato PDF por email al destinatario indicado. El archivo se envía como **`multipart/form-data`** desde el frontend Angular.
 
-**Body:**
-```json
-{
-  "programId": "uuid-v7",
-  "recipients": ["destinatario@example.com"],
-  "type": "CONTRACT_APPROVED | CONTRACT_CONFIRMED | CONTRACT_REJECTED"
-}
-```
+**Content-Type:** `multipart/form-data`
+
+**Campos del formulario:**
+
+| Campo | Tipo | Descripción |
+|---|---|---|
+| `file` | `File` (PDF) | Archivo PDF del contrato (convertido desde base64) |
+| `name` | `string` | Nombre del destinatario |
+| `email` | `string` | Email de destino |
+| `phone` | `string` | Teléfono de contacto |
+| `preview` | `boolean` | `true` si es vista previa (marca de agua BORRADOR) |
+
+> El middleware `@middy/http-multipart-body-parser` parsea el `multipart/form-data`.
 
 **Respuesta:**
 ```json
@@ -35,7 +40,7 @@ Envía una notificación por email relacionada con contratos de programas. Recup
   "metadata": { "statusCode": 200, "action": "Enviar notificación." },
   "data": {
     "messageId": "smtp-message-id",
-    "recipients": ["destinatario@example.com"]
+    "recipient": "destinatario@example.com"
   }
 }
 ```
@@ -44,40 +49,40 @@ Envía una notificación por email relacionada con contratos de programas. Recup
 
 ---
 
-## Tipos de notificaciones
+## Integración con el frontend
 
-| Tipo | Descripción |
-|---|---|
-| `CONTRACT_APPROVED` | Contrato aprobado — incluye PDF adjunto |
-| `CONTRACT_CONFIRMED` | Contrato confirmado |
-| `CONTRACT_REJECTED` | Contrato rechazado |
+El servicio `ContractService` del portal Angular invoca este endpoint:
+
+```typescript
+// Angular — ContractService
+sendEmailWithDocument(formData: FormData): Observable<any> {
+  return this.http.post(`${baseApi}/v1/notificaciones/contrato`, formData);
+}
+
+// Construcción del FormData
+const formData = new FormData();
+formData.append('file', pdfFile, 'contrato.pdf');  // PDF convertido desde base64
+formData.append('name', contactName);
+formData.append('email', contactEmail);
+formData.append('phone', contactPhone);
+formData.append('preview', isPreview.toString());
+```
+
+---
+
+## Cómo se construye el email
+
+1. Se recibe el PDF como archivo binario en el FormData
+2. Se adjunta el PDF al email como archivo `contrato.pdf`
+3. El cuerpo del email incluye los datos de contacto del destinatario
+4. Si `preview === true`, el asunto incluye indicación de "BORRADOR"
 
 ---
 
 ## Integración con otros servicios
 
-Este servicio es invocado desde:
-- `api-program` → al aprobar un programa (`approve-program-v1`)
-- `api-payment` → al confirmar un pago de cuota (`confirm-installment-payment-v1`)
-
-También puede ser invocado directamente desde el frontend o desde otros servicios Lambda mediante invocación directa.
-
----
-
-## Modelo de datos (DynamoDB)
-
-Este servicio **solo lee** datos de la tabla de programas para construir el contenido del email:
-
-**Tabla:** `programs-<stage>-pri-<shortRegion>`
-
-```javascript
-{
-  pk: "PRG#8e3d823d-9f58-45df-8a8f-6779435a0001",
-  sk: "PRG#<uuid-v7>",
-  name: "Gira a Argentina 2025",
-  // ...datos del programa para el email...
-}
-```
+Este servicio es invocado directamente por el **frontend Angular** (no por otros servicios Lambda). También puede ser invocado de forma interna desde:
+- `api-program` → al aprobar un programa (usa Nodemailer directamente desde el handler)
 
 ---
 
@@ -87,9 +92,9 @@ Este servicio **solo lee** datos de la tabla de programas para construir el cont
 |---|---|
 | `DYNAMODB_PROGRAM_TABLE` | Tabla DynamoDB de programas |
 | `PROGRAM_TABLE` | PK constante de la tabla de programas |
-| `BUCKET_INFO_GI` | Bucket S3 para adjuntos (PDFs) |
-| `EMAIL_CONFIG_SECRET_KEY` | Clave del secreto con credenciales de email |
-| `SECRET_KEY` | Clave del secreto JWT |
+| `BUCKET_INFO_GI` | Bucket S3 (adjuntos) |
+| `EMAIL_CONFIG_SECRET_KEY` | Nombre del secreto con credenciales SMTP |
+| `SECRET_KEY` | Nombre del secreto JWT |
 | `STAGE` | Entorno de ejecución |
 | `NODE_OPTIONS` | `--enable-source-maps` |
 
@@ -113,7 +118,7 @@ Este servicio **solo lee** datos de la tabla de programas para construir el cont
 - `lambda-policy-ssm.yml` — Parameter Store
 - `lambda-policy-dynamodb-program.yml` — DynamoDB (tabla programas)
 - `lambda-policy-s3.yml` — S3 (lectura de PDFs para adjuntos)
-- `lambda-policy-secretsmanager.yml` — Secrets Manager (credenciales email)
+- `lambda-policy-secretsmanager.yml` — Secrets Manager (credenciales SMTP)
 
 ---
 

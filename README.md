@@ -9,6 +9,7 @@ Monorepo serverless multi-lenguaje para la administración de giras y viajes edu
 ## Índice
 
 - [Arquitectura](#arquitectura)
+- [Frontends](#frontends)
 - [Servicios](#servicios)
 - [Componentes compartidos](#componentes-compartidos)
 - [Desarrollo local](#desarrollo-local)
@@ -21,16 +22,62 @@ Monorepo serverless multi-lenguaje para la administración de giras y viajes edu
 ## Arquitectura
 
 ```
-Cliente → API Gateway HTTP v2 (compartido) → Lambda Authorizer JWT
-                                           → Lambda Handler
-                                               → DynamoDB / S3 / SES / Transbank
+Portal Admin (Angular 21)           Portal Público (Angular 21 + SSR)
+  portal_admin_ng_dev_pri_usw2        giras_indomito_ng_dev_pub_usw2
+        |                                       |
+        | JWT (Bearer token)                    | (sin API — sitio estático)
+        ↓                                       ↓
+API Gateway HTTP v2 (compartido)          CloudFront / S3
+https://2z8nmi3vee.execute-api.us-west-2.amazonaws.com
+        |
+        ├── Lambda Authorizer (JWT) — job-authorizer
+        |
+        └── Lambda Handlers
+                ├── DynamoDB (single-table design)
+                ├── S3 (contratos, comprobantes, firmas)
+                ├── Transbank Webpay Plus (pagos)
+                └── SMTP via Nodemailer (emails)
 ```
 
 - **API Gateway HTTP v2** compartido, definido en `infrastructure/`
+- **URL base (dev):** `https://2z8nmi3vee.execute-api.us-west-2.amazonaws.com`
 - **Lambda Authorizer** centralizado en `job-authorizer/`
 - **Single-table design** en DynamoDB con claves `pk` / `sk`
 - **Tracing** con AWS X-Ray en todos los servicios
 - **Logs** con retención de 7 días en CloudWatch
+
+---
+
+## Frontends
+
+Este backend es consumido por el **portal administrativo Angular**. El portal público es independiente y no consume esta API.
+
+| Proyecto | Ruta local | Propósito | Stack |
+|---|---|---|---|
+| `portal_admin_ng_dev_pri_usw2` | `../portal_admin_ng_dev_pri_usw2` | Sistema de gestión — administradores y clientes | Angular 21, PrimeNG 21, @ngrx/signals, Tailwind 4 |
+| `giras_indomito_ng_dev_pub_usw2` | `../giras_indomito_ng_dev_pub_usw2` | Sitio marketing y catálogo público | Angular 21 SSR, PrimeNG 21, GSAP, Tailwind 3 |
+
+### Portal Administrativo — módulos y rutas
+
+| Ruta Angular | Descripción | Servicio backend |
+|---|---|---|
+| `/auth/login` | Login con RUT y contraseña | `api-entity` |
+| `/auth/forgot-password` | Recuperar contraseña | `api-entity` |
+| `/auth/reset-password` | Restablecer contraseña | `api-entity` |
+| `/app/inicio` | Dashboard | — |
+| `/app/gestion-administrativa/programas` | Crear / editar programa | `api-program`, `api-contract` |
+| `/app/gestion-administrativa/programas-lista` | Listado de programas | `api-program` |
+| `/app/gestion-administrativa/balances-lista` | Historial de pagos/abonos | `api-balance`, `api-extraction` |
+| `/app/cliente/pagos` | Portal cliente — pagar cuotas | `api-payment` |
+| `/app/analytics/dashboard` | Dashboard analytics | *(mock en dev)* |
+| `/app/configuracion` | Configuración global (IVA) | `api-configuration` |
+
+### Autenticación (frontend)
+
+- JWT almacenado en `localStorage`
+- `authInterceptor` inyecta `Authorization: Bearer <token>` en cada request
+- `authGuard` protege rutas por sesión activa
+- `roleGuard` controla acceso por rol (`ADMIN` / `CLIENTE`)
 
 ---
 

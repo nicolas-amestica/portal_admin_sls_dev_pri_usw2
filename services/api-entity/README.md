@@ -10,8 +10,8 @@ Servicio de gestión de usuarios, autenticación y control de acceso para el por
 
 | Método | Ruta | Handler | Descripción |
 |---|---|---|---|
-| `POST` | `/v1/sesiones/iniciar-sesion` | `login-v1` | Login de usuario con email y contraseña |
-| `POST` | `/v1/sesiones/recuperar-clave` | `forgot-password-v1` | Solicitar recuperación de contraseña por email |
+| `POST` | `/v1/sesiones/iniciar-sesion` | `login-v1` | Login con RUT y contraseña |
+| `POST` | `/v1/sesiones/recuperar-clave` | `forgot-password-v1` | Solicitar recuperación de contraseña por RUT |
 | `POST` | `/v1/sesiones/restablecer-clave` | `reset-password-v1` | Restablecer contraseña con token de recuperación |
 | `GET` | `/v1/iam/accesos/aplicaciones/GI/user` | `get-access-v1` | Obtener permisos del usuario autenticado |
 
@@ -20,12 +20,12 @@ Servicio de gestión de usuarios, autenticación y control de acceso para el por
 ## Funciones Lambda
 
 ### `login-v1`
-Autentica al usuario con email y contraseña. Valida credenciales contra DynamoDB (contraseña hasheada con bcryptjs) y retorna un token JWT firmado.
+Autentica al usuario con su RUT (`username`) y contraseña. Valida credenciales contra DynamoDB (contraseña hasheada con bcryptjs) y retorna un token JWT firmado.
 
 **Body:**
 ```json
 {
-  "email": "usuario@example.com",
+  "username": "12345678-9",
   "password": "contraseña"
 }
 ```
@@ -38,10 +38,12 @@ Autentica al usuario con email y contraseña. Valida credenciales contra DynamoD
   "data": {
     "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
     "userId": "uuid-v7",
-    "role": "STUDENT | GUARDIAN | STAFF | ADMIN"
+    "role": "ADMIN | CLIENTE"
   }
 }
 ```
+
+> El campo `username` corresponde al **RUT** del usuario (formato `12345678-9`).
 
 ### `forgot-password-v1`
 Genera un token de recuperación y envía un email con instrucciones para restablecer la contraseña.
@@ -49,7 +51,16 @@ Genera un token de recuperación y envía un email con instrucciones para restab
 **Body:**
 ```json
 {
-  "email": "usuario@example.com"
+  "rut": "12345678-9"
+}
+```
+
+**Respuesta:**
+```json
+{
+  "state": true,
+  "metadata": { "statusCode": 200, "action": "Recuperar clave." },
+  "data": { "message": "Email de recuperación enviado." }
 }
 ```
 
@@ -64,11 +75,24 @@ Valida el token de recuperación y actualiza la contraseña del usuario. El toke
 }
 ```
 
+**Respuesta:**
+```json
+{
+  "state": true,
+  "metadata": { "statusCode": 200, "action": "Restablecer clave." },
+  "data": { "message": "Contraseña actualizada correctamente." }
+}
+```
+
 ### `get-access-v1`
-Retorna el perfil de permisos del usuario autenticado para la aplicación `GI` (Giras Indómito).
+Retorna el perfil de permisos y el menú de navegación del usuario autenticado para la aplicación `GI` (Giras Indómito).
 
 **Query Parameters:**
-- `userId`: ID del usuario (opcional, usa el del token JWT)
+- `userId` (requerido): ID del usuario
+
+```
+GET /v1/iam/accesos/aplicaciones/GI/user?userId=<uuid-v7>
+```
 
 **Respuesta:**
 ```json
@@ -78,7 +102,13 @@ Retorna el perfil de permisos del usuario autenticado para la aplicación `GI` (
   "data": {
     "userId": "uuid-v7",
     "role": "ADMIN",
-    "permissions": ["programs.read", "programs.write", "payments.read"]
+    "menu": [
+      {
+        "label": "Programas",
+        "route": "/app/gestion-administrativa/programas-lista",
+        "permissions": ["read", "write"]
+      }
+    ]
   }
 }
 ```
@@ -94,11 +124,11 @@ Retorna el perfil de permisos del usuario autenticado para la aplicación `GI` (
   pk: "USR#4f7cb502-4256-11ec-81d3-0242ac130003",   // Constante
   sk: "USR#<uuid-v7>",
   id: "uuid-v7",
-  email: "usuario@example.com",
+  rut: "12345678-9",
   password: "bcrypt-hash",
   firstName: "Juan",
   lastName: "Pérez",
-  role: "STUDENT | GUARDIAN | STAFF | ADMIN",
+  role: "ADMIN | CLIENTE",
   status: "ACTIVE | INACTIVE",
   resetToken: "token-recuperacion",
   resetTokenExpiry: "2025-01-20T15:00:00Z",
@@ -109,18 +139,34 @@ Retorna el perfil de permisos del usuario autenticado para la aplicación `GI` (
 
 **Tabla configuración:** `config-<stage>-pri-<shortRegion>`
 
-Usada para obtener perfiles de acceso y permisos por rol.
+Usada para obtener perfiles de acceso y menú de navegación por rol.
 
 ---
 
 ## Roles disponibles
 
-| Rol | Descripción |
-|---|---|
-| `STUDENT` | Estudiante — acceso de solo lectura a su programa |
-| `GUARDIAN` | Apoderado — acceso a información del estudiante |
-| `STAFF` | Personal — gestión de programas |
-| `ADMIN` | Administrador — acceso total |
+| Rol | Descripción | Rutas Angular |
+|---|---|---|
+| `ADMIN` | Administrador — acceso total | `/app/gestion-administrativa/*`, `/app/analytics/*`, `/app/configuracion` |
+| `CLIENTE` | Pasajero / Apoderado — portal cliente | `/app/cliente/*` |
+
+> Los roles son controlados por el `roleGuard` del portal administrativo Angular.
+
+---
+
+## Flujo de autenticación (frontend → backend)
+
+```
+1. Usuario ingresa RUT + contraseña en /auth/login (Angular)
+2. AuthService → POST /v1/sesiones/iniciar-sesion
+3. Backend valida RUT y contraseña (bcrypt)
+4. Backend retorna JWT
+5. Angular almacena JWT en localStorage
+6. authInterceptor inyecta Authorization: Bearer <token> en cada request
+7. AuthService → GET /v1/iam/accesos/aplicaciones/GI/user?userId=<id>
+8. Backend retorna menú y permisos según rol
+9. Angular navega según rol (ADMIN → /app/inicio, CLIENTE → /app/cliente/inicio)
+```
 
 ---
 
@@ -130,8 +176,8 @@ Usada para obtener perfiles de acceso y permisos por rol.
 |---|---|
 | `DYNAMODB_USER_TABLE` | Tabla DynamoDB de usuarios |
 | `DYNAMODB_CONFIG_TABLE` | Tabla DynamoDB de configuración |
-| `SECRET_KEY` | Clave del secreto JWT |
-| `EMAIL_SECRET_KEY` | Clave del secreto con credenciales de email |
+| `SECRET_KEY` | Nombre del secreto JWT en Secrets Manager |
+| `EMAIL_SECRET_KEY` | Nombre del secreto con credenciales de email |
 | `STAGE` | Entorno de ejecución |
 
 ---
@@ -144,15 +190,6 @@ Usada para obtener perfiles de acceso y permisos por rol.
 - `lambda-policy-ssm.yml` — Parameter Store
 - `lambda-policy-secretsmanager.yml` — Secrets Manager
 - `lambda-policy-cloudwatch.yml` — CloudWatch
-
----
-
-## Autenticación JWT
-
-- El token se genera con `jsonwebtoken`
-- La contraseña se almacena hasheada con `bcryptjs`
-- El token contiene: `userId`, `role`, `profile`
-- El authorizer compartido (`job-authorizer`) valida el token en rutas protegidas
 
 ---
 
