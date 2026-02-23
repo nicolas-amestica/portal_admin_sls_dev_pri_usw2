@@ -9,12 +9,16 @@ import * as dynamoDbLib from "../../../libs/dynamodb-v3";
 import { success } from "../../../helpers/responses";
 import { getSecretManagerValue } from "../../../libs/secret-manager";
 import { standardMiddleware } from "../../../libs/middleware/index.js";
+import { generatePaymentReceipt } from "../../../libs/receipt-generator.js";
+import { sendEmailWithAttachments, generateEmailHTML } from "../../../libs/nodemailer.js";
+import { putObject } from "../../../libs/s3-v3.js";
 
 const {
   TRANSBANK_ENVIRONMENT,
   DYNAMODB_PAYMENT_TABLE,
   TRANSBANK_COMMERCE_CODE,
   TRANSBANK_API_KEY_SECRET,
+  BUCKET_INFO_GI,
 } = process.env;
 
 /**
@@ -174,6 +178,79 @@ const handler = async (event) => {
   };
 
   console.log("✅ Pago confirmado exitosamente:", JSON.stringify(result, null, 2));
+
+  // Generar y enviar comprobante (no bloquea la respuesta si falla)
+  try {
+    const pdfBuffer = await generatePaymentReceipt({
+      paymentId: paymentRecord.id,
+      installmentNumber: paymentRecord.installmentNumber,
+      amount: paymentRecord.amount,
+      authorizationCode: transbankResponse.authorization_code || null,
+      cardNumber: transbankResponse.card_detail?.card_number || null,
+      transactionDate: transbankResponse.transaction_date || null,
+      buyOrder: paymentRecord.transbankDetails?.buyOrder || null,
+      payerEmail: paymentRecord.payerEmail || null,
+    });
+
+    // Guardar en S3 (respaldo, independiente del email)
+    const s3Key = `comprobantes/pagos/${paymentRecord.id}.pdf`;
+    await putObject({
+      Bucket: BUCKET_INFO_GI,
+      Key: s3Key,
+      Body: pdfBuffer,
+      ContentType: "application/pdf",
+    });
+    console.log(`📄 Comprobante guardado en S3: ${s3Key}`);
+
+    // Enviar email si hay correo del pagador
+    if (paymentRecord.payerEmail) {
+      const formatCLP = (n) =>
+        new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP" }).format(n);
+
+      const bodyHtml = `
+        <p>Tu pago ha sido procesado exitosamente. Adjunto encontrarás tu comprobante en formato PDF.</p>
+        <div class="credentials-box">
+          <h3>Resumen del Pago</h3>
+          <div class="credential-item">
+            <span class="credential-label">Cuota N°:</span>
+            <span class="credential-value">${paymentRecord.installmentNumber}</span>
+          </div>
+          <div class="credential-item">
+            <span class="credential-label">Monto:</span>
+            <span class="credential-value">${formatCLP(paymentRecord.amount)}</span>
+          </div>
+          <div class="credential-item">
+            <span class="credential-label">Autorización:</span>
+            <span class="credential-value">${transbankResponse.authorization_code || "N/A"}</span>
+          </div>
+        </div>
+        <p style="margin-top: 16px; font-size: 13px; color: #6b7280;">
+          Guarda este comprobante como respaldo de tu transacción.
+        </p>
+      `;
+
+      const html = generateEmailHTML({
+        title: "Comprobante de Pago",
+        recipientName: paymentRecord.payerEmail,
+        bodyHtml,
+      });
+
+      await sendEmailWithAttachments({
+        to: paymentRecord.payerEmail,
+        subject: `Comprobante de Pago - Cuota #${paymentRecord.installmentNumber} | Giras Indómito`,
+        html,
+        attachments: [{
+          filename: `comprobante-cuota-${paymentRecord.installmentNumber}.pdf`,
+          content: pdfBuffer,
+          contentType: "application/pdf",
+        }],
+      });
+
+      console.log(`📧 Comprobante enviado a: ${paymentRecord.payerEmail}`);
+    }
+  } catch (receiptError) {
+    console.warn("⚠️ Error al generar/enviar comprobante (pago ya procesado):", receiptError.message);
+  }
 
   return success(200, result, action);
 };

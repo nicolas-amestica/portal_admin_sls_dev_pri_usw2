@@ -45,6 +45,8 @@ provider:
     TRANSBANK_API_KEY_SECRET: transbank-api-key-${self:custom.stage}-pri-${self:custom.shortRegion}
     SECRET_KEY: secret-pri-${self:custom.stage}-${self:custom.shortRegion}
     PROFILE: ${self:provider.profile}
+    BUCKET_INFO_GI: giras-indomito-${self:custom.stage}-info
+    EMAIL_CONFIG_SECRET_KEY: email-config-${self:custom.stage}-pri-${self:custom.shortRegion}
 
   # Configurar seguimiento mediante aws x-ray para identificar y resolver problemas y errores de rendimiento.
   tracing:
@@ -72,6 +74,11 @@ provider:
       Resource:
         - arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_PAYMENT_TABLE}
         - arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_PAYMENT_TABLE}/index/*
+    - Effect: Allow
+      Action:
+        - s3:PutObject
+      Resource:
+        - arn:aws:s3:::${self:provider.environment.BUCKET_INFO_GI}/comprobantes/*
 
 functions:
   # Endpoints de pagos de cuotas (nuevo)

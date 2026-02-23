@@ -73,7 +73,7 @@ const configureTransbank = async () => {
 const handler = async (event) => {
   console.log("Event ==>", event);
   const action = "Crear pago de cuota de programa."; const data = event.body;
-  const { programId, installmentNumber, amount, userId, returnUrl } = data;
+  const { programId, installmentNumber, amount, userId, payerEmail, returnUrl } = data;
 
   // Validaciones
   if (!programId) {
@@ -93,6 +93,11 @@ const handler = async (event) => {
   }
   if (!userId) {
     const error = new Error('El userId es requerido.');
+    error.statusCode = 400;
+    throw error;
+  }
+  if (!payerEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payerEmail)) {
+    const error = new Error('El correo del pagador es requerido y debe ser válido.');
     error.statusCode = 400;
     throw error;
   }
@@ -198,6 +203,7 @@ const handler = async (event) => {
       id: paymentId,
       programId,
       userId,
+      payerEmail,
       installmentNumber,
 
       // Monto y estado
