@@ -7,22 +7,22 @@ const {
   PROGRAM_TABLE_ID
 } = process.env;
 
-const adaptBalances = async (totalWithUtilities, payments) => {
+const adaptBalances = (totalWithUtilities, payments) => {
   let total = totalWithUtilities;
   return payments.map(payment => {
+    const amount = parseInt(payment.amount, 10);
     const balance = {
       ...payment,
-      amount: parseInt(payment.amount),
-      remaining: total - parseInt(payment.amount),
-      totalWithUtilities: parseInt(total),
+      amount,
+      remaining: total - amount,
+      totalWithUtilities: parseInt(total, 10),
     };
-    total -= parseInt(payment.amount);
+    total -= amount;
     return balance;
-  }) || [];
+  });
 };
 
 const handler = async (event) => {
-  console.log("event ==>", event);
   const action = "Obtención de lista de balances del programa.";
   const { sk } = event.pathParams;
 
@@ -46,12 +46,19 @@ const handler = async (event) => {
     }
   });
 
-  const result = results && results.length > 0 ? results[0] : null;
-  const payments = result?.content[0]?.payments || [];
-  const totalWithUtilities = result.content[0].totalWithUtilities;
-  const formattedPayments = await adaptBalances(totalWithUtilities, payments || []);
+  const result = results?.[0] ?? null;
 
-  return success(200, formattedPayments, action, pathParams);
+  if (!result) {
+    const error = new Error('Programa no encontrado.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const payments = result.content?.[0]?.payments || [];
+  const totalWithUtilities = result.content[0].totalWithUtilities;
+  const formattedPayments = adaptBalances(totalWithUtilities, payments);
+
+  return success(200, formattedPayments, action, { sk });
 };
 
 export const main = standardMiddleware(handler);
