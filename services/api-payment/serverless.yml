@@ -90,7 +90,9 @@ functions:
       - httpApi:
           path: /v1/pagos/cuotas/crear
           method: POST
-          # authorizer: auth
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
 
   confirm_installment_payment_v1:
     handler: functions/confirm-installment-payment-v1.main
@@ -100,7 +102,9 @@ functions:
       - httpApi:
           path: /v1/pagos/cuotas/confirmar
           method: POST
-          # authorizer: auth
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
 
   get_payments_by_program_v1:
     handler: functions/get-payments-by-program-v1.main
@@ -110,7 +114,9 @@ functions:
       - httpApi:
           path: /v1/pagos/programa
           method: GET
-          # authorizer: auth
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
 
   get_payments_by_user_v1:
     handler: functions/get-payments-by-user-v1.main
@@ -120,7 +126,9 @@ functions:
       - httpApi:
           path: /v1/pagos/usuario
           method: GET
-          # authorizer: auth
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
 
   cancel_installment_payment_v1:
     handler: functions/cancel-installment-payment-v1.main
@@ -130,7 +138,9 @@ functions:
       - httpApi:
           path: /v1/pagos/cuotas/cancelar
           method: POST
-          # authorizer: auth
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
 
   # Endpoints legacy (mantener por compatibilidad)
   create_transaction_v1:
@@ -141,7 +151,9 @@ functions:
       - httpApi:
           path: /v1/pagos/transacciones/crear
           method: POST
-          # authorizer: auth
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
 
   commit_transaction_v1:
     handler: functions/commit-transaction-v1.main
@@ -151,7 +163,9 @@ functions:
       - httpApi:
           path: /v1/pagos/transacciones/confirmar
           method: POST
-          # authorizer: auth
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
 
   get_transaction_status_v1:
     handler: functions/get-transaction-status-v1.main
@@ -161,7 +175,9 @@ functions:
       - httpApi:
           path: /v1/pagos/transacciones/{token}/estado
           method: GET
-          # authorizer: auth
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
 
   get_transactions_v1:
     handler: functions/get-transactions-v1.main
@@ -171,4 +187,6 @@ functions:
       - httpApi:
           path: /v1/pagos/transacciones
           method: GET
-          # authorizer: auth
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request

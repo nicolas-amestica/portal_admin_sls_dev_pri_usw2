@@ -68,7 +68,9 @@ functions:
       - httpApi:
           path: /v1/balances
           method: POST
-          # authorizer: auth
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
 
   get_balances_v1:
     handler: functions/get-balances-v1.main
@@ -78,4 +80,6 @@ functions:
       - httpApi:
           path: /v1/balances/{sk}
           method: GET
-          # authorizer: auth
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request

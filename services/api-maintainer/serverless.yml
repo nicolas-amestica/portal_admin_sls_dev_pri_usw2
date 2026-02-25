@@ -66,4 +66,6 @@ functions:
       - httpApi:
           path: /v1/mantenedor/bancos
           method: GET
-          # authorizer: auth
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request

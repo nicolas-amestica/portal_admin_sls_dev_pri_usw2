@@ -70,4 +70,6 @@ functions:
       - httpApi:
           path: /v1/extracciones/object
           method: GET
-          # authorizer: auth
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request

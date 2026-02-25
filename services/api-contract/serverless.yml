@@ -69,7 +69,9 @@ functions:
       - httpApi:
           path: /v1/contratos/guardar
           method: POST
-          # authorizer: auth
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
 
   build_document_by_form_v1:
     handler: functions/build-pdf-document-by-form-v1.main
@@ -80,7 +82,9 @@ functions:
       - httpApi:
           path: /v1/documentos/pdf
           method: POST
-          # authorizer: auth
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
 
   get_pdf_document_by_sk_v1:
     handler: functions/get-pdf-document-by-sk-v1.main
@@ -91,7 +95,9 @@ functions:
       - httpApi:
           path: /v1/documentos/pdf
           method: GET
-          # authorizer: auth
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
 
   get_pdf_document_by_sk_from_program_v1:
     handler: functions/build-pdf-document-by-sk-from-program-v1.main
@@ -102,4 +108,6 @@ functions:
       - httpApi:
           path: /v1/documentos/pdf/{sk}
           method: GET
-          # authorizer: auth
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request

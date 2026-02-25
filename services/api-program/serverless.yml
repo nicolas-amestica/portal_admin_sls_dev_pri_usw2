@@ -75,7 +75,9 @@ functions:
       - httpApi:
           path: /v1/programas
           method: GET
-          # authorizer: auth
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
 
   get_program_v1:
     handler: functions/get-program-v1.main
@@ -85,7 +87,9 @@ functions:
       - httpApi:
           path: /v1/programas/{programId}
           method: GET
-          # authorizer: auth
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
 
   create_program_v1:
     handler: functions/create-program-v1.main
@@ -95,7 +99,9 @@ functions:
       - httpApi:
           path: /v1/programas/crear
           method: POST
-          # authorizer: auth
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
 
   update_program_v1:
     handler: functions/update-program-v1.main
@@ -105,7 +111,9 @@ functions:
       - httpApi:
           path: /v1/programas/actualizar
           method: PUT
-          # authorizer: auth
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
 
   complete_program_v1:
     handler: functions/complete-program-v1.main
@@ -115,7 +123,9 @@ functions:
       - httpApi:
           path: /v1/programas/completar
           method: POST
-          # authorizer: auth
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
 
   reject_program_v1:
     handler: functions/reject-program-v1.main
@@ -125,7 +135,9 @@ functions:
       - httpApi:
           path: /v1/programas/rechazar
           method: POST
-          # authorizer: auth
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
 
   approve_program_v1:
     handler: functions/approve-program-v1.main
@@ -136,7 +148,9 @@ functions:
       - httpApi:
           path: /v1/programas/aprobar
           method: POST
-          # authorizer: auth
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
 
   confirm_program_v1:
     handler: functions/confirm-program-v1.main
@@ -147,7 +161,9 @@ functions:
       - httpApi:
           path: /v1/programas/confirmar
           method: POST
-          # authorizer: auth
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
 
   get_currency_rates_v1:
     handler: functions/get-currency-rates-v1.main
@@ -157,4 +173,6 @@ functions:
       - httpApi:
           path: /v1/programas/monedas/tasas
           method: GET
-          # authorizer: auth
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request

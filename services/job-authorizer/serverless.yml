@@ -69,8 +69,49 @@ functions:
           method: POST
 
 resources:
+  Resources:
+    HttpApiAuthorizer:
+      Type: AWS::ApiGatewayV2::Authorizer
+      Properties:
+        ApiId: ${self:custom.apiGatewayId}
+        AuthorizerType: REQUEST
+        AuthorizerPayloadFormatVersion: '2.0'
+        AuthorizerUri: 
+          Fn::Join:
+            - ''
+            - - 'arn:aws:apigateway:'
+              - Ref: AWS::Region
+              - ':lambda:path/2015-03-31/functions/'
+              - !GetAtt AuthLambdaFunction.Arn
+              - '/invocations'
+        IdentitySource:
+          - '$request.header.Authorization'
+        Name: ${self:custom.stage}-shared-authorizer
+        AuthorizerResultTtlInSeconds: 0
+
+    HttpApiAuthorizerPermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        FunctionName: !GetAtt AuthLambdaFunction.Arn
+        Action: lambda:InvokeFunction
+        Principal: apigateway.amazonaws.com
+        SourceArn: 
+          Fn::Join:
+            - ''
+            - - 'arn:aws:execute-api:'
+              - Ref: AWS::Region
+              - ':'
+              - Ref: AWS::AccountId
+              - ':'
+              - ${self:custom.apiGatewayId}
+              - '/*/*/*'
+
   Outputs:
     authArn:
       Value: !GetAtt [AuthLambdaFunction, Arn]
       Export:
         Name: ${self:custom.stage}-authArn
+    AuthorizerId:
+      Value: !Ref HttpApiAuthorizer
+      Export:
+        Name: ${self:custom.stage}-AuthorizerId

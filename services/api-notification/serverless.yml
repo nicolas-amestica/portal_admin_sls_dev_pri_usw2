@@ -71,4 +71,6 @@ functions:
       - httpApi:
           path: /v1/notificaciones/contrato
           method: POST
-          # authorizer: auth
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request

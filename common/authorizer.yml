@@ -1,5 +1,0 @@
-auth:
-  type: request
-  functionArn: ${cf:autorizador-${self:custom.stage}.authArn}
-  resultTtlInSeconds: 0
-  identitySource: $request.header.Authorization
