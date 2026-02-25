@@ -1,5 +1,5 @@
 import jwt from "jsonwebtoken";
-import { getParameterStore } from "../../libs/ssm";
+import { getSecretManagerValue } from "../../libs/secret-manager";
 import { success, unsuccessful } from "../../helpers/responses";
 
 const { SECRET_KEY } = process.env;
@@ -91,22 +91,11 @@ const validateAccess = (accessToMethod, accessToEndpoint) => {
  */
 const generatePolicy = async (token, methodArn, method) => {
   try {
-    const secretsKeys = [SECRET_KEY];
-
-    if (!SECRET_KEY || secretsKeys.some((key) => !key)) {
-      throw new Error(
-        "SECRET_KEY no está definido correctamente o es inválido"
-      );
+    if (!SECRET_KEY) {
+      throw new Error("SECRET_KEY no está definido correctamente o es inválido");
     }
 
-    const secrets = await getParameterStore(secretsKeys);
-
-    const found =
-      secrets && secrets.find((secret) => secret.Name === SECRET_KEY);
-    if (!found || !found.Value) {
-      throw new Error(`Secret ${SECRET_KEY} not found in SSM Parameter Store`);
-    }
-    const SECRET = found.Value;
+    const SECRET = await getSecretManagerValue(SECRET_KEY);
 
     const decoded = jwt.verify(token, SECRET);
     const payload = decoded.body;
@@ -199,30 +188,15 @@ export const authorize = async (event) => {
 export const generateToken = async (event) => {
   console.log("event", event);
   const action = "Generar token.";
-  const secretsKeys = [SECRET_KEY];
 
-  if (!secretsKeys)
+  if (!SECRET_KEY)
     return unsuccessful(
       400,
-      "No se encuentra el secreto en SSM Parameter Store",
+      "No se encuentra el secreto en variables de entorno",
       action
     );
 
-  const secrets = await getParameterStore(secretsKeys);
-
-  if (!secrets)
-    return unsuccessful(
-      400,
-      "No se encuentra el valor del secreto en SSM Parameter Store",
-      action
-    );
-
-  const found = secrets && secrets.find((secret) => secret.Name === SECRET_KEY);
-
-  if (!found || !found.Value) {
-    throw new Error(`Secret ${SECRET_KEY} not found in SSM Parameter Store`);
-  }
-  const SECRET = (found.Value || "").trim();
+  const SECRET = await getSecretManagerValue(SECRET_KEY);
 
   const { allowances } = JSON.parse(event.body);
   const TIMEOUT = "365d";

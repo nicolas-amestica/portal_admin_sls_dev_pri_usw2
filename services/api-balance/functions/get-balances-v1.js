@@ -7,6 +7,9 @@ const {
   PROGRAM_TABLE_ID
 } = process.env;
 
+/**
+ * Adapta los pagos calculando el balance acumulativo restante tras cada pago.
+ */
 const adaptBalances = (totalWithUtilities, payments) => {
   let total = totalWithUtilities;
   return payments.map(payment => {
@@ -22,23 +25,16 @@ const adaptBalances = (totalWithUtilities, payments) => {
   });
 };
 
-const handler = async (event) => {
-  const action = "Obtención de lista de balances del programa.";
-  const { sk } = event.pathParams;
-
-  if (!sk) {
-    const error = new Error('Identificador de programa inválido.');
-    error.statusCode = 400;
-    throw error;
-  }
-
-  const results = await dynamoDbLib.query({
+/**
+ * Obtiene un programa desde DynamoDB usando una clave de ordenación (con prefijo).
+ */
+const getProgramFromDynamodb = (sortKey) =>
+  dynamoDbLib.query({
     TableName: DYNAMODB_PROGRAM_TABLE,
-    ReturnConsumedCapacity: 'TOTAL',
     KeyConditionExpression: '#pk = :pk AND begins_with(#sk, :sk)',
     ExpressionAttributeValues: {
       ':pk': PROGRAM_TABLE_ID,
-      ':sk': sk,
+      ':sk': sortKey,
     },
     ExpressionAttributeNames: {
       '#pk': 'pk',
@@ -46,16 +42,30 @@ const handler = async (event) => {
     }
   });
 
-  const result = results?.[0] ?? null;
+/**
+ * Handler principal para obtener la lista de balances de un programa.
+ */
+const handler = async (event) => {
+  const action = "Obtención de lista de balances del programa.";
+  const { sk } = event.pathParams;
 
-  if (!result) {
+  if (!sk) {
+    const error = new Error('Identificador de programa no válido.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const programs = await getProgramFromDynamodb(sk);
+  const program = programs?.[0] ?? null;
+
+  if (!program) {
     const error = new Error('Programa no encontrado.');
     error.statusCode = 404;
     throw error;
   }
 
-  const payments = result.content?.[0]?.payments || [];
-  const totalWithUtilities = result.content[0].totalWithUtilities;
+  const payments = program.content?.[0]?.payments || [];
+  const totalWithUtilities = program.content[0].totalWithUtilities;
   const formattedPayments = adaptBalances(totalWithUtilities, payments);
 
   return success(200, formattedPayments, action, { sk });

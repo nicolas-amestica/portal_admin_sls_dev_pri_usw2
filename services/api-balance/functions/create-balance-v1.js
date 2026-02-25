@@ -1,9 +1,9 @@
 import { uuidv7 } from "uuidv7";
 import middy from "@middy/core";
-import multipartBodyParser from "@middy/http-multipart-body-parser";
 import * as S3 from "../../../libs/s3-v3";
-import * as dynamoDbLib from "../../../libs/dynamodb-v3";
 import { success } from "../../../helpers/responses";
+import * as dynamoDbLib from "../../../libs/dynamodb-v3";
+import multipartBodyParser from "@middy/http-multipart-body-parser";
 import { errorHandlerMiddleware } from "../../../libs/middleware/error-handler.js";
 
 const { BUCKET_INFO_GI, PROGRAM_TABLE_ID, DYNAMODB_PROGRAM_TABLE } = process.env;
@@ -55,9 +55,9 @@ const getProgramFromDynamodb = (sortKey) =>
  */
 const baseHandler = async (event) => {
   const action = "Ingreso de balance al viaje.";
-  const { sk, amount, observation, dni, institution, file } = event.body;
+  const { sk, amount, observation, dni, file } = event.body;
 
-  const requiredFields = ["sk", "amount", "dni", "institution", "observation"];
+  const requiredFields = ["sk", "amount", "observation"];
   const missing = requiredFields.filter((f) => !event.body[f]);
   if (missing.length) {
     const error = new Error(`Faltan campos requeridos: ${missing.join(", ")}`);
@@ -95,7 +95,7 @@ const baseHandler = async (event) => {
     ...fileUploaded,
     amount: parsedAmount,
     observation,
-    dni
+    ...(dni && { dni })
   };
 
   program.content = program.content?.length ? program.content : [{ payments: [] }];

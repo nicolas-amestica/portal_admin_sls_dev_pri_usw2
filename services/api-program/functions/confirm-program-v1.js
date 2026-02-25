@@ -36,6 +36,7 @@ const handler = async (event) => {
   let program = programs[0];
 
   program.status = 'confirmed';
+  program.priority = 2;
   program.updatedAt = new Date().toISOString();
 
   const confirmedProgram = await dynamoDbLib.put({ TableName: DYNAMODB_PROGRAM_TABLE, Item: program });

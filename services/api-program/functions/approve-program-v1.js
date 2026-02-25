@@ -88,6 +88,7 @@ const handler = async (event) => {
 
   // Actualizar el programa con el estado y el archivo
   program.status = 'approved';
+  program.priority = 3;
   program.updatedAt = new Date().toISOString();
 
   // Inicializar el array de archivos si no existe

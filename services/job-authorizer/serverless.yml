@@ -52,6 +52,7 @@ provider:
 
   iamRoleStatements:
     - ${file(../../aws/policies/lambda-policy-ssm.yml)}
+    - ${file(../../aws/policies/lambda-policy-secretsmanager.yml)}
 
 functions:
   auth:

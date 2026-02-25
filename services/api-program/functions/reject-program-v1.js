@@ -42,6 +42,7 @@ const handler = async (event) => {
   let program = programs[0];
 
   program.status = 'rejected';
+  program.priority = 5;
   program.rejectedReason = rejectReason;
   program.updatedAt = new Date().toISOString();
   await dynamoDbLib.put({ TableName: DYNAMODB_PROGRAM_TABLE, Item: program });

@@ -4,21 +4,14 @@ import { standardMiddleware } from "../../../libs/middleware/index.js";
 
 const { DYNAMODB_PROGRAM_TABLE, PROGRAM_TABLE } = process.env;
 
-const handler = async (event) => {
-  const action = "Obtener programas por periodo en sistema.";
-  const { periodo } = event.queryParams;
-
-  if (!periodo) {
-    const error = new Error('Falta el periodo en la solicitud.');
-    error.statusCode = 400;
-    throw error;
-  }
-
-  const result = await dynamoDbLib.query({
+/**
+ * Obtiene programas desde DynamoDB filtrando por periodo usando un GSI de fecha.
+ */
+const getProgramsByPeriod = (periodo) =>
+  dynamoDbLib.query({
     TableName: DYNAMODB_PROGRAM_TABLE,
     IndexName: "gsiStartDate-index",
-    ReturnConsumedCapacity: "TOTAL",
-    KeyConditionExpression: "#pk = :pk And begins_with(#startDate, :startDate)",
+    KeyConditionExpression: "#pk = :pk AND begins_with(#startDate, :startDate)",
     ExpressionAttributeValues: {
       ':pk': PROGRAM_TABLE,
       ":startDate": periodo,
@@ -29,7 +22,13 @@ const handler = async (event) => {
     },
   });
 
-  const programs = result?.map(({ sk, status, content, priority, startDate }) => ({
+/**
+ * Adapta y ordena los resultados de DynamoDB al formato de vista requerido.
+ * Ordena primero por prioridad y luego por fecha de inicio.
+ */
+const adaptPrograms = (programs) => {
+  if (!programs) return [];
+  const adaptedPrograms = programs?.map(({ sk, status, content, priority, startDate, sii }) => ({
     sk,
     status,
     type: content[0].type.id,
@@ -38,15 +37,33 @@ const handler = async (event) => {
     season: content[0].season,
     representativeName: content[0].representative.name,
     startDate,
+    sii,
     priority
   })) ?? [];
 
-  programs.sort((a, b) => {
-    if (a.priority !== b.priority) {
-      return a.priority - b.priority;
-    }
+  adaptedPrograms.sort((a, b) => {
+    if (a.priority !== b.priority) return a.priority - b.priority;
     return a.startDate.localeCompare(b.startDate);
   });
+
+  return adaptedPrograms;
+};
+
+/**
+ * Handler principal para obtener la vista de programas por periodo.
+ */
+const handler = async (event) => {
+  const action = "Obtener programas por periodo en sistema.";
+  const { periodo } = event.queryParams;
+
+  if (!periodo) {
+    const error = new Error('Falta el periodo en la solicitud.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const results = await getProgramsByPeriod(periodo);
+  const programs = adaptPrograms(results);
 
   return success(200, programs, action);
 };
