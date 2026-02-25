@@ -66,7 +66,7 @@ functions:
     timeout: 30
     events:
       - httpApi:
-          path: /v1/balances/solicitudes/balance
+          path: /v1/balances
           method: POST
           # authorizer: ${file(../../common/lambda-authorizer.yml)}
 
@@ -76,6 +76,6 @@ functions:
     timeout: 30
     events:
       - httpApi:
-          path: /v1/balances/solicitudes/balance
+          path: /v1/balances/{sk}
           method: GET
           # authorizer: ${file(../../common/lambda-authorizer.yml)}

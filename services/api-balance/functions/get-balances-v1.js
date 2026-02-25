@@ -24,8 +24,8 @@ const adaptBalances = async (totalWithUtilities, payments) => {
 const handler = async (event) => {
   console.log("event ==>", event);
   const action = "Obtención de lista de balances del programa.";
-  const queryParams = event.queryParams;
-  const { sk } = queryParams;
+  const pathParams = event.pathParams;
+  const { sk } = pathParams;
 
   if (!sk) {
     const error = new Error('Identificador de programa inválido.');
@@ -52,7 +52,7 @@ const handler = async (event) => {
   const totalWithUtilities = result.content[0].totalWithUtilities;
   const formattedPayments = await adaptBalances(totalWithUtilities, payments || []);
 
-  return success(200, formattedPayments, action, queryParams);
+  return success(200, formattedPayments, action, pathParams);
 };
 
 export const main = standardMiddleware(handler);
