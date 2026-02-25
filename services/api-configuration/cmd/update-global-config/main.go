@@ -48,7 +48,7 @@ func init() {
 }
 
 // Handler maneja las peticiones POST de actualización de configuración global.
-func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+func Handler(ctx context.Context, request events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
 	log.Info("Processing UPDATE global config request",
 		zap.String("requestId", request.RequestContext.RequestID),
 	)
@@ -70,7 +70,7 @@ func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 }
 
 // successResponse construye una respuesta exitosa compatible con el formato Node.js.
-func successResponse(actionName string) (events.APIGatewayProxyResponse, error) {
+func successResponse(actionName string) (events.APIGatewayV2HTTPResponse, error) {
 	response := map[string]interface{}{
 		"state": true,
 		"metadata": map[string]interface{}{
@@ -86,7 +86,7 @@ func successResponse(actionName string) (events.APIGatewayProxyResponse, error) 
 	body, err := json.Marshal(response)
 	if err != nil {
 		log.Error("Failed to marshal success response", zap.Error(err))
-		return events.APIGatewayProxyResponse{StatusCode: 500}, err
+		return events.APIGatewayV2HTTPResponse{StatusCode: 500}, err
 	}
 
 	log.Info("Request processed successfully",
@@ -94,7 +94,7 @@ func successResponse(actionName string) (events.APIGatewayProxyResponse, error) 
 		zap.Int("statusCode", 200),
 	)
 
-	return events.APIGatewayProxyResponse{
+	return events.APIGatewayV2HTTPResponse{
 		StatusCode: 200,
 		Headers: map[string]string{
 			"Content-Type":                "application/json",
@@ -106,7 +106,7 @@ func successResponse(actionName string) (events.APIGatewayProxyResponse, error) 
 }
 
 // handleError maneja errores y retorna respuestas HTTP apropiadas.
-func handleError(err error, actionName string) (events.APIGatewayProxyResponse, error) {
+func handleError(err error, actionName string) (events.APIGatewayV2HTTPResponse, error) {
 	var appErr *apperr.AppError
 
 	// Verificar si es un AppError
@@ -126,7 +126,7 @@ func handleError(err error, actionName string) (events.APIGatewayProxyResponse, 
 		zap.Error(err),
 	)
 
-	return events.APIGatewayProxyResponse{
+	return events.APIGatewayV2HTTPResponse{
 		StatusCode: statusCode,
 		Headers: map[string]string{
 			"Content-Type":                "application/json",

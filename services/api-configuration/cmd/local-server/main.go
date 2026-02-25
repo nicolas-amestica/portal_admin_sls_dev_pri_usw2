@@ -69,10 +69,10 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 		zap.String("path", r.URL.Path),
 	)
 
-	// Convertir HTTP request a APIGatewayProxyRequest
+	// Convertir HTTP request a APIGatewayV2HTTPRequest
 	apiGatewayRequest := httpToAPIGateway(r)
 
-	var response events.APIGatewayProxyResponse
+	var response events.APIGatewayV2HTTPResponse
 	var err error
 
 	switch r.Method {
@@ -102,7 +102,7 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 	writeAPIGatewayResponse(w, response)
 }
 
-func handleGet(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+func handleGet(ctx context.Context, request events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
 	configData, err := getService(ctx)
 	if err != nil {
 		return errorResponse(err, "Obtener configuración global")
@@ -111,7 +111,7 @@ func handleGet(ctx context.Context, request events.APIGatewayProxyRequest) (even
 	return successResponse(configData, "Obtener configuración global")
 }
 
-func handlePost(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+func handlePost(ctx context.Context, request events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
 	var req config.UpdateConfigRequest
 	if err := json.Unmarshal([]byte(request.Body), &req); err != nil {
 		logger.Warn("Invalid JSON body", zap.Error(err))
@@ -133,7 +133,7 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func httpToAPIGateway(r *http.Request) events.APIGatewayProxyRequest {
+func httpToAPIGateway(r *http.Request) events.APIGatewayV2HTTPRequest {
 	body := ""
 	if r.Body != nil {
 		bodyBytes, _ := io.ReadAll(r.Body)
@@ -147,18 +147,18 @@ func httpToAPIGateway(r *http.Request) events.APIGatewayProxyRequest {
 		}
 	}
 
-	return events.APIGatewayProxyRequest{
+	return events.APIGatewayV2HTTPRequest{
 		HTTPMethod: r.Method,
 		Path:       r.URL.Path,
 		Headers:    headers,
 		Body:       body,
-		RequestContext: events.APIGatewayProxyRequestContext{
+		RequestContext: events.APIGatewayV2HTTPRequestContext{
 			RequestID: "local-" + r.RemoteAddr,
 		},
 	}
 }
 
-func writeAPIGatewayResponse(w http.ResponseWriter, response events.APIGatewayProxyResponse) {
+func writeAPIGatewayResponse(w http.ResponseWriter, response events.APIGatewayV2HTTPResponse) {
 	// Headers
 	for k, v := range response.Headers {
 		w.Header().Set(k, v)
@@ -171,7 +171,7 @@ func writeAPIGatewayResponse(w http.ResponseWriter, response events.APIGatewayPr
 	w.Write([]byte(response.Body))
 }
 
-func successResponse(data interface{}, actionName string) (events.APIGatewayProxyResponse, error) {
+func successResponse(data interface{}, actionName string) (events.APIGatewayV2HTTPResponse, error) {
 	response := map[string]interface{}{
 		"state": true,
 		"metadata": map[string]interface{}{
@@ -186,7 +186,7 @@ func successResponse(data interface{}, actionName string) (events.APIGatewayProx
 
 	body, _ := json.Marshal(response)
 
-	return events.APIGatewayProxyResponse{
+	return events.APIGatewayV2HTTPResponse{
 		StatusCode: 200,
 		Headers: map[string]string{
 			"Content-Type":                 "application/json",
@@ -197,7 +197,7 @@ func successResponse(data interface{}, actionName string) (events.APIGatewayProx
 	}, nil
 }
 
-func successResponseUpdate(actionName string) (events.APIGatewayProxyResponse, error) {
+func successResponseUpdate(actionName string) (events.APIGatewayV2HTTPResponse, error) {
 	response := map[string]interface{}{
 		"state": true,
 		"metadata": map[string]interface{}{
@@ -212,7 +212,7 @@ func successResponseUpdate(actionName string) (events.APIGatewayProxyResponse, e
 
 	body, _ := json.Marshal(response)
 
-	return events.APIGatewayProxyResponse{
+	return events.APIGatewayV2HTTPResponse{
 		StatusCode: 200,
 		Headers: map[string]string{
 			"Content-Type":                 "application/json",
@@ -223,7 +223,7 @@ func successResponseUpdate(actionName string) (events.APIGatewayProxyResponse, e
 	}, nil
 }
 
-func errorResponse(err error, actionName string) (events.APIGatewayProxyResponse, error) {
+func errorResponse(err error, actionName string) (events.APIGatewayV2HTTPResponse, error) {
 	response := map[string]interface{}{
 		"state": false,
 		"metadata": map[string]interface{}{
@@ -237,7 +237,7 @@ func errorResponse(err error, actionName string) (events.APIGatewayProxyResponse
 
 	body, _ := json.Marshal(response)
 
-	return events.APIGatewayProxyResponse{
+	return events.APIGatewayV2HTTPResponse{
 		StatusCode: 500,
 		Headers: map[string]string{
 			"Content-Type":                 "application/json",

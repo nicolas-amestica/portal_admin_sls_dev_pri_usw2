@@ -154,26 +154,22 @@ const generatePolicy = async (token, methodArn, method) => {
  */
 export const authorize = async (event) => {
   console.log("Evento recibido por el autorizador:", event);
-  let methodArn, authorizationToken;
 
-  if (event.authorizationToken && event.methodArn) {
-    methodArn = event.methodArn;
-    authorizationToken = event.authorizationToken;
-  } else {
-    const body =
-      typeof event.body === "string" ? JSON.parse(event.body) : event.body;
-    methodArn = body.methodArn;
-    authorizationToken = body.authorizationToken;
-  }
+  // Extraer token de HTTP API Payload v2.0
+  const authorizationToken = event.identitySource && event.identitySource.length > 0 
+    ? event.identitySource[0] 
+    : event.headers?.authorization || event.headers?.Authorization;
+    
+  const methodArn = event.routeArn;
+  const httpMethod = event.requestContext?.http?.method;
 
   if (!authorizationToken) {
-    console.warn("No se proporcionó authorizationToken");
-    return createPolicy("Deny", methodArn);
+    console.warn("No se proporcionó authorizationToken o no se pudo extraer del evento (formato v2.0 esperado)");
+    return createPolicy("Deny", methodArn || "*");
   }
 
   const token = authorizationToken.replace("Bearer ", "");
-  const httpMethod = methodArn.split("/")[2];
-
+  
   try {
     if (!SECRET_KEY)
       throw new Error("SECRET_KEY no está definido en process.env");
@@ -182,7 +178,7 @@ export const authorize = async (event) => {
     return policy;
   } catch (error) {
     console.error("Error en authorize:", error);
-    return createPolicy("Deny", methodArn);
+    return createPolicy("Deny", methodArn || "*");
   }
 };
 
