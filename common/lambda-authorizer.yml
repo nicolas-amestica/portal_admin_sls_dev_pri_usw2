@@ -1,3 +1,0 @@
-name: auth
-arn: ${cf:autorizador-${self:custom.stage}.authArn}
-resultTtlInSeconds: 0

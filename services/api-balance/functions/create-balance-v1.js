@@ -55,9 +55,9 @@ const getProgramFromDynamodb = (sortKey) =>
  */
 const baseHandler = async (event) => {
   const action = "Ingreso de balance al viaje.";
-  const { sk, amount, observation, dni, file } = event.body;
+  const { sk, amount, observation, dni, institution, file } = event.body;
 
-  const requiredFields = ["sk", "amount", "dni", "observation"];
+  const requiredFields = ["sk", "amount", "dni", "institution", "observation"];
   const missing = requiredFields.filter((f) => !event.body[f]);
   if (missing.length) {
     const error = new Error(`Faltan campos requeridos: ${missing.join(", ")}`);
@@ -95,7 +95,7 @@ const baseHandler = async (event) => {
     ...fileUploaded,
     amount: parsedAmount,
     observation,
-    dni,
+    dni
   };
 
   program.content = program.content?.length ? program.content : [{ payments: [] }];

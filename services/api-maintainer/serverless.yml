@@ -66,4 +66,4 @@ functions:
       - httpApi:
           path: /v1/mantenedor/bancos
           method: GET
-          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+          # authorizer: auth

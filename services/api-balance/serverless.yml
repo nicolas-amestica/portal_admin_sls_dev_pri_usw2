@@ -68,7 +68,7 @@ functions:
       - httpApi:
           path: /v1/balances
           method: POST
-          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+          # authorizer: auth
 
   get_balances_v1:
     handler: functions/get-balances-v1.main
@@ -78,4 +78,4 @@ functions:
       - httpApi:
           path: /v1/balances/{sk}
           method: GET
-          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+          # authorizer: auth

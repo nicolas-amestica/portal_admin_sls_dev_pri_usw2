@@ -90,7 +90,10 @@ functions:
           path: v1/configuracion/global
           method: get
           cors: true
-          authorizer: ${file(../../common/lambda-authorizer.yml)}
+          authorizer:
+            name: auth
+            arn: ${cf:autorizador-${self:custom.stage}.authArn}
+            resultTtlInSeconds: 0
 
   update_global_config_v1:
     handler: bootstrap
@@ -104,7 +107,10 @@ functions:
           path: v1/configuracion/global
           method: post
           cors: true
-          authorizer: ${file(../../common/lambda-authorizer.yml)}
+          authorizer:
+            name: auth
+            arn: ${cf:autorizador-${self:custom.stage}.authArn}
+            resultTtlInSeconds: 0
 
 # No creamos recursos de DynamoDB porque ya existen
 # Solo definimos errores de API Gateway

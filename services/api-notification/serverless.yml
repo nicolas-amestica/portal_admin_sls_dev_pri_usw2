@@ -71,4 +71,4 @@ functions:
       - httpApi:
           path: /v1/notificaciones/contrato
           method: POST
-          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+          # authorizer: auth

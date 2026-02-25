@@ -90,7 +90,7 @@ functions:
       - httpApi:
           path: /v1/pagos/cuotas/crear
           method: POST
-          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+          # authorizer: auth
 
   confirm_installment_payment_v1:
     handler: functions/confirm-installment-payment-v1.main
@@ -100,7 +100,7 @@ functions:
       - httpApi:
           path: /v1/pagos/cuotas/confirmar
           method: POST
-          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+          # authorizer: auth
 
   get_payments_by_program_v1:
     handler: functions/get-payments-by-program-v1.main
@@ -110,7 +110,7 @@ functions:
       - httpApi:
           path: /v1/pagos/programa
           method: GET
-          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+          # authorizer: auth
 
   get_payments_by_user_v1:
     handler: functions/get-payments-by-user-v1.main
@@ -120,7 +120,7 @@ functions:
       - httpApi:
           path: /v1/pagos/usuario
           method: GET
-          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+          # authorizer: auth
 
   cancel_installment_payment_v1:
     handler: functions/cancel-installment-payment-v1.main
@@ -130,7 +130,7 @@ functions:
       - httpApi:
           path: /v1/pagos/cuotas/cancelar
           method: POST
-          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+          # authorizer: auth
 
   # Endpoints legacy (mantener por compatibilidad)
   create_transaction_v1:
@@ -141,7 +141,7 @@ functions:
       - httpApi:
           path: /v1/pagos/transacciones/crear
           method: POST
-          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+          # authorizer: auth
 
   commit_transaction_v1:
     handler: functions/commit-transaction-v1.main
@@ -151,7 +151,7 @@ functions:
       - httpApi:
           path: /v1/pagos/transacciones/confirmar
           method: POST
-          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+          # authorizer: auth
 
   get_transaction_status_v1:
     handler: functions/get-transaction-status-v1.main
@@ -161,7 +161,7 @@ functions:
       - httpApi:
           path: /v1/pagos/transacciones/{token}/estado
           method: GET
-          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+          # authorizer: auth
 
   get_transactions_v1:
     handler: functions/get-transactions-v1.main
@@ -171,4 +171,4 @@ functions:
       - httpApi:
           path: /v1/pagos/transacciones
           method: GET
-          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+          # authorizer: auth

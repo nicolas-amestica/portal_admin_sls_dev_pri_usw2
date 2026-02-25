@@ -36,8 +36,6 @@ provider:
   httpApi:
     id: ${self:custom.apiGatewayId}
 
-
-
   environment:
     STAGE: ${self:custom.stage}
     DYNAMODB_PROGRAM_TABLE: programs-${self:custom.stage}-pri-${self:custom.shortRegion}
@@ -72,4 +70,4 @@ functions:
       - httpApi:
           path: /v1/extracciones/object
           method: GET
-          # authorizer: ${file(../../common/lambda-authorizer.yml)}
+          # authorizer: auth
