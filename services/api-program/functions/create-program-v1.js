@@ -73,6 +73,7 @@ const handler = async (event) => {
       status: 'pending',
       type: firstContent.type.id,
       startDate,
+      sii: content[0].sii
     },
   });
 
