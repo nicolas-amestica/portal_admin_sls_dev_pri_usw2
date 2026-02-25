@@ -2,14 +2,20 @@ import { success } from "../../../helpers/responses.js";
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { standardMiddleware } from "../../../libs/middleware/index.js";
 
-const {
-  PROGRAM_TABLE,
-  DYNAMODB_PROGRAM_TABLE
-} = process.env;
+const { PROGRAM_TABLE, DYNAMODB_PROGRAM_TABLE } = process.env;
 const ACTION = "Confirmar programa.";
 
 /**
- * Confirma el estado de un programa en la base de datos, actualizando su estado a 'confirmed' y la fecha de actualización.
+ * Obtiene un programa desde DynamoDB por su clave de ordenación exacta.
+ */
+const getProgramBySk = (sk) =>
+  dynamoDbLib.getOne({
+    TableName: DYNAMODB_PROGRAM_TABLE,
+    Key: { pk: PROGRAM_TABLE, sk }
+  });
+
+/**
+ * Handler principal para confirmar el estado de un programa.
  */
 const handler = async (event) => {
   const { sk } = event.body;
@@ -20,20 +26,13 @@ const handler = async (event) => {
     throw error;
   }
 
-  const programs = await dynamoDbLib.query({
-    TableName: DYNAMODB_PROGRAM_TABLE,
-    KeyConditionExpression: '#pk = :pk AND #sk = :sk',
-    ExpressionAttributeValues: { ':pk': PROGRAM_TABLE, ':sk': sk },
-    ExpressionAttributeNames: { '#pk': 'pk', '#sk': 'sk' }
-  });
+  const program = await getProgramBySk(sk);
 
-  if (!programs || programs.length === 0) {
+  if (!program) {
     const error = new Error('Programa no encontrado.');
     error.statusCode = 404;
     throw error;
   }
-
-  let program = programs[0];
 
   program.status = 'confirmed';
   program.priority = 2;

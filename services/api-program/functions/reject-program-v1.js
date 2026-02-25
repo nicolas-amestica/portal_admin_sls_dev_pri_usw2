@@ -2,14 +2,20 @@ import { success } from "../../../helpers/responses";
 import * as dynamoDbLib from '../../../libs/dynamodb-v3';
 import { standardMiddleware } from "../../../libs/middleware/index.js";
 
-const {
-  PROGRAM_TABLE,
-  DYNAMODB_PROGRAM_TABLE
-} = process.env;
+const { PROGRAM_TABLE, DYNAMODB_PROGRAM_TABLE } = process.env;
 const ACTION = "Rechazar el programa.";
 
 /**
- * Rechaza un programa especificado por su identificador, asignando una razón de rechazo y actualizando su estado.
+ * Obtiene un programa desde DynamoDB por su clave de ordenación exacta.
+ */
+const getProgramBySk = (sk) =>
+  dynamoDbLib.getOne({
+    TableName: DYNAMODB_PROGRAM_TABLE,
+    Key: { pk: PROGRAM_TABLE, sk }
+  });
+
+/**
+ * Handler principal para rechazar un programa con una razón especificada.
  */
 const handler = async (event) => {
   const { sk, rejectReason } = event.body;
@@ -26,25 +32,19 @@ const handler = async (event) => {
     throw error;
   }
 
-  const programs = await dynamoDbLib.query({
-    TableName: DYNAMODB_PROGRAM_TABLE,
-    KeyConditionExpression: '#pk = :pk AND #sk = :sk',
-    ExpressionAttributeValues: { ':pk': PROGRAM_TABLE, ':sk': sk },
-    ExpressionAttributeNames: { '#pk': 'pk', '#sk': 'sk' }
-  });
+  const program = await getProgramBySk(sk);
 
-  if (!programs || programs.length === 0) {
+  if (!program) {
     const error = new Error('Programa no encontrado.');
     error.statusCode = 404;
     throw error;
   }
 
-  let program = programs[0];
-
   program.status = 'rejected';
   program.priority = 5;
   program.rejectedReason = rejectReason;
   program.updatedAt = new Date().toISOString();
+
   await dynamoDbLib.put({ TableName: DYNAMODB_PROGRAM_TABLE, Item: program });
 
   return success(200, program, ACTION);

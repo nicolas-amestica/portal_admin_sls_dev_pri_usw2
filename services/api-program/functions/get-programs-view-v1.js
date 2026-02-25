@@ -53,7 +53,7 @@ const adaptPrograms = (programs) => {
  * Handler principal para obtener la vista de programas por periodo.
  */
 const handler = async (event) => {
-  const action = "Obtener programas por periodo en sistema.";
+  const action = "Obtener programas por periodo.";
   const { periodo } = event.queryParams;
 
   if (!periodo) {
@@ -62,10 +62,10 @@ const handler = async (event) => {
     throw error;
   }
 
-  const results = await getProgramsByPeriod(periodo);
-  const programs = adaptPrograms(results);
+  const programs = await getProgramsByPeriod(periodo);
+  const adaptedPrograms = adaptPrograms(programs);
 
-  return success(200, programs, action);
+  return success(200, adaptedPrograms, action);
 };
 
 export const main = standardMiddleware(handler);

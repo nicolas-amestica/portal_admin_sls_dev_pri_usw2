@@ -5,19 +5,10 @@ import { standardMiddleware } from "../../../libs/middleware/index.js";
 const { DYNAMODB_PROGRAM_TABLE, PROGRAM_TABLE } = process.env;
 
 /**
- * Obtiene un programa del sistema por su identificador único.
+ * Obtiene un programa desde DynamoDB usando el ID como prefijo del sk.
  */
-const handler = async (event) => {
-  const action = "Obtención de programa en sistema.";
-  const { programId } = event.pathParams || {};
-
-  if (!programId) {
-    const error = new Error('Identificador de programa no encontrado en request.');
-    error.statusCode = 400;
-    throw error;
-  }
-
-  const results = await dynamoDbLib.query({
+const getProgramById = (programId) =>
+  dynamoDbLib.query({
     TableName: DYNAMODB_PROGRAM_TABLE,
     KeyConditionExpression: '#pk = :pk AND begins_with(#sk, :sk)',
     ExpressionAttributeValues: {
@@ -30,7 +21,21 @@ const handler = async (event) => {
     }
   });
 
-  const result = results && results.length > 0 ? results[0] : null;
+/**
+ * Handler principal para obtener un programa por su identificador único.
+ */
+const handler = async (event) => {
+  const action = "Obtener programa.";
+  const { programId } = event.pathParams || {};
+
+  if (!programId) {
+    const error = new Error('Identificador de programa no encontrado en request.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const results = await getProgramById(programId);
+  const result = results?.[0] ?? null;
 
   if (!result) {
     const error = new Error('Programa no encontrado.');
