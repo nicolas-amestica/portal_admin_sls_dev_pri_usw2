@@ -24,8 +24,7 @@ const adaptBalances = async (totalWithUtilities, payments) => {
 const handler = async (event) => {
   console.log("event ==>", event);
   const action = "Obtención de lista de balances del programa.";
-  const pathParams = event.pathParams;
-  const { sk } = pathParams;
+  const { sk } = event.pathParams;
 
   if (!sk) {
     const error = new Error('Identificador de programa inválido.');
