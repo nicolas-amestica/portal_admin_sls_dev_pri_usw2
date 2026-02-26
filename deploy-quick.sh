@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Script de deployment rápido (sin verbose)
-# Uso: ./deploy-quick.sh [dev|prod]
+# Uso: ./deploy-quick.sh [dev|prd]
 
 STAGE=${1:-dev}
 

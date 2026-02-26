@@ -1,7 +1,7 @@
 {
   "name": "portal-admin-sls-dev-pri-usw2",
   "version": "1.0.0",
-  "description": "Proyecto bonito",
+  "description": "Monorepo serverless multi-lenguaje para la administración de giras y viajes educacionales. Combina servicios en **Node.js** y **Go**, todos desplegados en **AWS",
   "type": "module",
   "main": "index.js",
   "scripts": {

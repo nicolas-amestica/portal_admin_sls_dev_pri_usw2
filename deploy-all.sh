@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Script de deployment secuencial para Portal Admin
-# Uso: ./deploy-all.sh [dev|prod]
+# Uso: ./deploy-all.sh [dev|prd]
 
 set -e  # Salir si hay error
 
