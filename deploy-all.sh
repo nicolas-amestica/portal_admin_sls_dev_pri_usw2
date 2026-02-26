@@ -101,6 +101,7 @@ echo -e "${BLUE}  Desplegando Servicios (${TOTAL_SERVICES})${NC}"
 echo -e "${BLUE}========================================${NC}\n"
 
 SERVICES=(
+    "services/job-authorizer"
     "services/api-maintainer"
     "services/api-contract"
     "services/api-program"
@@ -109,16 +110,15 @@ SERVICES=(
     "services/api-balance"
     "services/api-extraction"
     "services/api-notification"
-    "services/job-authorizer"
     "services/api-configuration"
 )
 
 for service in "${SERVICES[@]}"; do
     if [ -d "$PROJECT_ROOT/$service" ]; then
         if deploy_service "$PROJECT_ROOT/$service"; then
-            ((DEPLOYED++))
+            DEPLOYED=$((DEPLOYED + 1))
         else
-            ((FAILED++))
+            FAILED=$((FAILED + 1))
             FAILED_SERVICES+=("$(basename "$service")")
         fi
 

@@ -7,5 +7,5 @@ Action:
   - dynamodb:PutItem
   - dynamodb:UpdateItem
 Resource:
-  - arn:aws:dynamodb:us-west-2:691725736887:table/maintainer-${self:custom.stage}-pri-${self:custom.shortRegion}
-  - arn:aws:dynamodb:us-west-2:691725736887:table/maintainer-${self:custom.stage}-pri-${self:custom.shortRegion}/index/*
+  - arn:aws:dynamodb:${self:provider.region}:*:table/maintainer-${self:custom.stage}-pri-${self:custom.shortRegion}
+  - arn:aws:dynamodb:${self:provider.region}:*:table/maintainer-${self:custom.stage}-pri-${self:custom.shortRegion}/index/*

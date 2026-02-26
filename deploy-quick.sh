@@ -9,7 +9,7 @@ echo "🚀 Desplegando Portal Admin - Stage: $STAGE"
 echo ""
 
 # Infraestructura
-echo "📦 1/10 - Verificando infraestructura..."
+echo "📦 1/11 - Verificando infraestructura..."
 cd infrastructure
 if aws cloudformation describe-stacks --stack-name "portal-admin-infrastructure-${STAGE}" --profile "pa-${STAGE}" --region us-west-2 >/dev/null 2>&1; then
     echo "   ✅ Infraestructura ya existe"
@@ -19,8 +19,9 @@ else
 fi
 cd ..
 
-# Servicios
+# Servicios (job-authorizer primero: los demás dependen de su AuthorizerId)
 services=(
+    "job-authorizer"
     "api-maintainer"
     "api-contract"
     "api-program"
@@ -29,14 +30,13 @@ services=(
     "api-balance"
     "api-extraction"
     "api-notification"
-    "job-authorizer"
     "api-configuration"
 )
 
 count=2
 for service in "${services[@]}"; do
     if [ -d "services/$service" ]; then
-        echo "📦 $count/10 - Desplegando $service..."
+        echo "📦 $count/11 - Desplegando $service..."
         cd "services/$service"
         npx sls deploy --stage "$STAGE" 2>&1 | grep -E '(Service deployed|Error|✔|✖)'
         cd ../..
