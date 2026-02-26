@@ -61,6 +61,11 @@ env.yml
 # mac files
 .DS_Store
 
+# AI assistant local configs (contienen account IDs y permisos locales)
+.claude/
+.agent/
+.gemini/
+
 # archivos de compilacion
  sls-deploy.sh
  sls-pre-deploy.sh

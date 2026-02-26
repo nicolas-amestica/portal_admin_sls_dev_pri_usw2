@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import { uuidv7 } from "uuidv7";
 import * as S3 from "../../../libs/s3-v3.js";
+import { cleanRut } from "../../../utils/rut.js";
 import { success } from "../../../helpers/responses.js";
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { APPROVED_PROGRAM } from '../../../libs/contract/messages.js';
@@ -185,7 +186,7 @@ const handler = async (event) => {
     throw error;
   }
 
-  const dniClean = clientRepresentative.dni.replace(/\./g, '').replace(/-/g, '');
+  const dniClean = cleanRut(clientRepresentative.dni);
   const existingUsers = await getUserByDni(dniClean);
 
   if (existingUsers?.length) {

@@ -7,28 +7,6 @@ const ACTION = "Guardar datos del contrato en el programa.";
 
 /**
  * Manejador de Lambda que guarda datos de contrato en un programa específico.
- * 
- * @async
- * @function handler
- * @param {Object} event - Evento de entrada de Lambda
- * @param {Object} event.body - Cuerpo de la solicitud
- * @param {string} event.body.sk - Identificador único del programa (clave de ordenamiento)
- * @param {Object} event.body.contract - Datos del contrato a guardar
- * 
- * @returns {Promise<Object>} Respuesta de éxito con el programa actualizado
- * @returns {number} 200 - Código de estado HTTP de éxito
- * @returns {Object} Objeto del programa actualizado con los datos del contrato
- * 
- * @throws {Error} Si falta el identificador (sk) - Error 400
- * @throws {Error} Si el programa no existe - Error 404
- * 
- * @description
- * Esta función realiza las siguientes operaciones:
- * 1. Valida que se proporcione el identificador del programa (sk)
- * 2. Busca el programa en DynamoDB utilizando la clave primaria y secundaria
- * 3. Actualiza el contenido del programa con los datos del contrato
- * 4. Persiste los cambios en la base de datos
- * 5. Devuelve el programa actualizado
  */
 const handler = async (event) => {
   const { sk, contract } = event.body;

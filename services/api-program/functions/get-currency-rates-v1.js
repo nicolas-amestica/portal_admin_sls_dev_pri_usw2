@@ -1,13 +1,16 @@
 import { getWithRetry } from '../../../libs/axios.js';
 import { success } from '../../../helpers/responses';
-import { standardMiddleware } from '../../../libs/middleware/index.js';
 import { cache, CacheKeys } from '../../../libs/cache/index.js';
+import { standardMiddleware } from '../../../libs/middleware/index.js';
 
 const BASE_URL = 'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies';
 const ACTION = 'Obtención de tasas de cambio USD y BRL a CLP.';
 const TIMEOUT_MS = 10_000;
 const RETRY_OPTIONS = { retries: 3, delay: 500, factor: 2 };
 
+/**
+ * Obtiene las tasas de cambio actuales de USD y BRL a CLP.
+ */
 const handler = async () => {
   const cacheKey = CacheKeys.currencyRates();
   const cached = cache.get(cacheKey);

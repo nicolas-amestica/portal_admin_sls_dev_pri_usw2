@@ -8,71 +8,58 @@ const { STAGE } = process.env;
 const ACTION = "Enviar notificación de contrato";
 const MESSAGE = STAGE === 'dev' ? CONTRACT.dev : CONTRACT.prd;
 
+const REQUIRED_FIELDS = ["name", "email", "preview", "file"];
+
 /**
- * Manejador base para el envío de notificaciones por correo electrónico con archivo adjunto.
+ * Obtiene el tipo de mensaje según el estado de la vista previa.
+ */
+const getTypeMessage = (preview) => {
+  if (preview === '1') return MESSAGE.preview;
+  if (preview === 'resend') return MESSAGE.resend;
+  return MESSAGE.confirmed;
+};
+
+/**
+ * Normaliza el contenido a un objeto Buffer.
+ */
+const normalizeBuffer = (content) => {
+  if (Buffer.isBuffer(content)) return content;
+  if (typeof content === 'string') return Buffer.from(content, 'base64');
+  if (content?.type === 'Buffer' && Array.isArray(content.data)) return Buffer.from(content.data);
+  return content;
+};
+
+/**
+ * Procesa el envío de notificaciones por correo electrónico con archivos adjuntos.
  */
 const baseHandler = async (event) => {
   const { name, email, file, preview } = event.body;
 
-  const requiredFields = ["name", "email", "preview", "file"];
-  const missing = requiredFields.filter((f) => !event.body[f]);
-
+  const missing = REQUIRED_FIELDS.filter((f) => !event.body[f]);
   if (missing.length) return unsuccessful(400, { message: `Faltan campos requeridos: ${missing.join(", ")}` }, ACTION);
 
-  if (!file || !file.content) {
+  if (!file?.content) {
     const error = new Error('No se encontró archivo adjunto');
     error.statusCode = 400;
     throw error;
   }
 
-  const typeMessage = preview === '1' ? MESSAGE['preview']
-    : preview === 'resend' ? MESSAGE['resend']
-    : MESSAGE['confirmed'];
-
-  const htmlContent = generateEmailHTML({
-    title: typeMessage.title,
-    recipientName: name,
-    bodyHtml: typeMessage.body
-  });
-
-  let fileContent = file.content;
-  if (!Buffer.isBuffer(fileContent)) {
-    if (typeof fileContent === 'string') {
-      fileContent = Buffer.from(fileContent, 'base64');
-    } else if (fileContent.type === 'Buffer' && Array.isArray(fileContent.data)) {
-      fileContent = Buffer.from(fileContent.data);
-    }
-  }
-
-  const attachments = [{
-    filename: file.filename || 'contrato.pdf',
-    content: fileContent,
-    contentType: file.contentType || file.mimetype || 'application/pdf'
-  }];
+  const typeMessage = getTypeMessage(preview);
 
   const emailResult = await sendEmailWithAttachments({
     to: email,
-    subject: `${typeMessage.subject}`,
-    html: htmlContent,
-    attachments: attachments
+    subject: typeMessage.subject,
+    html: generateEmailHTML({ title: typeMessage.title, recipientName: name, bodyHtml: typeMessage.body }),
+    attachments: [{
+      filename: file.filename || 'contrato.pdf',
+      content: normalizeBuffer(file.content),
+      contentType: file.contentType || file.mimetype || 'application/pdf'
+    }]
   });
 
-  return success(200, {
-    message: "Correo enviado exitosamente",
-    messageId: emailResult.messageId,
-    recipient: email
-  }, ACTION);
+  return success(200, { message: "Correo enviado exitosamente", messageId: emailResult.messageId, recipient: email }, ACTION);
 };
 
-/**
- * Función principal del handler para enviar notificaciones.
- */
 export const main = middy(baseHandler).use(
-  multipartBodyParser({
-    busboy: {
-      limits: {
-        fileSize: 10 * 1024 * 1024, // 10MB
-      },
-    },
-  })
+  multipartBodyParser({ busboy: { limits: { fileSize: 10 * 1024 * 1024 } } })
 );

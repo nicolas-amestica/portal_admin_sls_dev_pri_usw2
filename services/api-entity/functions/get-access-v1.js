@@ -2,11 +2,14 @@ import { getAccessProfile } from "./access-profile";
 import { success } from "../../../helpers/responses";
 import * as dynamoDbLib from "../../../libs/dynamodb-v3";
 import { resolvePromises } from "../../../helpers/allsettled";
-import { standardMiddleware } from "../../../libs/middleware/index.js";
 import { cache, CacheKeys } from "../../../libs/cache/index.js";
+import { standardMiddleware } from "../../../libs/middleware/index.js";
 
 const { DYNAMODB_USER_TABLE } = process.env;
 
+/**
+ * Obtiene los accesos de un usuario consultando DynamoDB con caché.
+ */
 const handler = async (event) => {
   console.log("Event ==>", event);
   const action = "Obtener accesos del usuario.";

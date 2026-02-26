@@ -4,11 +4,6 @@ const { DYNAMODB_USER_TABLE } = process.env;
 
 /**
  * Obtiene el perfil de acceso de un usuario desde DynamoDB según el perfil proporcionado.
- *
- * @async
- * @function
- * @param {string} profile - El identificador del perfil a consultar.
- * @returns {Promise<Object>} Una promesa que resuelve con el resultado de la consulta a DynamoDB.
  */
 export const getAccessProfile = async (profile) => {
   const paramsPerfil = {

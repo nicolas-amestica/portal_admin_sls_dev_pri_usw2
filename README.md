@@ -28,7 +28,7 @@ Portal Admin (Angular 21)           Portal Público (Angular 21 + SSR)
         | JWT (Bearer token)                    | (sin API — sitio estático)
         ↓                                       ↓
 API Gateway HTTP v2 (compartido)          CloudFront / S3
-https://2z8nmi3vee.execute-api.us-west-2.amazonaws.com
+  https://<api-id>.execute-api.<region>.amazonaws.com
         |
         ├── Lambda Authorizer (JWT) — job-authorizer
         |
@@ -40,7 +40,6 @@ https://2z8nmi3vee.execute-api.us-west-2.amazonaws.com
 ```
 
 - **API Gateway HTTP v2** compartido, definido en `infrastructure/`
-- **URL base (dev):** `https://2z8nmi3vee.execute-api.us-west-2.amazonaws.com`
 - **Lambda Authorizer** centralizado en `job-authorizer/`
 - **Single-table design** en DynamoDB con claves `pk` / `sk`
 - **Tracing** con AWS X-Ray en todos los servicios
@@ -117,7 +116,6 @@ Este backend es consumido por el **portal administrativo Angular**. El portal p�
 | `dynamodb-v3.js` | CRUD DynamoDB (`query`, `getOne`, `put`, `update`, `remove`, `scan`, `iterativeQuery`) |
 | `s3-v3.js` | Operaciones S3 |
 | `secret-manager.js` | AWS Secrets Manager |
-| `ssm.js` | AWS Systems Manager Parameter Store |
 | `nodemailer.js` | Envío de emails configurado |
 | `document-generator.js` | API unificada para generación de documentos PDF |
 | `pdf-generator/` | Sistema de generación de PDFs con `pdf-lib` |
@@ -129,11 +127,6 @@ Este backend es consumido por el **portal administrativo Angular**. El portal p�
 | Archivo | Propósito |
 |---|---|
 | `custom.yml` | Variables globales (`shortRegion`, `buckets`, `apiGatewayId`) |
-| `apigateway-errors.yml` | Respuestas 4XX/5XX centralizadas |
-| `lambda-authorizer.yml` | Referencia al authorizer compartido |
-| `dynamodb-config-table.yml` | Definición de tabla de configuración |
-| `dynamodb-resources.yml` | Recursos DynamoDB compartidos |
-| `s3-resources.yml` | Recursos S3 compartidos |
 
 ### `aws/policies/` — Políticas IAM reutilizables
 
@@ -378,7 +371,7 @@ if (result.success) {
 }
 ```
 
-> Lambdas que generan PDFs requieren `memorySize: 1024` y `timeout: 30`.
+> Lambdas que generan PDFs requieren `memorySize: 1024` y `timeout: 29`.
 
 ### Storage S3 — convenciones de paths
 
@@ -402,7 +395,7 @@ const config = await getGlobalConfig('PAYMENT_CONFIG');
 
 - Nunca hardcodear secretos en código
 - Usar **AWS Secrets Manager** (`libs/secret-manager.js`) para secretos
-- Usar **AWS SSM Parameter Store** (`libs/ssm.js`) para configuración no sensible
+- Usar **AWS SSM Parameter Store** para configuración no sensible (resuelto por Serverless Framework vía `{{ssm:/...}}`)
 - Variables de entorno para configuración por stage
 
 ### Autorización y autenticación
@@ -536,11 +529,9 @@ func GetConfig(c echo.Context) error {
 
 ## Recursos adicionales
 
-- [DEPLOYMENT.md](DEPLOYMENT.md) — Guía detallada de deploy
-- [MEJORAS-ARQUITECTURA.md](MEJORAS-ARQUITECTURA.md) — Roadmap técnico
-- [LAMBDA-POWER-TUNING.md](LAMBDA-POWER-TUNING.md) — Optimización de memoria
-- [.claude/](.claude/) — Guías de desarrollo para Claude Code
-- [docs/](docs/) — Documentación técnica adicional
+- [INFRASTRUCTURE-REPORT.md](INFRASTRUCTURE-REPORT.md) — Reporte completo de infraestructura AWS
+- [scripts/bootstrap.sh](scripts/bootstrap.sh) — Crear todos los recursos AWS antes del primer deploy
+- [scripts/teardown.sh](scripts/teardown.sh) — Eliminar toda la infraestructura
 
 ---
 

@@ -271,11 +271,13 @@ make deploy-stage STAGE=prod
 
 ## Convenciones de código
 
-Este servicio sigue estrictamente las convenciones del proyecto:
+Este servicio sigue estrictamente las convenciones Go documentadas en la sección **Convenciones Go** del [README principal](../../README.md):
 
-- [.claude/senior-programmer-go/go-conventions.md](../../.claude/senior-programmer-go/go-conventions.md)
-- [.claude/senior-programmer-go/go-tech-stack.md](../../.claude/senior-programmer-go/go-tech-stack.md)
-- [.claude/senior-programmer-go/basic.md](../../.claude/senior-programmer-go/basic.md)
+- Paradigma funcional (sin OOP para lógica de negocio)
+- Logging estructurado con `zap`
+- Error wrapping con `%w`
+- Validación con `validator` tags
+- Estado global para clientes AWS
 
 ---
 

@@ -67,13 +67,16 @@ Servicio de pagos integrado con **Transbank Webpay Plus** para el portal adminis
 ```json
 POST /v1/pagos/cuotas/crear
 {
-  "programId": "uuid-v7",
-  "installmentId": "uuid-v7",
+  "programId": "PRG#uuid-v7",
+  "installmentNumber": 1,
   "amount": 150000,
   "userId": "uuid-v7",
-  "description": "Cuota 1 - Gira Argentina 2025"
+  "payerEmail": "usuario@ejemplo.cl",
+  "returnUrl": "https://frontend.com/app/cliente/pagos"
 }
 ```
+
+> `returnUrl` es opcional — si no se envía, se usa la URL del frontend configurada para el stage.
 
 **Respuesta:**
 ```json
@@ -134,7 +137,9 @@ GET /v1/pagos/usuario?userId=<uuid>
 |---|---|
 | `PENDING` | Pago iniciado, esperando autorización |
 | `AUTHORIZED` | Pago aprobado por Transbank |
-| `FAILED` | Pago rechazado |
+| `FAILED` | Pago rechazado por Transbank |
+| `EXPIRED` | Pago PENDING sin confirmar después de 30 minutos |
+| `CANCELLED` | Pago cancelado manualmente |
 
 ---
 
@@ -144,40 +149,35 @@ GET /v1/pagos/usuario?userId=<uuid>
 
 ```javascript
 {
-  pk: "PAYMENT#<transactionId>",
-  sk: "METADATA",
-  transactionId: "uuid-v7",
-  token: "token-webpay",
-  buyOrder: "ORDER-123",
-  sessionId: "SESSION-123",
-  amount: 150000,
+  pk: "PAY#<paymentId>",        // Partition Key
+  sk: "PAY#<programId>",        // Sort Key (PAY#PRG#uuid-v7)
+  id: "uuid-v7",
+  programId: "PRG#uuid-v7",
   userId: "uuid-v7",
-  programId: "uuid-v7",
-  installmentId: "uuid-v7",
-  description: "Cuota 1 - Gira Argentina 2025",
-  status: "PENDING | AUTHORIZED | FAILED",
-  authorizationCode: "1213",
-  responseCode: 0,
-  vci: "TSY",
-  paymentTypeCode: "VN",
-  accountingDate: "1122",
-  transactionDate: "2025-01-20T14:00:00Z",
-  cardNumber: "6623",        // Últimos 4 dígitos
-  installmentsNumber: 0,
-  transbankUrl: "https://...",
-  returnUrl: "https://...",
-  environment: "integration | production",
+  payerEmail: "usuario@ejemplo.cl",
+  installmentNumber: 1,
+  amount: 150000,
+  status: "PENDING | AUTHORIZED | FAILED | EXPIRED | CANCELLED",
+  transbankDetails: {
+    token: "token-webpay",
+    buyOrder: "PROG01-I1-123456789",
+    sessionId: "SESSION-uuid",
+    url: "https://webpay3gint.transbank.cl/...",
+    environment: "integration | production"
+  },
   createdAt: "2025-01-20T14:00:00Z",
   updatedAt: "2025-01-20T14:00:00Z",
-  gsiOne: "ORDER-123",       // Para búsqueda por buyOrder
-  gsiTwo: "uuid-v7"          // Para búsqueda por userId
+  gsiOne: "PRG#uuid-v7#INST#1",  // Para búsqueda por programa + cuota
+  gsiTwo: "uuid-v7",              // Para búsqueda por userId
+  gsiThree: "token-webpay"        // Para búsqueda eficiente por token Transbank
 }
 ```
 
 **Índices GSI:**
-- `token-index`: búsqueda por token
-- `gsiOne-index`: búsqueda por buyOrder
+- `sk-index`: búsqueda por `sk` (todos los pagos de un programa)
+- `gsiOne-index`: búsqueda por programa + número de cuota
 - `gsiTwo-index`: búsqueda por userId
+- `gsiThree-index`: búsqueda por token de Transbank (usada en confirmación)
 
 ---
 

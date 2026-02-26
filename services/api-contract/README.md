@@ -38,7 +38,7 @@ Guarda o actualiza los datos del contrato asociado a un programa en DynamoDB.
 }
 ```
 
-> `memorySize: 512` · `timeout: 30s`
+> `memorySize: 512` · `timeout: 29s`
 
 ### `build-pdf-document-by-form-v1`
 Genera un documento PDF a partir de los datos del contrato enviados en el body. Retorna el PDF codificado en **base64**.
@@ -75,7 +75,7 @@ Genera un documento PDF a partir de los datos del contrato enviados en el body. 
 }
 ```
 
-> `memorySize: 1024` · `timeout: 30s`
+> `memorySize: 1024` · `timeout: 29s`
 
 ### `get-pdf-document-by-sk-v1`
 Obtiene el contrato almacenado en S3 a partir de su sort key, retornando también metadatos.
@@ -101,7 +101,7 @@ GET /v1/documentos/pdf?sk=CTT%23<uuid-v7>
 }
 ```
 
-> `memorySize: 1024` · `timeout: 30s`
+> `memorySize: 1024` · `timeout: 29s`
 
 ### `build-pdf-document-by-sk-from-program-v1`
 Obtiene los datos del contrato desde DynamoDB (por `sk`) y genera el PDF en base64, útil para regenerar o descargar el PDF final.
@@ -124,7 +124,7 @@ GET /v1/documentos/pdf/CTT%23<uuid-v7>
 }
 ```
 
-> `memorySize: 1024` · `timeout: 30s`
+> `memorySize: 1024` · `timeout: 29s`
 
 ---
 
@@ -229,7 +229,7 @@ Las funciones que generan PDFs requieren más memoria por el procesamiento con `
 
 - `memorySize: 1024` en generación de PDF (vs default 128 MB)
 - `memorySize: 512` en guardado de datos
-- `timeout: 30s`
+- `timeout: 29s`
 - Arquitectura `arm64` para mejor relación rendimiento/costo
 
 ---

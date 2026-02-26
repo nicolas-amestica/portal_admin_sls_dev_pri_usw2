@@ -70,7 +70,7 @@ functions:
   get_programs_v1:
     handler: functions/get-programs-view-v1.main
     description: Este recurso está relacionado con la obtención de la lista de programas en sistema.
-    timeout: 30
+    timeout: 29
     events:
       - httpApi:
           path: /v1/programas
@@ -82,7 +82,7 @@ functions:
   get_program_v1:
     handler: functions/get-program-v1.main
     description: Este recurso está relacionado con la obtención de un programa en sistema por identificador único.
-    timeout: 30
+    timeout: 29
     events:
       - httpApi:
           path: /v1/programas/{programId}
@@ -94,7 +94,7 @@ functions:
   create_program_v1:
     handler: functions/create-program-v1.main
     description: Creación de un programa.
-    timeout: 30
+    timeout: 29
     events:
       - httpApi:
           path: /v1/programas/crear
@@ -106,7 +106,7 @@ functions:
   update_program_v1:
     handler: functions/update-program-v1.main
     description: Actualización de un programa.
-    timeout: 30
+    timeout: 29
     events:
       - httpApi:
           path: /v1/programas/actualizar
@@ -118,7 +118,7 @@ functions:
   complete_program_v1:
     handler: functions/complete-program-v1.main
     description: Este recurso está relacionado con la completación del programa en sistema por identificador único.
-    timeout: 30
+    timeout: 29
     events:
       - httpApi:
           path: /v1/programas/completar
@@ -130,7 +130,7 @@ functions:
   reject_program_v1:
     handler: functions/reject-program-v1.main
     description: Este recurso está relacionado con el rechazo del programa en sistema por identificador único.
-    timeout: 30
+    timeout: 29
     events:
       - httpApi:
           path: /v1/programas/rechazar
@@ -142,7 +142,7 @@ functions:
   approve_program_v1:
     handler: functions/approve-program-v1.main
     description: Aprueba el programa, crea cuenta con permiso de usuario, almacena en el pdf a S3, lo envía por correo.
-    timeout: 30
+    timeout: 29
     memorySize: 1024
     events:
       - httpApi:
@@ -155,7 +155,7 @@ functions:
   confirm_program_v1:
     handler: functions/confirm-program-v1.main
     description: Confirma el programa generando el pdf.
-    timeout: 30
+    timeout: 29
     memorySize: 1024
     events:
       - httpApi:

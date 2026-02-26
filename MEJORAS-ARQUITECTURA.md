@@ -340,7 +340,7 @@ functions:
   build_document_by_form_v1:
     handler: functions/build-pdf-document-by-form-v1.main
     memorySize: 768  # Optimizado (antes: 1024)
-    timeout: 30
+    timeout: 29
 ```
 
 **Script de automatización:**

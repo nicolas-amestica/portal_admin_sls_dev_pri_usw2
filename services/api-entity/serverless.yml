@@ -37,14 +37,17 @@ provider:
   httpApi:
     id: ${self:custom.apiGatewayId}
 
-
   environment:
+    TOKEN_EXPIRATION: 86400000
     STAGE: ${self:custom.stage}
+    PROFILE: ${self:provider.profile}
+    URL_LOCAL: http://localhost:4200
+    URL_DEV: https://d2q00w63koc9yz.cloudfront.net
+    URL_PRD: https://d2e3zvke409odp.cloudfront.net
+    SECRET_KEY: secret-pri-${self:custom.stage}-${self:custom.shortRegion}
     DYNAMODB_USER_TABLE: users-${self:custom.stage}-pri-${self:custom.shortRegion}
     DYNAMODB_CONFIG_TABLE: config-${self:custom.stage}-pri-${self:custom.shortRegion}
-    SECRET_KEY: secret-pri-${self:custom.stage}-${self:custom.shortRegion}
     EMAIL_SECRET_KEY: email-config-${self:custom.stage}-pri-${self:custom.shortRegion}
-    PROFILE: ${self:provider.profile}
 
   # Configurar seguimiento mediante aws x-ray para identificar y resolver problemas y errores de rendimiento.
   tracing:
@@ -55,14 +58,15 @@ provider:
     name: sls-deploys-${self:custom.stage}-pri-${self:custom.shortRegion}
 
   iamRoleStatements:
-    - ${file(../../aws/policies/lambda-policy-xray.yml)}
-    - ${file(../../aws/policies/lambda-policy-dynamodb-user.yml)}
-    - ${file(../../aws/policies/lambda-policy-dynamodb-config.yml)}
     - ${file(../../aws/policies/lambda-policy-ssm.yml)}
-    - ${file(../../aws/policies/lambda-policy-secretsmanager.yml)}
+    - ${file(../../aws/policies/lambda-policy-xray.yml)}
     - ${file(../../aws/policies/lambda-policy-cloudwatch.yml)}
+    - ${file(../../aws/policies/lambda-policy-dynamodb-user.yml)}
+    - ${file(../../aws/policies/lambda-policy-secretsmanager.yml)}
+    - ${file(../../aws/policies/lambda-policy-dynamodb-config.yml)}
 
 functions:
+
   login:
     handler: functions/login-v1.main
     events:
@@ -73,7 +77,7 @@ functions:
   forgot_password_v1:
     handler: functions/forgot-password-v1.main
     description: Envía un correo electrónico con instrucciones para recuperar la contraseña.
-    timeout: 30
+    timeout: 29
     events:
       - httpApi:
           path: /v1/sesiones/recuperar-clave
@@ -82,7 +86,7 @@ functions:
   reset_password_v1:
     handler: functions/reset-password-v1.main
     description: Valida el token de recuperación y actualiza la contraseña del usuario.
-    timeout: 30
+    timeout: 29
     events:
       - httpApi:
           path: /v1/sesiones/restablecer-clave
@@ -91,7 +95,7 @@ functions:
   get_access_v1:
     handler: functions/get-access-v1.main
     description: Este recurso está relacionado con la obtención de los accesos de un usuario.
-    timeout: 30
+    timeout: 29
     events:
       - httpApi:
           path: /v1/iam/accesos/aplicaciones/GI/user

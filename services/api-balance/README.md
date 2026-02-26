@@ -10,8 +10,8 @@ Servicio para la gestión de balances financieros (pagos parciales, abonos) asoc
 
 | Método | Ruta | Handler | Descripción |
 |---|---|---|---|
-| `POST` | `/v1/balances/solicitudes/balance` | `create-balance-v1` | Registrar un pago/abono con comprobante |
-| `GET` | `/v1/balances/solicitudes/balance` | `get-balances-v1` | Obtener balances de un programa |
+| `POST` | `/v1/balances` | `create-balance-v1` | Registrar un pago/abono con comprobante |
+| `GET` | `/v1/balances/{sk}` | `get-balances-v1` | Obtener balances de un programa |
 
 ---
 
@@ -50,11 +50,11 @@ Registra un pago o abono para un programa, incluyendo el comprobante de pago com
 ### `get-balances-v1`
 Obtiene el historial de pagos/abonos registrados para un programa.
 
-**Query Parameters:**
-- `sk` (requerido): Sort key del programa — ej. `PRG#<uuid-v7>`
+**Path Parameter:**
+- `sk` (requerido, URL-encoded): Sort key del programa — ej. `PRG%23<uuid-v7>`
 
 ```
-GET /v1/balances/solicitudes/balance?sk=PRG%23<uuid-v7>
+GET /v1/balances/PRG%23<uuid-v7>
 ```
 
 **Respuesta:**
@@ -92,14 +92,13 @@ createBalance(sk: string, payment: PaymentForm): Observable<any> {
   formData.append('sk', sk);
   formData.append('amount', payment.amount.toString());
   formData.append('file', payment.file);
-  formData.append('paymentObservation', payment.observation ?? '');
-  return this.http.post(`${baseApi}/v1/balances/solicitudes/balance`, formData);
+  formData.append('observation', payment.observation ?? '');
+  return this.http.post(`${baseApi}/v1/balances`, formData);
 }
 
 getBalances(sk: string): Observable<any> {
-  return this.http.get(`${baseApi}/v1/balances/solicitudes/balance`, {
-    params: { sk }
-  });
+  const encodedSk = encodeURIComponent(sk);
+  return this.http.get(`${baseApi}/v1/balances/${encodedSk}`);
 }
 
 getFileBalance(key: string): Observable<any> {

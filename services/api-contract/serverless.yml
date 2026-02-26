@@ -63,7 +63,7 @@ functions:
   save_contract_data_v1:
     handler: functions/save-contract-data-v1.main
     description: Guarda la información del contrato en el programa.
-    timeout: 30
+    timeout: 29
     memorySize: 512
     events:
       - httpApi:
@@ -76,7 +76,7 @@ functions:
   build_document_by_form_v1:
     handler: functions/build-pdf-document-by-form-v1.main
     description: Genera documentos en base64 desde un formulario.
-    timeout: 30
+    timeout: 29
     memorySize: 1024
     events:
       - httpApi:
@@ -89,7 +89,7 @@ functions:
   get_pdf_document_by_sk_v1:
     handler: functions/get-pdf-document-by-sk-v1.main
     description: Obtiene el documento PDF en archivo a partir de su sk.
-    timeout: 30
+    timeout: 29
     memorySize: 1024
     events:
       - httpApi:
@@ -102,7 +102,7 @@ functions:
   get_pdf_document_by_sk_from_program_v1:
     handler: functions/build-pdf-document-by-sk-from-program-v1.main
     description: Obtiene el documento PDF en base64 a partir de su sk desde el programa.
-    timeout: 30
+    timeout: 29
     memorySize: 1024
     events:
       - httpApi:

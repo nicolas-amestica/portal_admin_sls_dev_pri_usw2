@@ -121,7 +121,7 @@ Aprueba el programa (`APPROVED`). Realiza:
 }
 ```
 
-> `memorySize: 1024` · `timeout: 30s`
+> `memorySize: 1024` · `timeout: 29s`
 
 ### `confirm-program-v1`
 Confirma el programa (`CONFIRMED`) y genera el PDF de confirmación.
@@ -131,7 +131,7 @@ Confirma el programa (`CONFIRMED`) y genera el PDF de confirmación.
 { "sk": "PRG#<uuid-v7>" }
 ```
 
-> `memorySize: 1024` · `timeout: 30s`
+> `memorySize: 1024` · `timeout: 29s`
 
 ### `get-currency-rates-v1`
 Obtiene las tasas de cambio de USD y BRL frente al peso chileno (CLP) en una sola llamada a una API externa. Usadas para calcular precios con tripulación/servicios en moneda extranjera.

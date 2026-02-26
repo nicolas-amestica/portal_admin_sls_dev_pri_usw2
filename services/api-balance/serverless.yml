@@ -63,7 +63,7 @@ functions:
   create_balance_v1:
     handler: functions/create-balance-v1.main
     description: Este recurso crea un balance del programa.
-    timeout: 30
+    timeout: 29
     events:
       - httpApi:
           path: /v1/balances
@@ -75,7 +75,7 @@ functions:
   get_balances_v1:
     handler: functions/get-balances-v1.main
     description: Este recurso obtiene un balance de un programa.
-    timeout: 30
+    timeout: 29
     events:
       - httpApi:
           path: /v1/balances/{sk}

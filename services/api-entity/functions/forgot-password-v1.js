@@ -2,27 +2,44 @@ import crypto from "crypto";
 import nodemailer from "nodemailer";
 import { success } from "../../../helpers/responses";
 import * as dynamoDbLib from "../../../libs/dynamodb-v3";
+import { cleanRut as parseRut } from "../../../utils/rut.js";
 import { resolvePromises } from "../../../helpers/allsettled";
 import { getSecretManagerValue } from "../../../libs/secret-manager";
 import { standardMiddleware } from "../../../libs/middleware/index.js";
 
 const {
   STAGE,
+  URL_DEV,
+  URL_PRD,
+  URL_LOCAL,
   IS_OFFLINE,
   EMAIL_SECRET_KEY,
+  TOKEN_EXPIRATION,
   DYNAMODB_USER_TABLE
  } = process.env;
 
-const FRONTEND_URL = IS_OFFLINE
-  ? "http://localhost:4300" // local
-  : STAGE === "dev"
-    ? "https://d2q00w63koc9yz.cloudfront.net" // development
-    : "https://d2e3zvke409odp.cloudfront.net"; // production
+const STAGE_URL_MAP = {
+  local: URL_LOCAL,
+  dev: URL_DEV,
+  prd: URL_PRD,
+};
+
+const FRONTEND_URL = STAGE_URL_MAP[IS_OFFLINE === "true" ? "local" : STAGE] ?? URL_PRD;
+
+let emailConfig = null;
+
+/**
+ * Obtiene la configuración de correo electrónico desde el Secret Manager. La configuración se almacena en caché para evitar múltiples llamadas al Secret Manager.
+ */
+const getEmailConfig = async () => {
+  if (!emailConfig) {
+    emailConfig = JSON.parse(await getSecretManagerValue(EMAIL_SECRET_KEY));
+  }
+  return emailConfig;
+};
 
 /**
  * Genera un token seguro de recuperación de contraseña de 32 caracteres hexadecimales.
- *
- * @returns {string} Token de recuperación generado de forma aleatoria.
  */
 const generateResetToken = () => {
   return crypto.randomBytes(32).toString("hex");
@@ -30,21 +47,12 @@ const generateResetToken = () => {
 
 /**
  * Crea y configura un transportador de nodemailer usando credenciales del Secret Manager.
- *
- * @async
- * @param {Object} emailConfig - Configuración del correo electrónico obtenida del Secret Manager.
- * @param {string} emailConfig.host - Host del servidor SMTP.
- * @param {number} emailConfig.port - Puerto del servidor SMTP.
- * @param {boolean} emailConfig.secure - Si la conexión debe usar TLS/SSL.
- * @param {string} emailConfig.user - Usuario de autenticación SMTP.
- * @param {string} emailConfig.password - Contraseña de autenticación SMTP.
- * @returns {Object} Transportador de nodemailer configurado.
  */
 const createEmailTransporter = (emailConfig) => {
   return nodemailer.createTransport({
     host: emailConfig.host,
     port: emailConfig.port,
-    secure: emailConfig.secure, // true para 465, false para otros puertos
+    secure: emailConfig.secure,
     auth: {
       user: emailConfig.user,
       pass: emailConfig.password,
@@ -126,36 +134,19 @@ const generateEmailTemplate = (userName, resetUrl) => {
 
 /**
  * Función principal para la recuperación de contraseña de usuario.
- *
- * @async
- * @function
- * @param {Object} event - Objeto de evento recibido de API Gateway.
- * @param {string} event.body - Cuerpo de la solicitud en formato JSON, debe incluir `rut`.
- * @returns {Promise<Object>} Respuesta HTTP indicando éxito o error en el proceso.
- *
- * @description
- * Este método realiza el proceso de recuperación de contraseña:
- * 1. Busca el usuario en DynamoDB usando el RUT como índice secundario.
- * 2. Valida que el usuario exista y esté activo.
- * 3. Genera un token seguro de recuperación.
- * 4. Almacena el token en DynamoDB con fecha de expiración (1 hora).
- * 5. Envía un correo electrónico con instrucciones de recuperación.
- * 6. Retorna confirmación del envío sin revelar si el usuario existe (seguridad).
  */
 const handler = async (event) => {
   console.log("Event ==>", event);
   const action = "Recuperación de contraseña.";
-  const data = event.body; // Ya parseado por httpJsonBodyParser middleware
+  const data = event.body;
 
-  // Validar que se haya proporcionado el RUT
   if (!data.rut) {
     const error = new Error('El RUT es requerido.');
     error.statusCode = 400;
     throw error;
   }
 
-  // Limpiar el RUT (eliminar puntos y guiones)
-  const cleanRut = data.rut.replace(/\./g, "").replace(/-/g, "");
+  const cleanRut = parseRut(data.rut);
 
   const params = {
     TableName: DYNAMODB_USER_TABLE,
@@ -174,13 +165,11 @@ const handler = async (event) => {
     const userPromise = dynamoDbLib.query(params);
     const [resultPromises] = await resolvePromises([userPromise]);
 
-    // Por seguridad, siempre retornar el mismo mensaje sin revelar si el usuario existe
     const securityMessage = {
       message:
         "Si el RUT está registrado, recibirás un correo con instrucciones para recuperar tu contraseña.",
     };
 
-    // Si no se encuentra el usuario, retornar mensaje genérico sin error
     if (!resultPromises[0]) {
       console.log(`Usuario con RUT ${cleanRut} no encontrado.`);
       return success(200, securityMessage, action);
@@ -188,23 +177,19 @@ const handler = async (event) => {
 
     const user = resultPromises[0];
 
-    // Validar que el usuario esté activo
     if (!user.isActive) {
       console.log(`Usuario con RUT ${cleanRut} está desactivado.`);
       return success(200, securityMessage, action);
     }
 
-    // Validar que el usuario tenga email
     if (!user.email) {
       console.log(`Usuario con RUT ${cleanRut} no tiene email registrado.`);
       return success(200, securityMessage, action);
     }
 
-    // Generar token de recuperación
     const resetToken = generateResetToken();
-    const resetTokenExpiry = new Date(Date.now() + 3600000).toISOString(); // 1 hora
+    const resetTokenExpiry = new Date(Date.now() + Number(TOKEN_EXPIRATION)).toISOString();
 
-    // Actualizar usuario con el token de recuperación
     const updateParams = {
       TableName: DYNAMODB_USER_TABLE,
       ReturnConsumedCapacity: "TOTAL",
@@ -223,16 +208,11 @@ const handler = async (event) => {
 
     await dynamoDbLib.update(updateParams);
 
-    // Obtener configuración de email del Secret Manager
-    const emailConfig = JSON.parse(await getSecretManagerValue(EMAIL_SECRET_KEY));
-
-    // Crear transportador de email
+    const emailConfig = await getEmailConfig();
     const transporter = createEmailTransporter(emailConfig);
-
-    // Construir URL de recuperación (debes ajustar esto según tu dominio)
+    
     const resetUrl = `${FRONTEND_URL}/auth/reset-password?token=${resetToken}`;
 
-    // Configurar el correo electrónico
     const mailOptions = {
       from: `"Portal Administrativo - Giras Indómito" <${emailConfig.user}>`,
       to: user.email,
@@ -240,9 +220,7 @@ const handler = async (event) => {
       html: generateEmailTemplate(user.name || user.gsiOne, resetUrl),
     };
 
-    // Enviar el correo
     await transporter.sendMail(mailOptions);
-
     console.log(`Correo de recuperación enviado exitosamente a ${user.email} para el usuario ${cleanRut}`);
 
     return success(200, securityMessage, action);
@@ -250,11 +228,8 @@ const handler = async (event) => {
     console.error("Error en recuperación de contraseña:", e);
     let { statusCode } = e;
     if (!statusCode) statusCode = 500;
-
-    // Incluso en caso de error, retornar mensaje genérico por seguridad
     return success(200, { message: "Si el RUT está registrado, recibirás un correo con instrucciones para recuperar tu contraseña.", }, action);
   }
 };
-
 
 export const main = standardMiddleware(handler);

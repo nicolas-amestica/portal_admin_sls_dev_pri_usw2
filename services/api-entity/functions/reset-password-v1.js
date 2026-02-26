@@ -8,24 +8,6 @@ const { DYNAMODB_USER_TABLE } = process.env;
 
 /**
  * Función principal para restablecer la contraseña de usuario usando un token de recuperación.
- *
- * @async
- * @function
- * @param {Object} event - Objeto de evento recibido de API Gateway.
- * @param {string} event.body - Cuerpo de la solicitud en formato JSON, debe incluir `token` y `newPassword`.
- * @returns {Promise<Object>} Respuesta HTTP indicando éxito o error en el proceso.
- *
- * @throws {Object} Retorna un objeto de error con el código de estado HTTP correspondiente si ocurre algún problema.
- *
- * @description
- * Este método realiza el proceso de restablecimiento de contraseña:
- * 1. Valida que se hayan proporcionado el token y la nueva contraseña.
- * 2. Busca el usuario en DynamoDB usando el token de recuperación como índice secundario.
- * 3. Valida que el token no haya expirado (1 hora desde su generación).
- * 4. Valida que el usuario esté activo.
- * 5. Hashea la nueva contraseña usando bcrypt.
- * 6. Actualiza la contraseña del usuario y elimina el token de recuperación.
- * 7. Retorna confirmación del restablecimiento exitoso.
  */
 const handler = async (event) => {
   console.log("Event ==>", event);

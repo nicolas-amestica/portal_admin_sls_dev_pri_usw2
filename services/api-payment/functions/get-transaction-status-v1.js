@@ -1,53 +1,14 @@
 import { WebpayPlus } from "transbank-sdk";
-import {
-  Options,
-  IntegrationApiKeys,
-  Environment,
-  IntegrationCommerceCodes,
-} from "transbank-sdk";
 import * as dynamoDbLib from "../../../libs/dynamodb-v3";
 import { success, unsuccessful } from "../../../helpers/responses";
-import { getSecretManagerValue } from "../../../libs/secret-manager";
 import { standardMiddleware } from "../../../libs/middleware/index.js";
+import { configureTransbank } from "../utils/transbank.js";
 
-const {
-  DYNAMODB_PAYMENT_TABLE,
-  TRANSBANK_ENVIRONMENT,
-  TRANSBANK_COMMERCE_CODE,
-  TRANSBANK_API_KEY_SECRET,
-} = process.env;
+const { DYNAMODB_PAYMENT_TABLE } = process.env;
 
 /**
- * Configura las opciones de Transbank según el ambiente.
- *
- * @async
- * @returns {Promise<Options>} Opciones configuradas para Transbank
- */
-const configureTransbank = async () => {
-  if (TRANSBANK_ENVIRONMENT === "production") {
-    const apiKey = await getSecretManagerValue(TRANSBANK_API_KEY_SECRET);
-    return new Options(TRANSBANK_COMMERCE_CODE, apiKey, Environment.Production);
-  }
-  return new Options(
-    IntegrationCommerceCodes.WEBPAY_PLUS,
-    IntegrationApiKeys.WEBPAY,
-    Environment.Integration
-  );
-};
-
-/**
- * Obtiene el estado de una transacción desde Transbank.
- *
- * @async
- * @function
- * @param {Object} event - Objeto de evento recibido de API Gateway.
- * @param {Object} event.pathParams - Parámetros de la ruta.
- * @param {string} event.pathParams.token - Token de la transacción.
- * @returns {Promise<Object>} Respuesta HTTP con el estado de la transacción.
- *
- * @description
- * Este método consulta el estado actual de una transacción en Transbank
- * y opcionalmente actualiza el registro local en DynamoDB.
+ * Obtiene el estado de una transacción desde Transbank (legacy).
+ * Usa token-index GSI (estructura de transacciones legacy).
  */
 const handler = async (event) => {
   console.log("Event ==>", event);
@@ -58,8 +19,8 @@ const handler = async (event) => {
 
     if (!token) {
       const error = new Error('El token es requerido.');
-    error.statusCode = 400;
-    throw error;
+      error.statusCode = 400;
+      throw error;
     }
 
     // Buscar en DynamoDB primero
@@ -67,25 +28,17 @@ const handler = async (event) => {
       TableName: DYNAMODB_PAYMENT_TABLE,
       IndexName: "token-index",
       KeyConditionExpression: "#token = :token",
-      ExpressionAttributeNames: {
-        "#token": "token",
-      },
-      ExpressionAttributeValues: {
-        ":token": token,
-      },
+      ExpressionAttributeNames: { "#token": "token" },
+      ExpressionAttributeValues: { ":token": token },
       Limit: 1,
     };
 
     const dbResult = await dynamoDbLib.query(params);
-    const transaction =
-      dbResult.Items && dbResult.Items.length > 0 ? dbResult.Items[0] : null;
+    const transaction = dbResult && dbResult.length > 0 ? dbResult[0] : null;
 
     // Si la transacción está confirmada en DB, retornar ese resultado
-    if (
-      transaction &&
-      (transaction.status === "AUTHORIZED" || transaction.status === "FAILED")
-    ) {
-      const result = {
+    if (transaction && (transaction.status === "AUTHORIZED" || transaction.status === "FAILED")) {
+      return success(200, {
         transactionId: transaction.transactionId,
         buyOrder: transaction.buyOrder,
         amount: transaction.amount,
@@ -96,14 +49,11 @@ const handler = async (event) => {
         paymentTypeCode: transaction.paymentTypeCode,
         accountingDate: transaction.accountingDate,
         transactionDate: transaction.transactionDate,
-        cardDetail: {
-          cardNumber: transaction.cardNumber,
-        },
+        cardDetail: { cardNumber: transaction.cardNumber },
         installmentsNumber: transaction.installmentsNumber,
         createdAt: transaction.createdAt,
         updatedAt: transaction.updatedAt,
-      };
-      return success(200, result, action);
+      }, action);
     }
 
     // Si está pendiente, consultar en Transbank
@@ -111,7 +61,7 @@ const handler = async (event) => {
     const tx = new WebpayPlus.Transaction(options);
     const response = await tx.status(token);
 
-    const result = {
+    return success(200, {
       transactionId: transaction?.transactionId,
       buyOrder: response.buy_order,
       sessionId: response.session_id,
@@ -123,18 +73,13 @@ const handler = async (event) => {
       paymentTypeCode: response.payment_type_code,
       accountingDate: response.accounting_date,
       transactionDate: response.transaction_date,
-      cardDetail: {
-        cardNumber: response.card_detail?.card_number,
-      },
+      cardDetail: { cardNumber: response.card_detail?.card_number },
       installmentsNumber: response.installments_number,
-    };
-
-    return success(200, result, action);
+    }, action);
   } catch (error) {
     console.error("Error al obtener estado de transacción:", error);
-    let statusCode = error.statusCode || 500;
     return unsuccessful(
-      statusCode,
+      error.statusCode || 500,
       { message: error.message || "Error al obtener estado." },
       action
     );

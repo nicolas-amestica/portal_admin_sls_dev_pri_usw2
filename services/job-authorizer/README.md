@@ -22,11 +22,16 @@ Lambda Authorizer que valida el token JWT enviado en el header `Authorization`. 
 
 **Uso como authorizer en serverless.yml de otros servicios:**
 ```yaml
-# common/lambda-authorizer.yml
-type: request
-id: !ImportValue ${stage}-authArn
-resultTtlInSeconds: 0
-identitySource: $request.header.Authorization
+# Directamente en el serverless.yml de cada servicio
+functions:
+  myFunction:
+    events:
+      - httpApi:
+          path: /v1/recurso
+          method: GET
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
 ```
 
 **Contexto inyectado al handler:**
@@ -68,21 +73,16 @@ resources:
         Name: ${stage}-authArn
 ```
 
-Los demás servicios lo importan en su `serverless.yml`:
+Los demás servicios referencian el AuthorizerId vía CloudFormation outputs en su `serverless.yml`. El authorizer exporta su ID al deployarse:
 
 ```yaml
-# En el serverless.yml de otro servicio
-functions:
-  myFunction:
-    handler: functions/my-function-v1.main
-    events:
-      - httpApi:
-          path: /v1/recurso
-          method: GET
-          authorizer: ${file(../../common/lambda-authorizer.yml)}
+resources:
+  Outputs:
+    AuthorizerId:
+      Value: !Ref HttpApiAuthorizerAuth
+      Export:
+        Name: autorizador-${self:custom.stage}-AuthorizerId
 ```
-
-> **Nota de desarrollo:** El authorizer está actualmente comentado en todos los servicios para facilitar el desarrollo local (`# authorizer: ${file(../../common/lambda-authorizer.yml)}`). Descomentar antes de deploy a staging/producción.
 
 ---
 

@@ -1,14 +1,8 @@
 import { WebpayPlus } from "transbank-sdk";
-import {
-  Options,
-  IntegrationApiKeys,
-  Environment,
-  IntegrationCommerceCodes,
-} from "transbank-sdk";
 import * as dynamoDbLib from "../../../libs/dynamodb-v3";
 import { success } from "../../../helpers/responses";
-import { getSecretManagerValue } from "../../../libs/secret-manager";
 import { standardMiddleware } from "../../../libs/middleware/index.js";
+import { configureTransbank } from "../utils/transbank.js";
 import { generatePaymentReceipt } from "../../../libs/receipt-generator.js";
 import { sendEmailWithAttachments, generateEmailHTML } from "../../../libs/nodemailer.js";
 import { putObject } from "../../../libs/s3-v3.js";
@@ -16,32 +10,11 @@ import { PAYMENT_RECEIPT } from "../../../libs/payment/messages.js";
 
 const {
   STAGE,
-  TRANSBANK_ENVIRONMENT,
   DYNAMODB_PAYMENT_TABLE,
-  TRANSBANK_COMMERCE_CODE,
-  TRANSBANK_API_KEY_SECRET,
   BUCKET_INFO_GI,
 } = process.env;
 
 const MESSAGE = STAGE === 'prd' ? PAYMENT_RECEIPT.prd : PAYMENT_RECEIPT.dev;
-
-/**
- * Configura las opciones de Transbank según el ambiente.
- *
- * @async
- * @returns {Promise<Options>} Opciones configuradas para Transbank
- */
-const configureTransbank = async () => {
-  if (TRANSBANK_ENVIRONMENT === "production") {
-    const apiKey = await getSecretManagerValue(TRANSBANK_API_KEY_SECRET);
-    return new Options(TRANSBANK_COMMERCE_CODE, apiKey, Environment.Production);
-  }
-  return new Options(
-    IntegrationCommerceCodes.WEBPAY_PLUS,
-    IntegrationApiKeys.WEBPAY,
-    Environment.Integration
-  );
-};
 
 /**
  * Obtiene el registro de pago desde DynamoDB usando el token de Transbank.

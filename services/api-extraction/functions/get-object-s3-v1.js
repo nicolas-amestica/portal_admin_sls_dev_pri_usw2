@@ -1,9 +1,12 @@
-import { getPresignedUrl } from "../../../libs/s3-v3";
 import { success } from "../../../helpers/responses";
+import { getPresignedUrl } from "../../../libs/s3-v3";
 import { standardMiddleware } from "../../../libs/middleware/index.js";
 
 const { BUCKET_INFO_GI } = process.env;
 
+/**
+ * Obtiene una URL prefirmada para acceder a un objeto en S3.
+ */
 const handler = async (event) => {
   const action = "Obtención de objeto en S3.";
   const { key } = event.queryParams || {};

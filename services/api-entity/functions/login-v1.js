@@ -12,10 +12,6 @@ const { DYNAMODB_USER_TABLE, DYNAMODB_CONFIG_TABLE, SECRET_KEY } = process.env;
 
 /**
  * Genera un token JWT firmado con los datos proporcionados y una clave secreta.
- *
- * @param {Object} body - Los datos que se incluirán en el cuerpo del token.
- * @param {string} SECRET - La clave secreta utilizada para firmar el token.
- * @returns {string} El token JWT generado con una expiración de 3 días.
  */
 const generateToken = (body, SECRET) => {
   const TIMEOUT = "3d";
@@ -25,25 +21,6 @@ const generateToken = (body, SECRET) => {
 
 /**
  * Función principal para el inicio de sesión de usuario.
- *
- * @async
- * @function
- * @param {Object} event - Objeto de evento recibido, generalmente contiene el cuerpo de la solicitud HTTP.
- * @param {string} event.body - Cuerpo de la solicitud en formato JSON, debe incluir `username` y `password`.
- * @returns {Promise<Object>} Respuesta HTTP con el usuario autenticado y su token de acceso, o un mensaje de error en caso de fallo.
- *
- * @throws {Object} Retorna un objeto de error con el código de estado HTTP correspondiente si ocurre algún problema durante el proceso de autenticación.
- *
- * @description
- * Este método realiza la autenticación de un usuario:
- * 1. Obtiene las credenciales del usuario desde DynamoDB usando un índice secundario.
- * 2. Valida que el usuario tenga perfiles y accesos habilitados.
- * 3. Actualiza la fecha de último acceso del usuario.
- * 4. Verifica la contraseña proporcionada, permitiendo el uso de una clave genérica.
- * 5. Genera un token JWT para el usuario autenticado.
- * 6. Obtiene la configuración global del sistema.
- * 7. Obtiene o inicializa la configuración de usuario (idioma).
- * 8. Retorna la información del usuario autenticado con configuraciones, excluyendo la contraseña.
  */
 const handler = async (event) => {
   console.log("Event ==>", event);
@@ -133,18 +110,11 @@ const handler = async (event) => {
     throw error;
   }
 
-  if (data.password === "2d#*%23%GjhB") {
-    console.log({
-      tipoLogin: "Usando clave génerica.",
-      password: data.password,
-    });
-  } else {
-    const validate = await bcrypt.compare(data.password, user.password);
-    if (!validate) {
-      const error = new Error('Credenciales inválidas.');
-      error.statusCode = 401;
-      throw error;
-    }
+  const validate = await bcrypt.compare(data.password, user.password);
+  if (!validate) {
+    const error = new Error('Credenciales inválidas.');
+    error.statusCode = 401;
+    throw error;
   }
 
   delete user.password;

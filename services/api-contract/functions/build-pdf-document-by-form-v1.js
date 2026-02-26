@@ -8,16 +8,6 @@ const {
 
 /**
  * Lambda handler que genera un documento PDF genérico en formato base64.
- *
- * @async
- * @param {Object} event - Evento de entrada Lambda API Gateway
- * @param {Object} event.body - Cuerpo del evento (ya parseado por middleware)
- * @param {string} event.body.scope - Tipo de documento (CTT, DBA, DBR)
- * @param {Object} event.body.form - Datos del formulario para generar el documento
- * @param {Object} [event.body.action] - Opciones de generación del documento
- * @param {boolean} [event.body.action.isPreview=false] - Si es true, agrega marca de agua "BORRADOR"
- * @param {boolean} [event.body.action.hasSigned=true] - Si es false, incluye firmas digitales desde S3
- * @param {boolean} [event.body.action.hasHeaderFooter=false] - Si es true, carga header.png y footer.png desde S3
  */
 const handler = async (event) => {
   const logAction = "Generar documento PDF en base64";

@@ -61,7 +61,7 @@ functions:
   get_banks_v1:
     handler: functions/get-banks-v1.main
     description: Este recurso está relacionado con la obtención de los bancos de la empresa.
-    timeout: 30
+    timeout: 29
     events:
       - httpApi:
           path: /v1/mantenedor/bancos
