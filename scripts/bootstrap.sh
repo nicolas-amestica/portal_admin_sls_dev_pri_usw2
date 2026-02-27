@@ -191,12 +191,12 @@ create_secret() {
 create_secret \
   "$SECRET_JWT" \
   "Clave secreta para firma de tokens JWT — Portal Admin ${STAGE}" \
-  '{"jwtSecret":"JHyrfE46%2O0=l.(&6"}'
+  'JHF3#VvCdswwQ8nF(7jGrvbd4s'
 
 create_secret \
   "$SECRET_EMAIL" \
   "Configuración SMTP para envío de correos — Portal Admin ${STAGE}" \
-  '{"host":"mail.girasindomito.cl","port":465,"secure":true,"user":"no-reply@girasindomito.cl","password":"GirasIndomito20251."}'
+  '{"host":"mail.girasindomito.cl","port":465,"secure":true,"user":"no-reply@girasindomito.cl","password":"GirasIndomito20261."}'
 
 create_secret \
   "$SECRET_TRANSBANK" \
