@@ -3,9 +3,9 @@ import jwt from "jsonwebtoken";
 import { getAccessProfile } from "./access-profile.js";
 import { success } from "../../../helpers/responses.js";
 import * as dynamoDbLib from "../../../libs/dynamodb-v3.js";
+import { standardMiddleware } from "../../../libs/middleware/index.js";
 import { getSecretManagerValue } from "../../../libs/secret-manager.js";
 import { getGlobalConfig } from "../../../helpers/get-global-config.js";
-import { standardMiddleware } from "../../../libs/middleware/index.js";
 
 const { DYNAMODB_USER_TABLE, DYNAMODB_CONFIG_TABLE, SECRET_KEY, GOOGLE_CLIENT_ID } = process.env;
 
