@@ -28,15 +28,15 @@ STAGE="${1:-dev}"
 REGION="${2:-us-west-2}"
 PROFILE="pa-${STAGE}"
 
-declare -A REGION_SIGLAS=(
-  ["us-east-1"]="use1"
-  ["us-east-2"]="use2"
-  ["us-west-1"]="usw1"
-  ["us-west-2"]="usw2"
-  ["sa-east-1"]="sae1"
-)
+case "$REGION" in
+  "us-east-1") SHORT_REGION="use1" ;;
+  "us-east-2") SHORT_REGION="use2" ;;
+  "us-west-1") SHORT_REGION="usw1" ;;
+  "us-west-2") SHORT_REGION="usw2" ;;
+  "sa-east-1") SHORT_REGION="sae1" ;;
+  *) SHORT_REGION="" ;;
+esac
 
-SHORT_REGION="${REGION_SIGLAS[$REGION]:-}"
 if [[ -z "$SHORT_REGION" ]]; then
   echo "❌ Región no soportada: $REGION"
   exit 1

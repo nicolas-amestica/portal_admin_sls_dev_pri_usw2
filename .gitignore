@@ -71,3 +71,7 @@ env.yml
  sls-pre-deploy.sh
  sls-remove.sh
 /database/dynamodb/shared-local-instance.db
+
+# Scripts de infraestructura (pueden contener credenciales)
+scripts/bootstrap.sh
+scripts/teardown.sh

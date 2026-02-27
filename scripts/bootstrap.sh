@@ -26,15 +26,15 @@ REGION="${2:-us-west-2}"
 PROFILE="pa-${STAGE}"
 
 # Mapeo de región a sigla
-declare -A REGION_SIGLAS=(
-  ["us-east-1"]="use1"
-  ["us-east-2"]="use2"
-  ["us-west-1"]="usw1"
-  ["us-west-2"]="usw2"
-  ["sa-east-1"]="sae1"
-)
+case "$REGION" in
+  "us-east-1") SHORT_REGION="use1" ;;
+  "us-east-2") SHORT_REGION="use2" ;;
+  "us-west-1") SHORT_REGION="usw1" ;;
+  "us-west-2") SHORT_REGION="usw2" ;;
+  "sa-east-1") SHORT_REGION="sae1" ;;
+  *) SHORT_REGION="" ;;
+esac
 
-SHORT_REGION="${REGION_SIGLAS[$REGION]:-}"
 if [[ -z "$SHORT_REGION" ]]; then
   echo "❌ Región no soportada: $REGION"
   echo "   Regiones válidas: us-east-1, us-east-2, us-west-1, us-west-2, sa-east-1"
@@ -191,17 +191,17 @@ create_secret() {
 create_secret \
   "$SECRET_JWT" \
   "Clave secreta para firma de tokens JWT — Portal Admin ${STAGE}" \
-  '{"jwtSecret":"REEMPLAZAR_CON_CLAVE_JWT_SEGURA_MINIMO_32_CARACTERES"}'
+  '{"jwtSecret":"JHyrfE46%2O0=l.(&6"}'
 
 create_secret \
   "$SECRET_EMAIL" \
   "Configuración SMTP para envío de correos — Portal Admin ${STAGE}" \
-  '{"host":"smtp.example.com","port":587,"user":"REEMPLAZAR","pass":"REEMPLAZAR","from":"noreply@example.com"}'
+  '{"host":"mail.girasindomito.cl","port":465,"secure":true,"user":"no-reply@girasindomito.cl","password":"GirasIndomito20251."}'
 
 create_secret \
   "$SECRET_TRANSBANK" \
   "Credenciales Transbank Webpay Plus — Portal Admin ${STAGE}" \
-  '{"apiKey":"REEMPLAZAR_CON_API_KEY_TRANSBANK","commerceCode":"REEMPLAZAR_CON_COMMERCE_CODE"}'
+  '[{"transbank_api_key":"hY6%&4rFh&2@k)9"},{"transbank_commerce_code":"597055555532"},{"transbank_environment":"integration"}]'
 
 # =============================================================================
 # PASO 3 — TABLAS DYNAMODB
