@@ -48,6 +48,7 @@ provider:
     DYNAMODB_USER_TABLE: users-${self:custom.stage}-pri-${self:custom.shortRegion}
     DYNAMODB_CONFIG_TABLE: config-${self:custom.stage}-pri-${self:custom.shortRegion}
     EMAIL_SECRET_KEY: email-config-${self:custom.stage}-pri-${self:custom.shortRegion}
+    GOOGLE_CLIENT_ID: 135592101346-nqh4bi4le3lef7phuqtdpt0m6tm067hh.apps.googleusercontent.com
 
   # Configurar seguimiento mediante aws x-ray para identificar y resolver problemas y errores de rendimiento.
   tracing:
@@ -90,6 +91,15 @@ functions:
     events:
       - httpApi:
           path: /v1/sesiones/restablecer-clave
+          method: POST
+
+  google_login_v1:
+    handler: functions/google-login-v1.main
+    description: Autentica un usuario mediante Google Identity Services y genera un JWT de la aplicación.
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/sesiones/iniciar-sesion-google
           method: POST
 
   get_access_v1:
