@@ -215,6 +215,7 @@ aws secretsmanager update-secret \
 | `sk`     | S    | Range Key |
 | `gsiOne` | S    | GSI Hash Key |
 | `resetToken` | S | GSI Hash Key |
+| `email`  | S    | GSI Hash Key |
 
 **Partition Key patterns:**
 - `USR#<uuid>` — registros de usuario
@@ -228,6 +229,7 @@ aws secretsmanager update-secret \
 |--------|----|----|-----|
 | `gsiOne-index` | `gsiOne` (S) | — | Login y búsqueda por RUT/username |
 | `resetToken-index` | `resetToken` (S) | — | Reset de contraseña por token temporal |
+| `email-index` | `email` (S) | — | Login con Google (query por email) |
 
 **Billing mode:** PAY_PER_REQUEST
 **PITR:** Habilitado

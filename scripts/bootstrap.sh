@@ -279,8 +279,9 @@ log_ok "PITR habilitado en ${TABLE_PROGRAMS}"
 # ── 3.2 Tabla: users ─────────────────────────────────────────────────────────
 log_info "Creando tabla: ${TABLE_USERS}"
 log_info "  PK: pk (S) | SK: sk (S)"
-log_info "  GSI: gsiOne-index    → PK: gsiOne (S)      [RUT/username]"
+log_info "  GSI: gsiOne-index     → PK: gsiOne (S)      [RUT/username]"
 log_info "  GSI: resetToken-index → PK: resetToken (S)  [recuperación de contraseña]"
+log_info "  GSI: email-index      → PK: email (S)       [login con Google]"
 
 if aws dynamodb describe-table \
     --table-name "$TABLE_USERS" \
@@ -297,6 +298,7 @@ else
       AttributeName=sk,AttributeType=S \
       AttributeName=gsiOne,AttributeType=S \
       AttributeName=resetToken,AttributeType=S \
+      AttributeName=email,AttributeType=S \
     --key-schema \
       AttributeName=pk,KeyType=HASH \
       AttributeName=sk,KeyType=RANGE \
@@ -312,6 +314,13 @@ else
         "IndexName": "resetToken-index",
         "KeySchema": [
           {"AttributeName": "resetToken", "KeyType": "HASH"}
+        ],
+        "Projection": {"ProjectionType": "ALL"}
+      },
+      {
+        "IndexName": "email-index",
+        "KeySchema": [
+          {"AttributeName": "email", "KeyType": "HASH"}
         ],
         "Projection": {"ProjectionType": "ALL"}
       }

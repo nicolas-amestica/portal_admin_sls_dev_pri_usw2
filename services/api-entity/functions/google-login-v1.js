@@ -49,8 +49,7 @@ const validateGoogleIdToken = async (credential) => {
 };
 
 /**
- * Busca un usuario en la tabla de usuarios filtrando por email.
- * Utiliza un scan de DynamoDB ya que no existe GSI para el campo email.
+ * Busca un usuario en la tabla de usuarios por email usando el GSI email-index.
  *
  * @param {string} email - Correo electrónico del usuario a buscar.
  * @returns {Promise<Object|null>} Usuario encontrado o null si no existe.
@@ -58,13 +57,14 @@ const validateGoogleIdToken = async (credential) => {
 const findUserByEmail = async (email) => {
   const params = {
     TableName: DYNAMODB_USER_TABLE,
-    FilterExpression: "#email = :email",
+    IndexName: "email-index",
+    KeyConditionExpression: "#email = :email",
     ExpressionAttributeNames: { "#email": "email" },
-    ExpressionAttributeValues: { ":email": { S: email } },
+    ExpressionAttributeValues: { ":email": email },
   };
 
-  const items = await dynamoDbLib.scan(params);
-  return items.length > 0 ? items[0] : null;
+  const items = await dynamoDbLib.query(params);
+  return items ? items[0] : null;
 };
 
 /**
@@ -135,8 +135,8 @@ const handler = async (event) => {
   await dynamoDbLib.update({
     TableName: DYNAMODB_USER_TABLE,
     Key: { pk: user.pk, sk: user.sk },
-    UpdateExpression: "SET lastAccess = :lastAccess",
-    ExpressionAttributeValues: { ":lastAccess": new Date().toISOString() },
+    UpdateExpression: "SET lastAccess = :lastAccess, avatarUrl = :avatarUrl",
+    ExpressionAttributeValues: { ":lastAccess": new Date().toISOString(), ":avatarUrl": googleUser.picture ?? null },
   });
 
   const secret = await getSecretManagerValue(SECRET_KEY);
@@ -151,6 +151,7 @@ const handler = async (event) => {
   responseUser.access = access;
   responseUser.globalConfig = await getGlobalConfig(DYNAMODB_CONFIG_TABLE);
   responseUser.userConfig = user.userConfig ?? { language: "es" };
+  responseUser.avatarUrl = googleUser.picture ?? null;
 
   return success(200, responseUser, action);
 };
