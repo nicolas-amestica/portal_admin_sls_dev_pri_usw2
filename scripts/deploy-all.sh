@@ -29,6 +29,15 @@ deploy_service() {
 
     cd "$service_path"
 
+    # Si es un servicio Go, compilar antes de desplegar
+    if [ -f "go.mod" ]; then
+        echo -e "${BLUE}   🔨 Compilando binarios Go...${NC}"
+        if ! make build; then
+            echo -e "${RED}❌ Error compilando ${service_name}${NC}\n"
+            return 1
+        fi
+    fi
+
     if npx sls deploy --stage "$STAGE" --verbose; then
         echo -e "${GREEN}✅ ${service_name} desplegado exitosamente${NC}\n"
         return 0

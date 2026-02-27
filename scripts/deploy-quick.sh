@@ -38,6 +38,11 @@ for service in "${services[@]}"; do
     if [ -d "services/$service" ]; then
         echo "📦 $count/11 - Desplegando $service..."
         cd "services/$service"
+        # Si es un servicio Go, compilar antes de desplegar
+        if [ -f "go.mod" ]; then
+            echo "   🔨 Compilando binarios Go..."
+            make build
+        fi
         npx sls deploy --stage "$STAGE" 2>&1 | grep -E '(Service deployed|Error|✔|✖)'
         cd ../..
         ((count++))
