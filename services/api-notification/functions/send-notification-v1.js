@@ -1,22 +1,21 @@
 import middy from "@middy/core";
-import { CONTRACT } from '../helpers/contract-email';
 import { success, unsuccessful } from "../../../helpers/responses";
+import { buildContractEmailData } from '../helpers/contract-email';
 import multipartBodyParser from "@middy/http-multipart-body-parser";
-import { sendEmailWithAttachments, generateEmailHTML } from '../../../libs/nodemailer';
+import { sendEmail, sendEmailWithAttachments, generateEmailHTML } from '../../../libs/nodemailer';
 
 const { STAGE } = process.env;
-const ACTION = "Enviar notificación de contrato";
-const MESSAGE = STAGE === 'dev' ? CONTRACT.dev : CONTRACT.prd;
-
-const REQUIRED_FIELDS = ["name", "email", "preview", "file"];
+const ACTION = "Enviar notificación";
 
 /**
- * Obtiene el tipo de mensaje según el estado de la vista previa.
+ * Registro de tipos de notificación.
+ * Cada entrada mapea un `type` a una función que recibe los parámetros específicos
+ * del body y retorna { subject, title, bodyHtml }.
+ *
+ * Para agregar un nuevo tipo: crear su helper en ../helpers/ y registrarlo aquí.
  */
-const getTypeMessage = (preview) => {
-  if (preview === '1') return MESSAGE.preview;
-  if (preview === 'resend') return MESSAGE.resend;
-  return MESSAGE.confirmed;
+const EMAIL_BUILDERS = {
+  contract: ({ preview }) => buildContractEmailData(preview, STAGE)
 };
 
 /**
@@ -30,34 +29,46 @@ const normalizeBuffer = (content) => {
 };
 
 /**
- * Procesa el envío de notificaciones por correo electrónico con archivos adjuntos.
+ * Handler genérico para envío de notificaciones por correo.
+ *
+ * Body esperado:
+ *   - name         {string}  Nombre del destinatario
+ *   - email        {string}  Correo del destinatario
+ *   - type         {string}  Tipo de notificación (default: 'contract')
+ *   - file         {object}  Archivo adjunto (opcional)
+ *   - ...rest               Parámetros específicos del tipo (ej: preview para contratos)
  */
 const baseHandler = async (event) => {
-  const { name, email, file, preview } = event.body;
+  const { name: recipientName, email: to, type = 'contract', file, ...typeParams } = event.body;
 
-  const missing = REQUIRED_FIELDS.filter((f) => !event.body[f]);
-  if (missing.length) return unsuccessful(400, { message: `Faltan campos requeridos: ${missing.join(", ")}` }, ACTION);
-
-  if (!file?.content) {
-    const error = new Error('No se encontró archivo adjunto');
-    error.statusCode = 400;
-    throw error;
+  if (!to || !recipientName) {
+    return unsuccessful(400, { message: 'Los campos name y email son requeridos.' }, ACTION);
   }
 
-  const typeMessage = getTypeMessage(preview);
+  const builder = EMAIL_BUILDERS[type];
+  if (!builder) return unsuccessful(400, { message: `Tipo de notificación no soportado: ${type}` }, ACTION);
 
-  const emailResult = await sendEmailWithAttachments({
-    to: email,
-    subject: typeMessage.subject,
-    html: generateEmailHTML({ title: typeMessage.title, recipientName: name, bodyHtml: typeMessage.body }),
-    attachments: [{
-      filename: file.filename || 'contrato.pdf',
-      content: normalizeBuffer(file.content),
-      contentType: file.contentType || file.mimetype || 'application/pdf'
-    }]
-  });
+  const { subject, title, bodyHtml } = builder(typeParams);
+  const html = generateEmailHTML({ title, recipientName, bodyHtml });
 
-  return success(200, { message: "Correo enviado exitosamente", messageId: emailResult.messageId, recipient: email }, ACTION);
+  let emailResult;
+
+  if (file?.content) {
+    emailResult = await sendEmailWithAttachments({
+      to,
+      subject,
+      html,
+      attachments: [{
+        filename: file.filename || 'adjunto.pdf',
+        content: normalizeBuffer(file.content),
+        contentType: file.contentType || file.mimetype || 'application/pdf'
+      }]
+    });
+  } else {
+    emailResult = await sendEmail({ to, subject, html });
+  }
+
+  return success(200, { message: "Correo enviado exitosamente", messageId: emailResult.messageId, recipient: to }, ACTION);
 };
 
 export const main = middy(baseHandler).use(
