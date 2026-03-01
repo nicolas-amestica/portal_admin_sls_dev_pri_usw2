@@ -8,7 +8,7 @@ const ACTION = "Actualización del programa.";
 /**
  * Construye el objeto actualizado del programa para almacenar en DynamoDB.
  */
-const buildProgramUpdate = ({ pk, sk, id, createdAt, content, user }) => ({
+const buildProgramUpdate = ({ pk, sk, id, createdAt, content, user, sii }) => ({
   pk,
   sk,
   id,
@@ -18,6 +18,7 @@ const buildProgramUpdate = ({ pk, sk, id, createdAt, content, user }) => ({
   status: 'pending',
   priority: 1,
   user,
+  sii,
   type: content[0].type.id,
   startDate: content[0].dates[0].split('T')[0],
 });
@@ -26,7 +27,7 @@ const buildProgramUpdate = ({ pk, sk, id, createdAt, content, user }) => ({
  * Handler principal para actualizar los datos de un programa.
  */
 const handler = async (event) => {
-  const { content, sk, pk, id, createdAt, user } = event.body;
+  const { content, sk, pk, id, createdAt, user, sii } = event.body;
 
   if (!sk) {
     const error = new Error('Falta el identificador del programa en la solicitud.');
@@ -34,7 +35,7 @@ const handler = async (event) => {
     throw error;
   }
 
-  const program = buildProgramUpdate({ pk, sk, id, createdAt, content, user });
+  const program = buildProgramUpdate({ pk, sk, id, createdAt, content, user, sii });
   const result = await dynamoDbLib.put({ TableName: DYNAMODB_PROGRAM_TABLE, Item: program });
 
   return success(200, result, ACTION);
