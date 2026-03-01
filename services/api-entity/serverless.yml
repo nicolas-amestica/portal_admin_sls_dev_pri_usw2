@@ -47,7 +47,7 @@ provider:
     SECRET_KEY: secret-pri-${self:custom.stage}-${self:custom.shortRegion}
     DYNAMODB_USER_TABLE: users-${self:custom.stage}-pri-${self:custom.shortRegion}
     DYNAMODB_CONFIG_TABLE: config-${self:custom.stage}-pri-${self:custom.shortRegion}
-    EMAIL_SECRET_KEY: email-config-${self:custom.stage}-pri-${self:custom.shortRegion}
+    EMAIL_CONFIG_SECRET_KEY: email-config-${self:custom.stage}-pri-${self:custom.shortRegion}
     GOOGLE_CLIENT_ID: 135592101346-nqh4bi4le3lef7phuqtdpt0m6tm067hh.apps.googleusercontent.com
 
   # Configurar seguimiento mediante aws x-ray para identificar y resolver problemas y errores de rendimiento.

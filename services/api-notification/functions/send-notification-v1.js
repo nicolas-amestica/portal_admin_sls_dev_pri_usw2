@@ -1,5 +1,5 @@
 import middy from "@middy/core";
-import { CONTRACT } from '../constants/messages';
+import { CONTRACT } from '../helpers/contract-email';
 import { success, unsuccessful } from "../../../helpers/responses";
 import multipartBodyParser from "@middy/http-multipart-body-parser";
 import { sendEmailWithAttachments, generateEmailHTML } from '../../../libs/nodemailer';

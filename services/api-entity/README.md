@@ -215,7 +215,7 @@ Usada para obtener perfiles de acceso y menú de navegación por rol.
 | `DYNAMODB_USER_TABLE` | Tabla DynamoDB de usuarios |
 | `DYNAMODB_CONFIG_TABLE` | Tabla DynamoDB de configuración |
 | `SECRET_KEY` | Nombre del secreto JWT en Secrets Manager |
-| `EMAIL_SECRET_KEY` | Nombre del secreto con credenciales de email |
+| `EMAIL_CONFIG_SECRET_KEY` | Nombre del secreto con credenciales de email |
 | `GOOGLE_CLIENT_ID` | Client ID de OAuth2 de Google Cloud Console (para `google-login-v1`) |
 | `STAGE` | Entorno de ejecución |
 

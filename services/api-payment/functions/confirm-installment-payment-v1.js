@@ -6,7 +6,7 @@ import { configureTransbank } from "../utils/transbank.js";
 import { generatePaymentReceipt } from "../../../libs/receipt-generator.js";
 import { sendEmailWithAttachments, generateEmailHTML } from "../../../libs/nodemailer.js";
 import { putObject } from "../../../libs/s3-v3.js";
-import { PAYMENT_RECEIPT } from "../../../libs/payment/messages.js";
+import { PAYMENT_RECEIPT } from "../helpers/payment-receipt-email.js";
 
 const {
   STAGE,

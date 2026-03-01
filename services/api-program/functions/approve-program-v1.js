@@ -4,7 +4,7 @@ import * as S3 from "../../../libs/s3-v3.js";
 import { cleanRut } from "../../../utils/rut.js";
 import { success } from "../../../helpers/responses.js";
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
-import { APPROVED_PROGRAM } from '../../../libs/contract/messages.js';
+import { APPROVED_PROGRAM } from '../helpers/approve-program-email.js';
 import { standardMiddleware } from "../../../libs/middleware/index.js";
 import { sendEmailWithAttachments, generateEmailHTML } from '../../../libs/nodemailer.js';
 
