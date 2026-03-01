@@ -62,14 +62,14 @@ provider:
     - ${file(../../aws/policies/lambda-policy-secretsmanager.yml)}
 
 functions:
-  send_notification_contract_v1:
+  send_notification_v1:
     handler: functions/send-notification-v1.main
     description: Envía notificaciones.
     timeout: 29
     memorySize: 512
     events:
       - httpApi:
-          path: /v1/notificaciones/contrato
+          path: /v1/notificaciones
           method: POST
           authorizer:
             id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
