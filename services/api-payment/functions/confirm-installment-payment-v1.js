@@ -1,12 +1,12 @@
 import { WebpayPlus } from "transbank-sdk";
-import * as dynamoDbLib from "../../../libs/dynamodb-v3";
+import { putObject } from "../../../libs/s3-v3.js";
 import { success } from "../../../helpers/responses";
-import { standardMiddleware } from "../../../libs/middleware/index.js";
+import * as dynamoDbLib from "../../../libs/dynamodb-v3";
 import { configureTransbank } from "../utils/transbank.js";
+import { PAYMENT_RECEIPT } from "../helpers/payment-receipt-email.js";
+import { standardMiddleware } from "../../../libs/middleware/index.js";
 import { generatePaymentReceipt } from "../../../libs/receipt-generator.js";
 import { sendEmailWithAttachments, generateEmailHTML } from "../../../libs/nodemailer.js";
-import { putObject } from "../../../libs/s3-v3.js";
-import { PAYMENT_RECEIPT } from "../helpers/payment-receipt-email.js";
 
 const {
   STAGE,
@@ -188,7 +188,6 @@ const handler = async (event) => {
       });
 
       const html = generateEmailHTML({
-        title: MESSAGE.title,
         recipientName: paymentRecord.payerEmail,
         bodyHtml,
       });

@@ -206,7 +206,6 @@ const handler = async (event) => {
 
   const logoBuffer = await loadLogoFromS3();
   const htmlContent = generateEmailHTML({
-    title: MESSAGE.title,
     recipientName,
     bodyHtml: MESSAGE.buildBody(dniClean, temporaryPassword),
     useCidLogo: !!logoBuffer

@@ -7,12 +7,22 @@ let transporter;
 /**
  * Genera el HTML estándar para correos de Giras Indómito.
  * @param {Object} params
- * @param {string} params.title - Título en el header.
  * @param {string} params.recipientName - Nombre del destinatario.
  * @param {string} params.bodyHtml - Cuerpo HTML del mensaje.
  * @param {string} [params.footerText] - Texto del footer.
  */
-export const generateEmailHTML = ({ title, recipientName, bodyHtml, footerText }) => {
+const getFromAddress = () => {
+  const stage = process.env.STAGE;
+  const alias = stage === 'prd' ? 'no-reply' : 'no-reply-dev';
+  return `Giras Indómito <${alias}@girasindomito.cl>`;
+};
+
+const getAssetUrl = (asset) => {
+  const stage = process.env.STAGE || 'dev';
+  return `https://giras-indomito-${stage}-info.s3.us-west-2.amazonaws.com/assets/${asset}`;
+};
+
+export const generateEmailHTML = ({ recipientName, bodyHtml, footerText }) => {
   const defaultFooterText = 'Este es un correo automático, por favor no responder a esta dirección.';
   const year = new Date().getFullYear();
 
@@ -40,7 +50,7 @@ export const generateEmailHTML = ({ title, recipientName, bodyHtml, footerText }
             box-shadow: 0 4px 20px rgba(0,0,0,0.08);
           }
           .header {
-            background: url('https://giras-indomito-dev-info.s3.us-west-2.amazonaws.com/assets/header.png') center/cover no-repeat;
+            background: url('${getAssetUrl('header.png')}') center/cover no-repeat;
             text-align: center;
             height: 160px;
           }
@@ -137,7 +147,7 @@ export const generateEmailHTML = ({ title, recipientName, bodyHtml, footerText }
               © ${year} Giras Indómito. Todos los derechos reservados.
             </p>
             <img
-              src="https://giras-indomito-prd-info.s3.us-west-2.amazonaws.com/assets/footer.png"
+              src="${getAssetUrl('footer.png')}"
               alt=""
               style="width: 100%; display: block; margin-top: 5px;"
             >
@@ -176,7 +186,7 @@ export const sendEmail = async ({ to, subject, text, html, from }) => {
   if (!transporter) await initTransporter();
 
   return transporter.sendMail({
-    from: from || 'no-reply@girasindomito.cl',
+    from: from || getFromAddress(),
     to,
     subject,
     text,
@@ -199,7 +209,7 @@ export const sendEmailWithAttachments = async ({ to, subject, text, html, from, 
   if (!transporter) await initTransporter();
 
   return transporter.sendMail({
-    from: from || 'Giras Indómito Ltda. <no-reply@girasindomito.cl>',
+    from: from || getFromAddress(),
     to,
     subject,
     text,

@@ -1,5 +1,5 @@
-import { getDocumentBuilder, isValidScope, getSupportedScopes } from './document-builders/index.js';
 import { generateContract, loadImages, loadSignatures } from './pdf-generator/index.js';
+import { getDocumentBuilder, isValidScope, getSupportedScopes } from './document-builders/index.js';
 
 /**
  * Opciones para la generación de documentos

@@ -48,8 +48,8 @@ const baseHandler = async (event) => {
   const builder = EMAIL_BUILDERS[type];
   if (!builder) return unsuccessful(400, { message: `Tipo de notificación no soportado: ${type}` }, ACTION);
 
-  const { subject, title, bodyHtml } = builder(typeParams);
-  const html = generateEmailHTML({ title, recipientName, bodyHtml });
+  const { subject, bodyHtml } = builder(typeParams);
+  const html = generateEmailHTML({ recipientName, bodyHtml });
 
   let emailResult;
 

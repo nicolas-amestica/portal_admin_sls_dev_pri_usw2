@@ -3,9 +3,9 @@ import { success } from "../../../helpers/responses";
 import * as dynamoDbLib from "../../../libs/dynamodb-v3";
 import { cleanRut as parseRut } from "../../../utils/rut.js";
 import { resolvePromises } from "../../../helpers/allsettled";
+import { FORGOT_PASSWORD } from "../helpers/forgot-password-email.js";
 import { standardMiddleware } from "../../../libs/middleware/index.js";
 import { sendEmail, generateEmailHTML } from "../../../libs/nodemailer.js";
-import { FORGOT_PASSWORD } from "../helpers/forgot-password-email.js";
 
 const {
   STAGE,
@@ -115,7 +115,6 @@ const handler = async (event) => {
       to: user.email,
       subject: MESSAGE.subject,
       html: generateEmailHTML({
-        title: MESSAGE.title,
         recipientName: user.name || user.gsiOne,
         bodyHtml: MESSAGE.buildBody(resetUrl)
       })
