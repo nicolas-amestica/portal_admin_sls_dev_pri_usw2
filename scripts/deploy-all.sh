@@ -78,7 +78,7 @@ check_infrastructure() {
 }
 
 # Contador de servicios
-TOTAL_SERVICES=10
+TOTAL_SERVICES=11
 DEPLOYED=0
 FAILED=0
 FAILED_SERVICES=()
@@ -120,6 +120,7 @@ SERVICES=(
     "services/api-extraction"
     "services/api-notification"
     "services/api-configuration"
+    "services/job-trigger"
 )
 
 for service in "${SERVICES[@]}"; do
