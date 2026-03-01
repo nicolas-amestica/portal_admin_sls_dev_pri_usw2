@@ -1,0 +1,65 @@
+service: job-trigger
+frameworkVersion: '4'
+
+configValidationMode: warn
+projectDir: ./../../
+
+plugins:
+  - serverless-offline
+
+custom: ${file(../../common/custom.yml)}
+
+build:
+  esbuild:
+    bundle: true
+    minify: true
+    sourcemap: true
+    exclude:
+      - 'aws-sdk'
+      - '@aws-sdk/*'
+    target: 'node20'
+    platform: 'node'
+    format: 'cjs'
+
+package:
+  individually: true
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-west-2'}
+  profile: pa-${self:custom.stage}
+  lambdaHashingVersion: 20201221
+
+  architecture: arm64
+
+  environment:
+    STAGE: ${self:custom.stage}
+    DYNAMODB_PROGRAM_TABLE: programs-${self:custom.stage}-pri-${self:custom.shortRegion}
+    PROGRAM_TABLE: PRG#8e3d823d-9f58-45df-8a8f-6779435a0001
+    PROFILE: ${self:provider.profile}
+    NODE_OPTIONS: '--enable-source-maps'
+
+  tracing:
+    lambda: true
+
+  deploymentBucket:
+    name: sls-deploys-${self:custom.stage}-pri-${self:custom.shortRegion}
+
+  iamRoleStatements:
+    - ${file(../../aws/policies/lambda-policy-xray.yml)}
+    - ${file(../../aws/policies/lambda-policy-dynamodb-program.yml)}
+
+functions:
+
+  auto_complete_programs_v1:
+    handler: functions/auto-complete-programs-v1.main
+    description: Marca automáticamente como completados los programas cuya fecha de término es hoy.
+    timeout: 300
+    memorySize: 256
+    events:
+      - schedule:
+          rate: cron(0 6 * * ? *)
+          enabled: true
+          description: "Ejecuta diariamente a las 06:00 UTC (03:00 AM hora Chile)"
