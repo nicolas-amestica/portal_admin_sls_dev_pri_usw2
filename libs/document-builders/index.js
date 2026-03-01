@@ -2,6 +2,13 @@ import { buildDocumentData as buildCTTDocument } from './ctt-builder.js';
 import { buildDocumentData as buildDBADocument } from './dba-builder.js';
 import { buildDocumentData as buildDBRDocument } from './dbr-builder.js';
 
+// PDF generators
+export { generatePaymentReceipt } from './cpr-builder.js';
+
+// Email data builders
+export { buildContractEmailData } from './ctt-email-builder.js';
+export { PAYMENT_RECEIPT } from './cpr-email-builder.js';
+
 /**
  * Tipos de documentos soportados
  */

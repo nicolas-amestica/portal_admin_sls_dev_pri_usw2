@@ -3,9 +3,9 @@ import { putObject } from "../../../libs/s3-v3.js";
 import { success } from "../../../helpers/responses";
 import * as dynamoDbLib from "../../../libs/dynamodb-v3";
 import { configureTransbank } from "../utils/transbank.js";
-import { PAYMENT_RECEIPT } from "../helpers/payment-receipt-email.js";
 import { standardMiddleware } from "../../../libs/middleware/index.js";
-import { generatePaymentReceipt } from "../../../libs/receipt-generator.js";
+import { generatePaymentReceipt, PAYMENT_RECEIPT } from "../../../libs/document-builders/index.js";
+import { loadImages } from "../../../libs/pdf-generator/index.js";
 import { sendEmailWithAttachments, generateEmailHTML } from "../../../libs/nodemailer.js";
 
 const {
@@ -158,6 +158,12 @@ const handler = async (event) => {
 
   // Generar y enviar comprobante (no bloquea la respuesta si falla)
   try {
+    const { headerImage, footerImage } = await loadImages(
+      BUCKET_INFO_GI,
+      'assets/header.png',
+      'assets/footer.png'
+    );
+
     const pdfBuffer = await generatePaymentReceipt({
       paymentId: paymentRecord.id,
       installmentNumber: paymentRecord.installmentNumber,
@@ -167,6 +173,8 @@ const handler = async (event) => {
       transactionDate: transbankResponse.transaction_date || null,
       buyOrder: paymentRecord.transbankDetails?.buyOrder || null,
       payerEmail: paymentRecord.payerEmail || null,
+      headerImageBase64: headerImage,
+      footerImageBase64: footerImage,
     });
 
     // Guardar en S3 (respaldo, independiente del email)

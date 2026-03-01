@@ -1,15 +1,6 @@
 const formatCLP = (amount) =>
   new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
 
-/**
- * Genera el cuerpo HTML del email de comprobante de pago.
- *
- * @param {Object} params
- * @param {number} params.installmentNumber  - Número de cuota pagada
- * @param {number} params.amount             - Monto pagado (CLP)
- * @param {string|null} params.authorizationCode - Código de autorización Transbank
- * @returns {string} HTML formateado del cuerpo del email
- */
 const buildPaymentReceiptBody = ({ installmentNumber, amount, authorizationCode }) => `
   <p style="margin-bottom: 20px;">Tu pago ha sido procesado exitosamente. Adjunto encontrarás tu comprobante en formato PDF.</p>
 

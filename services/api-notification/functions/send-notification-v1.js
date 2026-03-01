@@ -1,6 +1,6 @@
 import middy from "@middy/core";
 import { success, unsuccessful } from "../../../helpers/responses";
-import { buildContractEmailData } from '../helpers/contract-email';
+import { buildContractEmailData } from '../../../libs/document-builders/index.js';
 import multipartBodyParser from "@middy/http-multipart-body-parser";
 import { sendEmail, sendEmailWithAttachments, generateEmailHTML } from '../../../libs/nodemailer';
 
