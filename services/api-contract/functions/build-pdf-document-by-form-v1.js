@@ -1,6 +1,6 @@
 import { success } from "../../../helpers/responses.js";
 import { standardMiddleware } from "../../../libs/middleware/index.js";
-import { generateDocument } from '../../../libs/document-generator.js';
+import { generateDocument } from '../../../libs/document-builders/generator.js';
 
 const {
   BUCKET_INFO_GI

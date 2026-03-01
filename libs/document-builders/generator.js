@@ -1,5 +1,5 @@
-import { generateContract, loadImages, loadSignatures } from './pdf-generator/index.js';
-import { getDocumentBuilder, isValidScope, getSupportedScopes } from './document-builders/index.js';
+import { generateContract, loadImages, loadSignatures } from '../pdf-generator/index.js';
+import { getDocumentBuilder, isValidScope, getSupportedScopes } from './index.js';
 
 /**
  * Opciones para la generación de documentos
@@ -167,7 +167,3 @@ export const generateDocument = async ({ scope, form, action = {}, bucket }) => 
   }
 };
 
-/**
- * Exportar funciones auxiliares para validación
- */
-export { isValidScope, getSupportedScopes } from './document-builders/index.js';
