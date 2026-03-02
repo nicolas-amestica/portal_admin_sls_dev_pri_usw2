@@ -1,4 +1,4 @@
-import { getObject } from "../../../libs/s3-v3";
+import { getObject } from "../../../libs/s3-v3.js";
 import { success } from "../../../helpers/responses.js";
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { cache, CacheKeys } from '../../../libs/cache/index.js';
