@@ -58,7 +58,7 @@ const handler = async (event) => {
   }
 
   const document = results[0];
-  const { contract } = document.content[0];
+  const { contract, sii } = document.content[0];
 
   if (!contract) {
     const error = new Error('Documento no encontrado.');
@@ -73,9 +73,13 @@ const handler = async (event) => {
     throw error;
   }
 
+  // Seleccionar tipo de contrato según modalidad de pago:
+  // CTM (pago en efectivo) cuando sii === false, CTT (transferencia/depósito) en caso contrario
+  const contractScope = sii === false ? 'CTM' : 'CTT';
+
   // Generar documento usando el módulo central
   const result = await generateDocument({
-    scope: 'CTT',
+    scope: contractScope,
     form: contract,
     action: {
       isPreview: true,        // Con marca de agua (borrador)

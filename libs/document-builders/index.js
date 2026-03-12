@@ -1,4 +1,5 @@
 import { buildDocumentData as buildCTTDocument } from './ctt-builder.js';
+import { buildDocumentData as buildCTMDocument } from './ctm-builder.js';
 import { buildDocumentData as buildDBADocument } from './dba-builder.js';
 import { buildDocumentData as buildDBRDocument } from './dbr-builder.js';
 
@@ -13,7 +14,8 @@ export { PAYMENT_RECEIPT } from './cpr-email-builder.js';
  * Tipos de documentos soportados
  */
 export const DOCUMENT_SCOPES = {
-  CTT: 'CTT', // Contrato
+  CTT: 'CTT', // Contrato con pago por transferencia/depósito
+  CTM: 'CTM', // Contrato con pago manual en efectivo
   DBA: 'DBA', // Documento Borrador A
   DBR: 'DBR', // Documento Borrador R
 };
@@ -23,6 +25,7 @@ export const DOCUMENT_SCOPES = {
  */
 const BUILDERS = {
   [DOCUMENT_SCOPES.CTT]: buildCTTDocument,
+  [DOCUMENT_SCOPES.CTM]: buildCTMDocument,
   [DOCUMENT_SCOPES.DBA]: buildDBADocument,
   [DOCUMENT_SCOPES.DBR]: buildDBRDocument,
 };
