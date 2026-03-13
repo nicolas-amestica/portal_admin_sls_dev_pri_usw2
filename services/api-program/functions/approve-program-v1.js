@@ -190,7 +190,22 @@ const handler = async (event) => {
   const existingUsers = await getUserByDni(dniClean);
 
   if (existingUsers?.length) {
-    console.log(`Usuario con DNI ${dniClean} ya existe, no se creará uno nuevo.`);
+    const existingUser = existingUsers[0];
+    const currentContent = existingUser.content || [];
+    const alreadyLinked = currentContent.some(c => c.program === sk);
+
+    if (!alreadyLinked) {
+      console.log(`Usuario con DNI ${dniClean} ya existe. Agregando programa ${sk} a su content.`);
+      const updatedContent = [...currentContent, { createdAt: new Date().toISOString(), program: sk, isActive: true }];
+      await dynamoDbLib.update({
+        TableName: DYNAMODB_USER_TABLE,
+        Key: { pk: existingUser.pk, sk: existingUser.sk },
+        UpdateExpression: 'SET content = :content',
+        ExpressionAttributeValues: { ':content': updatedContent },
+      });
+    } else {
+      console.log(`Usuario con DNI ${dniClean} ya tiene vinculado el programa ${sk}.`);
+    }
   } else {
     const newUser = await buildUser({ dniClean, clientRepresentative, representative, sk });
     await dynamoDbLib.put({ TableName: DYNAMODB_USER_TABLE, Item: newUser });
