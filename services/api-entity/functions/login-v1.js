@@ -118,6 +118,7 @@ const handler = async (event) => {
   }
 
   delete user.password;
+  delete user.content;
   const paramsToken = { allowances: "crud", userRun: user.gsiOne, profiles: user.profiles };
 
   const token = generateToken(paramsToken, SECRET);
@@ -153,6 +154,5 @@ const handler = async (event) => {
 
   return success(200, user, action);
 };
-
 
 export const main = standardMiddleware(handler);

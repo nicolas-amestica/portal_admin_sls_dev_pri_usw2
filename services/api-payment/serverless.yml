@@ -41,6 +41,7 @@ provider:
     DYNAMODB_PAYMENT_TABLE: payments-${self:custom.stage}-pri-${self:custom.shortRegion}
     DYNAMODB_PROGRAM_TABLE: programs-${self:custom.stage}-pri-${self:custom.shortRegion}
     PROGRAM_TABLE: PRG#8e3d823d-9f58-45df-8a8f-6779435a0001
+    DYNAMODB_USER_TABLE: users-${self:custom.stage}-pri-${self:custom.shortRegion}
     TRANSBANK_ENVIRONMENT: integration  # TODO: cambiar a 'production' en stage prd
     TRANSBANK_COMMERCE_CODE: ''         # TODO: commerce code de producción (solo requerido en prd)
     TRANSBANK_API_KEY_SECRET: transbank-api-key-${self:custom.stage}-pri-${self:custom.shortRegion}
@@ -84,12 +85,31 @@ provider:
         - arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_PROGRAM_TABLE}/index/*
     - Effect: Allow
       Action:
+        - dynamodb:Query
+        - dynamodb:GetItem
+      Resource:
+        - arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_USER_TABLE}
+        - arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_USER_TABLE}/index/*
+    - Effect: Allow
+      Action:
         - s3:PutObject
       Resource:
         - arn:aws:s3:::${self:provider.environment.BUCKET_INFO_GI}/comprobantes/*
 
 functions:
   # Endpoints de pagos de cuotas
+  get_active_programs_v1:
+    handler: functions/get-active-programs-v1.main
+    description: Obtener los programas activos del usuario autenticado.
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/pagos/programas
+          method: GET
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
   get_installments_v1:
     handler: functions/get-installments-v1.main
     description: Obtener cuotas calculadas de un programa con su estado de pago.

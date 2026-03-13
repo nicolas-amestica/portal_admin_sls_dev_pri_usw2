@@ -147,6 +147,7 @@ const handler = async (event) => {
 
   const responseUser = { ...user };
   delete responseUser.password;
+  delete responseUser.content;
   responseUser.token = token;
   responseUser.access = access;
   responseUser.globalConfig = await getGlobalConfig(DYNAMODB_CONFIG_TABLE);
