@@ -1,12 +1,18 @@
 import * as dynamoDbLib from "../../../libs/dynamodb-v3";
 import { success } from "../../../helpers/responses";
 import { standardMiddleware } from "../../../libs/middleware/index.js";
+import { getProgram } from "../utils/program-utils.js";
 
 const { DYNAMODB_USER_TABLE } = process.env;
 
 /**
- * Obtiene los programas activos de un usuario.
- * El userId esperado corresponde al sk del usuario (ej: "USR#12345678K").
+ * Obtiene los programas activos de un usuario enriquecidos con datos de SII.
+ *
+ * Cada item incluye:
+ * - program: sk del programa
+ * - createdAt: fecha de inscripción
+ * - sii: boolean indicando si el programa tiene SII
+ * - hasAssignedInstallment: si sii=false, indica si ya se asignó cuota manual
  *
  * @example
  * GET /v1/pagos/programas?userId=USR%2312345678K
@@ -47,9 +53,22 @@ const handler = async (event) => {
     throw error;
   }
 
-  const activePrograms = (user.content || [])
-    .filter(item => item.isActive)
-    .map(item => ({ program: item.program, createdAt: item.createdAt }));
+  const activeItems = (user.content || []).filter(item => item.isActive);
+
+  // Enriquecer cada programa con sii y hasAssignedInstallment (en paralelo)
+  const programDetails = await Promise.all(
+    activeItems.map(item => getProgram(item.program))
+  );
+
+  const activePrograms = activeItems.map((item, index) => {
+    const detail = programDetails[index];
+    return {
+      program: item.program,
+      createdAt: item.createdAt,
+      sii: detail?.sii !== false,
+      hasAssignedInstallment: !!detail?.assignedInstallment,
+    };
+  });
 
   return success(200, activePrograms, action);
 };

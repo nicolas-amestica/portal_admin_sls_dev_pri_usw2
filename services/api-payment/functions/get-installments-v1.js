@@ -1,8 +1,9 @@
 import { success } from "../../../helpers/responses";
 import * as dynamoDbLib from "../../../libs/dynamodb-v3";
 import { standardMiddleware } from "../../../libs/middleware/index.js";
+import { getProgram } from "../utils/program-utils.js";
 
-const { DYNAMODB_PAYMENT_TABLE, DYNAMODB_PROGRAM_TABLE, PROGRAM_TABLE } = process.env;
+const { DYNAMODB_PAYMENT_TABLE } = process.env;
 
 /** Meses en español mapeados a índice (0-indexed). */
 const MONTH_MAP = {
@@ -82,13 +83,40 @@ const calculateInstallments = (program, payments) => {
 };
 
 /**
+ * Construye una cuota única a partir de la cuota asignada manualmente (sii = false).
+ *
+ * @param {Object} program - Registro del programa desde DynamoDB
+ * @param {Array} payments - Pagos existentes del programa
+ * @returns {Array} Array con la cuota asignada o vacío si no hay asignación
+ */
+const buildAssignedInstallment = (program, payments) => {
+  const assigned = program.assignedInstallment;
+  if (!assigned) return [];
+
+  const payment = (payments || []).find(
+    p => p.installmentNumber === 1 && (p.status === 'AUTHORIZED' || p.status === 'PENDING')
+  );
+  const isPaid = !!payment && payment.status === 'AUTHORIZED';
+
+  return [{
+    installmentNumber: 1,
+    amount: assigned.surchargedAmount,
+    dueDate: assigned.assignedAt,
+    isPaid,
+    paymentId: payment?.id ?? null,
+    paidAt: payment?.paidAt || null,
+    pendingPaymentCreatedAt: (!isPaid && payment?.status === 'PENDING') ? payment.createdAt : null,
+  }];
+};
+
+/**
  * Obtiene las cuotas calculadas de un programa con su estado de pago.
  *
- * Combina los datos del contrato del programa (estructura de cuotas)
- * con los pagos existentes para devolver un array de cuotas listo para mostrar.
+ * - Si sii = true: calcula cuotas desde el contrato (comportamiento estándar).
+ * - Si sii = false: retorna la cuota asignada manualmente (o [] si aún no hay).
  *
  * @example
- * GET /v1/pagos/cuotas?programId=REQ%2301JKXXX...
+ * GET /v1/pagos/cuotas?programId=PRG%23uuid...
  */
 const handler = async (event) => {
   const action = "Obtener cuotas del programa.";
@@ -101,13 +129,8 @@ const handler = async (event) => {
   }
 
   // Obtener programa y pagos en paralelo para minimizar latencia
-  const [programResults, payments] = await Promise.all([
-    dynamoDbLib.query({
-      TableName: DYNAMODB_PROGRAM_TABLE,
-      KeyConditionExpression: '#pk = :pk AND begins_with(#sk, :sk)',
-      ExpressionAttributeValues: { ':pk': PROGRAM_TABLE, ':sk': programId },
-      ExpressionAttributeNames: { '#pk': 'pk', '#sk': 'sk' },
-    }),
+  const [program, payments] = await Promise.all([
+    getProgram(programId),
     dynamoDbLib.query({
       TableName: DYNAMODB_PAYMENT_TABLE,
       IndexName: 'sk-index',
@@ -117,15 +140,15 @@ const handler = async (event) => {
     }),
   ]);
 
-  const program = programResults?.[0] ?? null;
-
   if (!program) {
     const error = new Error('Programa no encontrado.');
     error.statusCode = 404;
     throw error;
   }
 
-  const installments = calculateInstallments(program, payments || []);
+  const installments = program.sii === false
+    ? buildAssignedInstallment(program, payments || [])
+    : calculateInstallments(program, payments || []);
 
   return success(200, installments, action);
 };

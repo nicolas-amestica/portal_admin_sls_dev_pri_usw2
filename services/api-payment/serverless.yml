@@ -80,6 +80,7 @@ provider:
       Action:
         - dynamodb:Query
         - dynamodb:GetItem
+        - dynamodb:UpdateItem
       Resource:
         - arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_PROGRAM_TABLE}
         - arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_PROGRAM_TABLE}/index/*
@@ -177,6 +178,31 @@ functions:
     events:
       - httpApi:
           path: /v1/pagos/cuotas/cancelar
+          method: POST
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  # Endpoints admin — asignación manual de cuotas (sii = false)
+  get_programs_sii_false_v1:
+    handler: functions/get-programs-sii-false-v1.main
+    description: Obtener programas con sii=false para asignación manual de cuota.
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/pagos/admin/programas-sin-sii
+          method: GET
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  assign_installment_v1:
+    handler: functions/assign-installment-v1.main
+    description: Asignar una cuota manual a un programa con sii=false (cargo 10%).
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/pagos/admin/asignar-cuota
           method: POST
           authorizer:
             id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
