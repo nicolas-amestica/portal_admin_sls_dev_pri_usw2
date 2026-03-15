@@ -51,4 +51,5 @@ export const mapProgramView = (program) => ({
   sii: program.sii === true,
   hasAssignedInstallment: Array.isArray(program.assignedInstallments) && program.assignedInstallments.length > 0,
   assignedInstallments: Array.isArray(program.assignedInstallments) ? program.assignedInstallments : [],
+  groupInstallmentValue: program.content?.[0]?.contract?.payments?.installments?.groupInstallmentValue ?? null,
 });

@@ -208,6 +208,18 @@ functions:
             id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
             type: request
 
+  register_cash_payment_v1:
+    handler: functions/register-cash-payment-v1.main
+    description: Registrar un pago en efectivo con comprobante para una cuota de programa sii=false.
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/pagos/admin/registrar-pago-efectivo
+          method: POST
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
   # Endpoints legacy (mantener por compatibilidad)
   create_transaction_v1:
     handler: functions/create-transaction-v1.main
