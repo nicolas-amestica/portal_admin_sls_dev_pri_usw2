@@ -6,12 +6,15 @@ const { DYNAMODB_PROGRAM_TABLE, PROGRAM_TABLE } = process.env;
  * Obtiene un programa por su identificador (sk) usando GetItem.
  *
  * @param {string} programId - SK del programa (ej: "PRG#uuid")
+ * @param {Object} [options] - Opciones adicionales
+ * @param {boolean} [options.consistentRead=false] - Si true, usa lectura fuertemente consistente (recomendado antes de escrituras)
  * @returns {Promise<Object|null>} El programa o null si no existe
  */
-export const getProgram = async (programId) => {
+export const getProgram = async (programId, { consistentRead = false } = {}) => {
   return dynamoDbLib.getOne({
     TableName: DYNAMODB_PROGRAM_TABLE,
     Key: { pk: PROGRAM_TABLE, sk: programId },
+    ...(consistentRead && { ConsistentRead: true }),
   });
 };
 
@@ -46,6 +49,6 @@ export const mapProgramView = (program) => ({
   startDate: program.startDate || null,
   status: program.status || null,
   sii: program.sii === true,
-  hasAssignedInstallment: !!program.assignedInstallment,
-  assignedInstallment: program.assignedInstallment || null,
+  hasAssignedInstallment: Array.isArray(program.assignedInstallments) && program.assignedInstallments.length > 0,
+  assignedInstallments: Array.isArray(program.assignedInstallments) ? program.assignedInstallments : [],
 });

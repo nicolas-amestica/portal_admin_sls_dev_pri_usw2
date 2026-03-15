@@ -66,7 +66,7 @@ const handler = async (event) => {
       program: item.program,
       createdAt: item.createdAt,
       sii: detail?.sii !== false,
-      hasAssignedInstallment: !!detail?.assignedInstallment,
+      hasAssignedInstallment: Array.isArray(detail?.assignedInstallments) && detail.assignedInstallments.length > 0,
     };
   });
 

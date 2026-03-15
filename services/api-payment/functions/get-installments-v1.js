@@ -83,30 +83,38 @@ const calculateInstallments = (program, payments) => {
 };
 
 /**
- * Construye una cuota única a partir de la cuota asignada manualmente (sii = false).
+ * Construye las cuotas del cliente a partir del array de cuotas asignadas manualmente (sii = false).
+ * Cada elemento del array es una cuota que el admin habilitó en un momento dado.
  *
  * @param {Object} program - Registro del programa desde DynamoDB
  * @param {Array} payments - Pagos existentes del programa
- * @returns {Array} Array con la cuota asignada o vacío si no hay asignación
+ * @returns {Array} Array de cuotas listo para mostrar al cliente
  */
-const buildAssignedInstallment = (program, payments) => {
-  const assigned = program.assignedInstallment;
-  if (!assigned) return [];
+const buildAssignedInstallments = (program, payments) => {
+  const assigned = program.assignedInstallments;
+  if (!Array.isArray(assigned) || assigned.length === 0) return [];
 
-  const payment = (payments || []).find(
-    p => p.installmentNumber === 1 && (p.status === 'AUTHORIZED' || p.status === 'PENDING')
-  );
-  const isPaid = !!payment && payment.status === 'AUTHORIZED';
+  // Indexar pagos AUTHORIZED o PENDING por número de cuota
+  const paymentsByInstallment = new Map();
+  for (const p of (payments || [])) {
+    if (p.status === 'AUTHORIZED' || p.status === 'PENDING') {
+      paymentsByInstallment.set(p.installmentNumber, p);
+    }
+  }
 
-  return [{
-    installmentNumber: 1,
-    amount: assigned.surchargedAmount,
-    dueDate: assigned.assignedAt,
-    isPaid,
-    paymentId: payment?.id ?? null,
-    paidAt: payment?.paidAt || null,
-    pendingPaymentCreatedAt: (!isPaid && payment?.status === 'PENDING') ? payment.createdAt : null,
-  }];
+  return assigned.map(inst => {
+    const payment = paymentsByInstallment.get(inst.installmentNumber);
+    const isPaid = !!payment && payment.status === 'AUTHORIZED';
+    return {
+      installmentNumber: inst.installmentNumber,
+      amount: inst.surchargedAmount,
+      dueDate: inst.assignedAt,
+      isPaid,
+      paymentId: payment?.id ?? null,
+      paidAt: payment?.paidAt || null,
+      pendingPaymentCreatedAt: (!isPaid && payment?.status === 'PENDING') ? payment.createdAt : null,
+    };
+  });
 };
 
 /**
@@ -147,7 +155,7 @@ const handler = async (event) => {
   }
 
   const installments = program.sii === false
-    ? buildAssignedInstallment(program, payments || [])
+    ? buildAssignedInstallments(program, payments || [])
     : calculateInstallments(program, payments || []);
 
   return success(200, installments, action);
