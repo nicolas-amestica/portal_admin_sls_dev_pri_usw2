@@ -4,31 +4,46 @@ import * as dynamoDb from "../../../libs/dynamodb-v3.js";
 
 const { DYNAMODB_MAINTAINER_TABLE } = process.env;
 
-const PK_COST_ITEM = 'COST_ITEM';
 const CURRENT_YEAR = String(new Date().getFullYear());
 
 /**
- * Obtiene los items de costo activos del catálogo del mantenedor.
- * Filtra por `active = true` y retorna únicamente el precio del año actual.
- * Acepta un parámetro `search` (query string) para filtrar por nombre del servicio.
+ * PKs permitidas en el catálogo del mantenedor.
+ * Agrega aquí nuevas entradas a medida que se incorporen catálogos.
+ */
+const ALLOWED_PKS = new Set(['COST_ITEM']);
+
+/**
+ * Obtiene items activos del catálogo del mantenedor según la Partition Key recibida.
+ * Filtra por `active = true` y retorna solo el precio del año actual (cuando aplica).
+ *
+ * Query params:
+ *  - pk     (requerido) - Partition Key del catálogo (ej: 'COST_ITEM').
+ *  - search (opcional)  - Término de búsqueda sobre el campo `label` (mínimo 3 chars).
  */
 const handler = async (event) => {
-  const action = "Obtener items de costo activos del catálogo.";
+  const action = "Obtener items activos del catálogo del mantenedor.";
+  const pk = event.queryStringParameters?.pk ?? '';
   const search = (event.queryStringParameters?.search ?? '').toLowerCase().trim();
+
+  if (!pk || !ALLOWED_PKS.has(pk)) {
+    const error = new Error(`Catálogo no válido. Valores permitidos: ${[...ALLOWED_PKS].join(', ')}.`);
+    error.statusCode = 400;
+    throw error;
+  }
 
   const queryParams = {
     TableName: DYNAMODB_MAINTAINER_TABLE,
     KeyConditionExpression: "#pk = :pk",
     FilterExpression: "#active = :active",
     ExpressionAttributeNames: { "#pk": "pk", "#active": "active" },
-    ExpressionAttributeValues: { ":pk": PK_COST_ITEM, ":active": true },
+    ExpressionAttributeValues: { ":pk": pk, ":active": true },
   };
 
   const raw = await dynamoDb.query(queryParams);
 
-  let items = (raw ?? []).map(({ pk, active, createdAt, updatedAt, prices, ...rest }) => ({
+  let items = (raw ?? []).map(({ pk: _pk, active, createdAt, updatedAt, prices, ...rest }) => ({
     ...rest,
-    price: prices?.[CURRENT_YEAR] ?? 0,
+    ...(prices !== undefined ? { price: prices?.[CURRENT_YEAR] ?? 0 } : {}),
   }));
 
   if (search.length >= 3) {
