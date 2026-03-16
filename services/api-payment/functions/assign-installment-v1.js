@@ -6,8 +6,8 @@ import { standardMiddleware } from '../../../libs/middleware/index.js';
 
 const { DYNAMODB_PROGRAM_TABLE, PROGRAM_TABLE } = process.env;
 
-/** Porcentaje de recargo sobre el monto base. */
-const SURCHARGE_RATE = 0.10;
+/** Recargo por defecto (10%) cuando no se especifica en el request. */
+const DEFAULT_SURCHARGE_RATE = 0.10;
 
 /**
  * Crea (y cachea) un DynamoDBDocumentClient correctamente inicializado.
@@ -41,7 +41,7 @@ const getDocClient = async () => {
  */
 const handler = async (event) => {
   const action = 'Agregar cuota a programa sin SII.';
-  const { programId, amount } = event.body || {};
+  const { programId, amount, surchargeRate } = event.body || {};
 
   if (!programId) {
     const error = new Error('El programId es requerido.');
@@ -52,6 +52,13 @@ const handler = async (event) => {
   const parsedAmount = Number(amount);
   if (!parsedAmount || parsedAmount < 1) {
     const error = new Error('El monto debe ser un número mayor a 0.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const parsedRate = surchargeRate !== undefined ? Number(surchargeRate) : DEFAULT_SURCHARGE_RATE;
+  if (isNaN(parsedRate) || parsedRate < 0 || parsedRate > 1) {
+    const error = new Error('El recargo debe ser un número entre 0 y 1 (ej: 0.10 para 10%).');
     error.statusCode = 400;
     throw error;
   }
@@ -83,12 +90,13 @@ const handler = async (event) => {
 
   console.log(`[assign-installment] programa=${programId} cuotas_actuales=${currentInstallments.length}`);
 
-  const surchargedAmount = Math.round(parsedAmount * (1 + SURCHARGE_RATE));
+  const surchargedAmount = Math.round(parsedAmount * (1 + parsedRate));
   const now = new Date().toISOString();
 
   const newInstallment = {
     installmentNumber: currentInstallments.length + 1,
     amount: parsedAmount,
+    surchargeRate: parsedRate,
     surchargedAmount,
     assignedAt: now,
   };
