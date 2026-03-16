@@ -81,3 +81,51 @@ functions:
           authorizer:
             id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
             type: request
+
+  list_cost_items_admin_v1:
+    handler: functions/list-cost-items-admin-v1.main
+    description: Lista TODOS los items de un catálogo (activos e inactivos) para administración. Requiere rol administrador.
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/mantenedor/items
+          method: GET
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  create_cost_item_v1:
+    handler: functions/create-cost-item-v1.main
+    description: Crea un nuevo item en el catálogo del mantenedor.
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/mantenedor/items
+          method: POST
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  update_cost_item_v1:
+    handler: functions/update-cost-item-v1.main
+    description: Actualiza un item existente del catálogo del mantenedor (label, precio año actual, estado).
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/mantenedor/items
+          method: PUT
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  delete_cost_item_v1:
+    handler: functions/delete-cost-item-v1.main
+    description: Elimina permanentemente un item del catálogo del mantenedor.
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/mantenedor/items
+          method: DELETE
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
