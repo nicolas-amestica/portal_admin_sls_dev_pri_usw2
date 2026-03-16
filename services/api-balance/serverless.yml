@@ -40,6 +40,7 @@ provider:
   environment:
     STAGE: ${self:custom.stage}
     DYNAMODB_PROGRAM_TABLE: programs-${self:custom.stage}-pri-${self:custom.shortRegion}
+    DYNAMODB_PAYMENT_TABLE: payments-${self:custom.stage}-pri-${self:custom.shortRegion}
     PROGRAM_TABLE_ID: PRG#8e3d823d-9f58-45df-8a8f-6779435a0001
     SECRET_KEY: secret-pri-${self:custom.stage}-${self:custom.shortRegion}
     PROFILE: ${self:provider.profile}
@@ -58,20 +59,14 @@ provider:
     - ${file(../../aws/policies/lambda-policy-ssm.yml)}
     - ${file(../../aws/policies/lambda-policy-dynamodb-program.yml)}
     - ${file(../../aws/policies/lambda-policy-s3.yml)}
+    - Effect: Allow
+      Action:
+        - dynamodb:Query
+      Resource:
+        - arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_PAYMENT_TABLE}
+        - arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_PAYMENT_TABLE}/index/*
 
 functions:
-  create_balance_v1:
-    handler: functions/create-balance-v1.main
-    description: Este recurso crea un balance del programa.
-    timeout: 29
-    events:
-      - httpApi:
-          path: /v1/balances
-          method: POST
-          authorizer:
-            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
-            type: request
-
   get_balances_v1:
     handler: functions/get-balances-v1.main
     description: Este recurso obtiene un balance de un programa.

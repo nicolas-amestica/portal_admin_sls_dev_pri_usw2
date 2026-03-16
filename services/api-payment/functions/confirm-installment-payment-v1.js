@@ -187,6 +187,16 @@ const handler = async (event) => {
     });
     console.log(`📄 Comprobante guardado en S3: ${s3Key}`);
 
+    // Persistir referencia del comprobante en el registro de pago
+    await dynamoDbLib.update({
+      TableName: DYNAMODB_PAYMENT_TABLE,
+      Key: { pk: paymentRecord.pk, sk: paymentRecord.sk },
+      UpdateExpression: 'SET comprobante = :comprobante',
+      ExpressionAttributeValues: {
+        ':comprobante': { bucket: BUCKET_INFO_GI, key: s3Key, extension: 'pdf' },
+      },
+    });
+
     // Enviar email si hay correo del pagador
     if (paymentRecord.payerEmail) {
       const bodyHtml = MESSAGE.buildBody({
