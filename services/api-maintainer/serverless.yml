@@ -69,3 +69,15 @@ functions:
           authorizer:
             id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
             type: request
+
+  get_cost_items_v1:
+    handler: functions/get-cost-items-v1.main
+    description: Obtiene los items de costo activos del catálogo de servicios para el autocompletado de programas.
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/mantenedor/servicios
+          method: GET
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
