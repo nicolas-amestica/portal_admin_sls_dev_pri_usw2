@@ -28,6 +28,8 @@ const handler = async (event) => {
     throw error;
   }
 
+  const sanitizedContent = content.map(({ rates, ...rest }) => rest);
+
   const params = {
     TableName: DYNAMODB_FAVORITES_TABLE,
     Key: {
@@ -43,7 +45,7 @@ const handler = async (event) => {
     },
     ExpressionAttributeValues: {
       ":name": name,
-      ":content": content,
+      ":content": sanitizedContent,
       ":updatedAt": new Date().toISOString(),
     },
   };

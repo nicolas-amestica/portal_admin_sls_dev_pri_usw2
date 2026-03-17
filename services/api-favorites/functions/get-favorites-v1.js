@@ -42,8 +42,12 @@ const handler = async (event) => {
   };
 
   const items = await dynamoDbLib.query(params);
+  const sanitized = (items ?? []).map((item) => ({
+    ...item,
+    content: item.content?.map(({ rates, ...rest }) => rest) ?? [],
+  }));
 
-  return success(200, items ?? [], ACTION);
+  return success(200, sanitized, ACTION);
 };
 
 export const main = standardMiddleware(handler);

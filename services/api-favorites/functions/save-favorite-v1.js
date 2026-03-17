@@ -17,6 +17,7 @@ const ACTION = "Guardado de favorito.";
  */
 const buildFavorite = (userId, scope, name, content) => {
   const id = uuidv7();
+  const sanitizedContent = content.map(({ rates, ...rest }) => rest);
   return {
     pk: `FAV#${userId}`,
     sk: `FAV#${scope}#${id}`,
@@ -25,7 +26,7 @@ const buildFavorite = (userId, scope, name, content) => {
     name,
     userId,
     scope,
-    content,
+    content: sanitizedContent,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };

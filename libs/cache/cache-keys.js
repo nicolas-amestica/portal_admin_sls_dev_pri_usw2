@@ -39,6 +39,6 @@ export const CacheKeys = {
     BANK_LIST: 30 * 60 * 1000,      // 30 minutos
     CONTRACT_PDF: 15 * 60 * 1000,   // 15 minutos (PDFs son inmutables)
     BALANCE: 3 * 60 * 1000,         // 3 minutos (balances cambian con pagos)
-    CURRENCY_RATES: 60 * 60 * 1000  // 1 hora (tasas se actualizan diariamente)
+    CURRENCY_RATES: 60 * 60 * 1000  // 1 hora (tasas se actualizan cada hora)
   }
 };
