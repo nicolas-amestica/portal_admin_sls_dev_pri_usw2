@@ -110,3 +110,15 @@ functions:
       - httpApi:
           path: /v1/iam/accesos/aplicaciones/GI/user
           method: GET
+
+  update_profile_v1:
+    handler: functions/update-profile-v1.main
+    description: Actualiza los datos personales o la contraseña del usuario autenticado.
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/usuarios/perfil
+          method: PATCH
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
