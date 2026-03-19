@@ -1,20 +1,12 @@
-import axios from 'axios';
+import axios from '../../../libs/axios.js';
 import { standardMiddleware } from '../../../libs/middleware/index.js';
 import { success, unsuccessful } from '../../../helpers/responses.js';
-import {
-  getCalendarAccessToken,
-  buildCalendarApiUrl,
-  mapGoogleEventToMeetEvent,
-} from '../../../helpers/google-calendar-auth.js';
+import { getCalendarAccessToken, buildCalendarApiUrl, mapGoogleEventToMeetEvent } from '../../../helpers/google-calendar-auth.js';
 
 const ACTION = 'Listar reuniones';
 
 /**
  * Lambda handler: lista todos los eventos del calendario para el mes y año indicados.
- *
- * Query params esperados:
- *   - year   {number}  Año (ej: 2026)
- *   - month  {number}  Mes 1-indexado (ej: 3 para marzo)
  */
 const baseHandler = async (event) => {
   const { year, month } = event.queryStringParameters || {};
@@ -32,7 +24,6 @@ const baseHandler = async (event) => {
 
   const { GOOGLE_CALENDAR_ID = 'primary', TIMEZONE = 'America/Santiago' } = process.env;
 
-  // Rango del mes completo en UTC para compatibilidad con Google Calendar API
   const timeMin = new Date(Date.UTC(yearNum, monthNum - 1, 1)).toISOString();
   const timeMax = new Date(Date.UTC(yearNum, monthNum, 1)).toISOString();
 
@@ -52,7 +43,7 @@ const baseHandler = async (event) => {
   });
 
   const meetings = (data.items || [])
-    .filter((e) => e.start?.dateTime)  // Solo eventos con hora (no día completo)
+    .filter((e) => e.start?.dateTime)
     .map(mapGoogleEventToMeetEvent);
 
   return success(200, { Items: meetings, Count: meetings.length }, ACTION, { year, month });

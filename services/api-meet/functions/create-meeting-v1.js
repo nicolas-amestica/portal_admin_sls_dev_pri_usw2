@@ -1,12 +1,8 @@
-import axios from 'axios';
-import { randomUUID } from 'crypto';
+import axios from '../../../libs/axios.js';
+import { randomUUID } from '../../../libs/crypto.js';
 import { standardMiddleware } from '../../../libs/middleware/index.js';
 import { success, unsuccessful } from '../../../helpers/responses.js';
-import {
-  getCalendarAccessToken,
-  buildCalendarApiUrl,
-  mapGoogleEventToMeetEvent,
-} from '../../../helpers/google-calendar-auth.js';
+import { getCalendarAccessToken, buildCalendarApiUrl, mapGoogleEventToMeetEvent } from '../../../helpers/google-calendar-auth.js';
 
 const ACTION = 'Crear reunión';
 const FLAMINGO_COLOR_ID = '4';
@@ -17,10 +13,6 @@ const NOTIFICATIONS = [
 
 /**
  * Suma una hora a la combinación de fecha y hora dadas.
- *
- * @param {string} date - Fecha en formato YYYY-MM-DD.
- * @param {string} time - Hora en formato HH:MM.
- * @returns {string} Datetime final en formato YYYY-MM-DDTHH:MM:SS.
  */
 function buildEndDateTime(date, time) {
   const [h, m] = time.split(':').map(Number);
@@ -38,14 +30,7 @@ function buildEndDateTime(date, time) {
 }
 
 /**
- * Lambda handler: crea un evento en Google Calendar con Google Meet y color Flamingo.
- *
- * Body esperado:
- *   - title       {string}    Nombre del evento (requerido)
- *   - date        {string}    Fecha en formato YYYY-MM-DD (requerido)
- *   - startTime   {string}    Hora de inicio HH:MM (requerido)
- *   - description {string}    Descripción del evento (opcional)
- *   - guests      {string[]}  Lista de correos de invitados (opcional)
+ * Lambda handler: crea un evento en Google Calendar con Google Meet.
  */
 const baseHandler = async (event) => {
   const { title, date, startTime, description = '', guests = [] } = event.body;

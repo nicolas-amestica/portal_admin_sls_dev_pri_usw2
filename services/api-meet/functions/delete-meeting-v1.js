@@ -1,18 +1,12 @@
-import axios from 'axios';
+import axios from '../../../libs/axios.js';
 import { standardMiddleware } from '../../../libs/middleware/index.js';
 import { success, unsuccessful } from '../../../helpers/responses.js';
-import {
-  getCalendarAccessToken,
-  buildCalendarApiUrl,
-} from '../../../helpers/google-calendar-auth.js';
+import { getCalendarAccessToken, buildCalendarApiUrl } from '../../../helpers/google-calendar-auth.js';
 
 const ACTION = 'Eliminar reunión';
 
 /**
  * Lambda handler: elimina un evento de Google Calendar por su ID.
- *
- * Path params:
- *   - eventId  {string}  ID del evento de Google Calendar a eliminar.
  */
 const baseHandler = async (event) => {
   const eventId = event.pathParameters?.eventId;

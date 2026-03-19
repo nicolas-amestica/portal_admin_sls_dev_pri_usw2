@@ -1,11 +1,7 @@
-import axios from 'axios';
+import axios from '../../../libs/axios.js';
 import { standardMiddleware } from '../../../libs/middleware/index.js';
 import { success, unsuccessful } from '../../../helpers/responses.js';
-import {
-  getCalendarAccessToken,
-  buildCalendarApiUrl,
-  mapGoogleEventToMeetEvent,
-} from '../../../helpers/google-calendar-auth.js';
+import { getCalendarAccessToken, buildCalendarApiUrl, mapGoogleEventToMeetEvent } from '../../../helpers/google-calendar-auth.js';
 
 const ACTION = 'Actualizar reunión';
 const FLAMINGO_COLOR_ID = '4';
@@ -16,10 +12,6 @@ const NOTIFICATIONS = [
 
 /**
  * Suma una hora a la fecha+hora dadas.
- *
- * @param {string} date - Fecha YYYY-MM-DD.
- * @param {string} time - Hora HH:MM.
- * @returns {string} Datetime en formato YYYY-MM-DDTHH:MM:SS.
  */
 function buildEndDateTime(date, time) {
   const [h, m] = time.split(':').map(Number);
@@ -38,16 +30,6 @@ function buildEndDateTime(date, time) {
 
 /**
  * Lambda handler: actualiza un evento de Google Calendar existente.
- *
- * Path params:
- *   - eventId  {string}  ID del evento de Google Calendar.
- *
- * Body esperado:
- *   - title       {string}    Nombre del evento (requerido)
- *   - date        {string}    Fecha YYYY-MM-DD (requerido)
- *   - startTime   {string}    Hora HH:MM (requerido)
- *   - description {string}    Descripción (opcional)
- *   - guests      {string[]}  Lista de emails (opcional)
  */
 const baseHandler = async (event) => {
   const eventId = event.pathParameters?.eventId;
