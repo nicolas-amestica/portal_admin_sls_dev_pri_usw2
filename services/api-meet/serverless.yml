@@ -1,0 +1,111 @@
+service: reuniones
+frameworkVersion: '4'
+
+configValidationMode: warn
+projectDir: ./../../
+
+plugins:
+  - serverless-offline
+
+custom: ${file(../../common/custom.yml)}
+
+build:
+  esbuild:
+    bundle: true
+    minify: true
+    sourcemap: true
+    exclude:
+      - 'aws-sdk'
+      - '@aws-sdk/*'
+    target: 'node20'
+    platform: 'node'
+    format: 'cjs'
+
+package:
+  individually: true
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-west-2'}
+  profile: pa-${self:custom.stage}
+  lambdaHashingVersion: 20201221
+
+  # Usar API Gateway HTTP compartido
+  httpApi:
+    id: ${self:custom.apiGatewayId}
+
+  architecture: arm64
+
+  environment:
+    STAGE: ${self:custom.stage}
+    PROFILE: ${self:provider.profile}
+    NODE_OPTIONS: '--enable-source-maps'
+    GOOGLE_CALENDAR_OAUTH_SECRET_KEY: google-calendar-oauth-${self:custom.stage}-pri-${self:custom.shortRegion}
+    GOOGLE_CALENDAR_ID: 759a4c079308a364e5d183f7e279763550f1a25f677aa3b6967722a56d4a4eeb@group.calendar.google.com
+    TIMEZONE: America/Santiago
+
+  tracing:
+    lambda: true
+
+  deploymentBucket:
+    name: sls-deploys-${self:custom.stage}-pri-${self:custom.shortRegion}
+
+  iamRoleStatements:
+    - ${file(../../aws/policies/lambda-policy-xray.yml)}
+    - ${file(../../aws/policies/lambda-policy-ssm.yml)}
+    - ${file(../../aws/policies/lambda-policy-secretsmanager.yml)}
+
+functions:
+  create_meeting_v1:
+    handler: functions/create-meeting-v1.main
+    description: Crea un nuevo evento de Google Meet en el calendario del administrador.
+    timeout: 29
+    memorySize: 512
+    events:
+      - httpApi:
+          path: /v1/reuniones
+          method: POST
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  list_meetings_v1:
+    handler: functions/list-meetings-v1.main
+    description: Lista los eventos de Google Meet del mes y año especificados.
+    timeout: 29
+    memorySize: 512
+    events:
+      - httpApi:
+          path: /v1/reuniones
+          method: GET
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  update_meeting_v1:
+    handler: functions/update-meeting-v1.main
+    description: Actualiza un evento de Google Meet existente.
+    timeout: 29
+    memorySize: 512
+    events:
+      - httpApi:
+          path: /v1/reuniones/{eventId}
+          method: PUT
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  delete_meeting_v1:
+    handler: functions/delete-meeting-v1.main
+    description: Elimina un evento de Google Meet del calendario.
+    timeout: 29
+    memorySize: 512
+    events:
+      - httpApi:
+          path: /v1/reuniones/{eventId}
+          method: DELETE
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request

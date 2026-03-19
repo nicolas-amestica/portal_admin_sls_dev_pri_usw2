@@ -11,6 +11,11 @@ export const errorHandlerMiddleware = () => {
     // Extraer statusCode del error si existe
     const statusCode = error.statusCode || error.status || 500;
 
+    // Loguear respuesta de error de API externa (ej: Axios) para diagnóstico
+    if (error.isAxiosError && error.response?.data) {
+      console.error('[ERROR-HANDLER] API externa respondió:', JSON.stringify(error.response.data));
+    }
+
     // Crear respuesta usando helper existente
     const errorResponse = unsuccessful(
       statusCode,
