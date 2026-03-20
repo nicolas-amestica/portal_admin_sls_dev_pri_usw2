@@ -43,7 +43,7 @@ provider:
     PROGRAM_TABLE: PRG#8e3d823d-9f58-45df-8a8f-6779435a0001
     DYNAMODB_USER_TABLE: users-${self:custom.stage}-pri-${self:custom.shortRegion}
     TRANSBANK_ENVIRONMENT: integration  # TODO: cambiar a 'production' en stage prd
-    TRANSBANK_COMMERCE_CODE: ''         # TODO: commerce code de producción (solo requerido en prd)
+    TRANSBANK_COMMERCE_CODE: integration         # TODO: commerce code de producción (solo requerido en prd)
     TRANSBANK_API_KEY_SECRET: /pa/${self:custom.stage}/transbank-api-key
     SECRET_KEY: /pa/${self:custom.stage}/jwt-key
     PROFILE: ${self:provider.profile}
