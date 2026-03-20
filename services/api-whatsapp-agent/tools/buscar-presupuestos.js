@@ -1,36 +1,26 @@
-import { S3Client, ListObjectsV2Command } from '@aws-sdk/client-s3';
-import { getPresignedUrl } from '../../../libs/s3-v3.js';
-
-let s3Client;
-const getS3Client = () => {
-  if (!s3Client) s3Client = new S3Client({ region: process.env.AWS_REGION });
-  return s3Client;
-};
-
-const PRESIGNED_URL_EXPIRY = 86400; // 24 horas
+import { listObjects } from '../../../libs/s3-v3.js';
 
 /**
- * @description Lista objetos S3 bajo un prefijo dado.
+ * @description Lista los Keys de PDFs en S3 bajo un prefijo dado.
  * @param {string} bucket
  * @param {string} prefix
- * @returns {Promise<string[]>} Lista de Keys encontrados.
+ * @returns {Promise<string[]>}
  */
 async function listKeys(bucket, prefix) {
-  const command = new ListObjectsV2Command({ Bucket: bucket, Prefix: prefix });
-  const response = await getS3Client().send(command);
+  const response = await listObjects({ Bucket: bucket, Prefix: prefix });
   return (response.Contents || []).filter((obj) => obj.Key.endsWith('.pdf')).map((obj) => obj.Key);
 }
 
 /**
- * @description Busca los PDFs de presupuesto en S3 para un destino y ubicación del cliente.
+ * @description Busca PDFs de presupuesto en S3 para un destino y ubicación del cliente.
  * Intenta primero con la comuna específica; si no encuentra, usa el prefijo _default.
- * Por cada PDF encontrado genera una presigned URL válida por 24 horas.
+ * Retorna los keys de S3 para que el orquestador envíe los archivos directamente.
  *
  * @param {object} params
- * @param {'bariloche'|'camboriu'|'pucon'|'valdivia'} params.destino - Destino del viaje.
- * @param {string} params.codigoRegion - Código de región de Chile (ej: 'rm', 'ix', 'x').
- * @param {string} params.nombreComuna - Nombre de la comuna en minúsculas con guiones (ej: 'las-condes').
- * @returns {Promise<{encontrados: boolean, archivos: Array<{nombre: string, url: string}>}>}
+ * @param {'bariloche'|'camboriu'|'pucon'|'valdivia'} params.destino
+ * @param {string} params.codigoRegion
+ * @param {string} params.nombreComuna
+ * @returns {Promise<{encontrados: boolean, archivos: Array<{nombre: string, key: string}>}>}
  */
 export async function buscarPresupuestos({ destino, codigoRegion, nombreComuna }) {
   const bucket = process.env.BUCKET_INFO_GI;
@@ -38,7 +28,6 @@ export async function buscarPresupuestos({ destino, codigoRegion, nombreComuna }
   const regionNorm = codigoRegion.toLowerCase();
   const comunaNorm = nombreComuna.toLowerCase().replace(/\s+/g, '-');
 
-  // Buscar primero con la comuna específica, luego fallback a _default.
   const prefijos = [
     `presupuestos/${destinoNorm}/${regionNorm}/${comunaNorm}/`,
     `presupuestos/${destinoNorm}/${regionNorm}/_default/`,
@@ -50,17 +39,8 @@ export async function buscarPresupuestos({ destino, codigoRegion, nombreComuna }
     if (keys.length > 0) break;
   }
 
-  if (keys.length === 0) {
-    return { encontrados: false, archivos: [] };
-  }
+  if (keys.length === 0) return { encontrados: false, archivos: [] };
 
-  const archivos = await Promise.all(
-    keys.map(async (key) => {
-      const url = await getPresignedUrl({ Bucket: bucket, Key: key }, PRESIGNED_URL_EXPIRY);
-      const nombre = key.split('/').pop();
-      return { nombre, url };
-    })
-  );
-
+  const archivos = keys.map((key) => ({ nombre: key.split('/').pop(), key }));
   return { encontrados: true, archivos };
 }

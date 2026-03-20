@@ -2,12 +2,15 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getParameterValue } from '../../../libs/parameter-store.js';
 import { buscarPresupuestos } from '../tools/buscar-presupuestos.js';
 import { crearReunion } from '../tools/crear-reunion.js';
+import { listarReuniones } from '../tools/listar-reuniones.js';
+import { reagendarReunion } from '../tools/reagendar-reunion.js';
+import { eliminarReunion } from '../tools/eliminar-reunion.js';
 
 /** Cache del cliente Gemini en memoria. */
 let _geminiClient = null;
 
 /**
- * @description Obtiene o inicializa el cliente de Gemini con la API key desde Secrets Manager.
+ * @description Obtiene o inicializa el cliente de Gemini con la API key desde Parameter Store.
  * @returns {Promise<GoogleGenerativeAI>}
  */
 async function getGeminiClient() {
@@ -25,7 +28,7 @@ const TOOLS = [
       {
         name: 'buscar_presupuestos',
         description:
-          'Busca los PDFs de presupuesto disponibles en S3 para un destino y ubicación geográfica del cliente. Retorna URLs de descarga válidas por 24 horas. Llamar solo cuando se tengan destino, codigoRegion y nombreComuna.',
+          'Busca los PDFs de presupuesto disponibles en S3 para un destino y ubicación geográfica del cliente. Llamar solo cuando se tengan destino, codigoRegion y nombreComuna.',
         parameters: {
           type: 'OBJECT',
           properties: {
@@ -42,40 +45,99 @@ const TOOLS = [
             nombreComuna: {
               type: 'STRING',
               description:
-                "Nombre de la comuna en minúsculas y con guiones en lugar de espacios. Ejemplos: 'las-condes', 'temuco', 'concepcion'. Usar '_default' si no se especifica una comuna.",
+                "Nombre de la comuna en minúsculas y con guiones. Ejemplos: 'las-condes', 'temuco', 'concepcion'. Usar '_default' si no se especifica.",
             },
           },
           required: ['destino', 'codigoRegion', 'nombreComuna'],
         },
       },
       {
-        name: 'crear_reunion',
+        name: 'listar_reuniones',
         description:
-          'Crea una reunión de Google Meet y retorna el link. Usar SOLO cuando el cliente confirme explícitamente que quiere una videollamada para conocer más detalles.',
+          'Lista las reuniones agendadas en el calendario de Giras Indómito dentro de un rango de fechas. SIEMPRE llamar antes de proponer horarios o de crear/reagendar reuniones para verificar disponibilidad. Retorna los eventos con su id, fecha, hora de inicio y hora de fin.',
         parameters: {
           type: 'OBJECT',
           properties: {
+            fechaInicio: {
+              type: 'STRING',
+              description: 'Fecha de inicio del rango a consultar en formato YYYY-MM-DD.',
+            },
+            fechaFin: {
+              type: 'STRING',
+              description: 'Fecha de fin del rango a consultar en formato YYYY-MM-DD.',
+            },
+          },
+          required: ['fechaInicio', 'fechaFin'],
+        },
+      },
+      {
+        name: 'crear_reunion',
+        description:
+          'Crea una reunión de Google Meet. Usar SOLO cuando el cliente confirme explícitamente que quiere la videollamada y ya se haya verificado disponibilidad con listar_reuniones.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            destino: {
+              type: 'STRING',
+              description: 'Destino del viaje (se incluye en el título de la reunión).',
+              enum: ['bariloche', 'camboriu', 'pucon', 'valdivia'],
+            },
             nombreCliente: {
               type: 'STRING',
               description: 'Nombre del apoderado o persona de contacto.',
             },
             emailCliente: {
               type: 'STRING',
-              description:
-                'Correo electrónico del cliente para enviar la invitación. Solo incluir si el cliente lo proporcionó voluntariamente.',
+              description: 'Correo electrónico del cliente. Solo incluir si lo proporcionó voluntariamente.',
             },
             fechaSugerida: {
               type: 'STRING',
-              description:
-                'Fecha sugerida para la reunión en formato YYYY-MM-DD. Si el cliente no especifica, proponer el siguiente día hábil.',
+              description: 'Fecha en formato YYYY-MM-DD. Debe estar libre según listar_reuniones y no ser fecha pasada.',
             },
             horaSugerida: {
               type: 'STRING',
-              description:
-                "Hora de inicio en formato HH:MM (zona horaria America/Santiago). Opciones habituales: '10:00', '11:00', '15:00', '16:00'.",
+              description: "Hora de inicio en formato HH:MM (zona horaria America/Santiago).",
             },
           },
-          required: ['nombreCliente', 'fechaSugerida', 'horaSugerida'],
+          required: ['destino', 'nombreCliente', 'fechaSugerida', 'horaSugerida'],
+        },
+      },
+      {
+        name: 'reagendar_reunion',
+        description:
+          'Reagenda una reunión existente a una nueva fecha y hora. Verificar disponibilidad con listar_reuniones antes de llamar esta función. El eventId se obtiene de listar_reuniones.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            eventId: {
+              type: 'STRING',
+              description: 'ID del evento de Google Calendar a reagendar. Obtenido de listar_reuniones.',
+            },
+            nuevaFecha: {
+              type: 'STRING',
+              description: 'Nueva fecha en formato YYYY-MM-DD. No puede ser fecha pasada.',
+            },
+            nuevaHora: {
+              type: 'STRING',
+              description: 'Nueva hora de inicio en formato HH:MM (America/Santiago).',
+            },
+          },
+          required: ['eventId', 'nuevaFecha', 'nuevaHora'],
+        },
+      },
+      {
+        name: 'eliminar_reunion',
+        description:
+          'Cancela y elimina una reunión del calendario. Usar SOLO con confirmación explícita del cliente. El eventId se obtiene de listar_reuniones.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            eventId: {
+              type: 'STRING',
+              description: 'ID del evento de Google Calendar a eliminar. Obtenido de listar_reuniones.',
+            },
+          },
+          required: ['eventId'],
         },
       },
     ],
@@ -83,7 +145,7 @@ const TOOLS = [
 ];
 
 /**
- * @description System prompt con el contexto completo del negocio Giras Indómito.
+ * @description System prompt del agente de Giras Indómito.
  * @param {string} phoneNumber
  * @returns {string}
  */
@@ -96,10 +158,13 @@ function buildSystemPrompt(phoneNumber) {
     day: 'numeric',
   });
 
-  return `Eres el asistente virtual de Giras Indómito, empresa chilena especializada en giras de estudio para estudiantes de 1° a 4° Medio.
+  return `Eres Valentina, asesora de viajes de Giras Indómito, empresa chilena de giras de estudio para 1° a 4° Medio.
 
-## Tu rol
-Atiendes a apoderados interesados en contratar una gira de estudio para sus hijos. Eres amigable, profesional y conciso. Respondes en español chileno formal pero cercano. Nunca uses emojis excesivos.
+## Cómo comunicarte
+Escribe como lo haría una persona real por WhatsApp: natural, cálida, directa. Frases cortas.
+No uses lenguaje corporativo ni frases de chatbot ("¡Claro que sí!", "¡Por supuesto!").
+Un emoji ocasional está bien, pero sin excesos.
+Nunca menciones que eres una IA ni un asistente virtual.
 
 ## Destinos disponibles
 - Pucón (Sur de Chile)
@@ -108,77 +173,75 @@ Atiendes a apoderados interesados en contratar una gira de estudio para sus hijo
 - Camboriú (Brasil)
 
 ## Flujo de atención
-1. Saluda cordialmente e identifica el destino de interés.
-2. Pregunta la fecha aproximada del viaje (mes/año).
-3. Pregunta desde qué región y comuna del país salen (necesario para el presupuesto correcto).
-4. Con los tres datos confirmados (destino + región + comuna), llama a buscar_presupuestos y comparte los documentos encontrados.
-5. Una vez enviados los presupuestos, consulta si el cliente desea más información detallada. Si confirma, ofrece agendar una reunión por Google Meet. Si acepta, llama a crear_reunion.
+1. Saluda de forma natural e identifica el destino de interés.
+2. Pregunta la fecha aproximada del viaje.
+3. Pregunta región y comuna del cliente.
+4. Con destino + región + comuna confirmados, llama buscar_presupuestos y comparte los documentos.
+5. Si el cliente quiere más detalles, ofrece una videollamada.
+6. Para agendar: PRIMERO llama listar_reuniones sobre el rango de fechas propuesto. Solo propón horarios que estén libres. Nunca propongas un horario ya ocupado ni fechas pasadas.
+7. Con fecha y hora confirmadas, llama crear_reunion. El campo destino es obligatorio.
+8. Si el cliente quiere reagendar: llama listar_reuniones para verificar disponibilidad y luego reagendar_reunion.
+9. Si el cliente quiere cancelar: pide confirmación explícita y luego llama eliminar_reunion.
 
-## Reglas estrictas
-- Solo atiendes clientes en Chile. Si alguien indica estar fuera del país, indica que actualmente solo trabajan con colegios chilenos.
-- No inventes precios ni condiciones. Si no hay presupuesto disponible para esa combinación, indica que el equipo se contactará a la brevedad para preparar uno personalizado.
-- No uses crear_reunion sin confirmación explícita del cliente.
-- No llames buscar_presupuestos si te faltan alguno de los tres datos: destino, región y comuna.
-- Si el cliente ya entregó algunos datos en mensajes anteriores, no los pidas de nuevo. Recupera esa información del historial.
-- Mantén las respuestas breves y al punto.
+## Reglas
+- Solo atiendes colegios chilenos.
+- Nunca inventes precios, disponibilidad ni información que no tengas confirmada.
+- Si no hay presupuesto disponible, indica que el equipo preparará uno personalizado.
+- No pidas datos que el cliente ya entregó en el historial.
+- No uses herramientas de calendario sin que el cliente lo haya pedido explícitamente.
+- No agendes dos reuniones el mismo día y hora.
 
-## Contexto actual
-Fecha: ${today}
+## Contexto
+Fecha de hoy: ${today}
 Número WhatsApp del cliente: ${phoneNumber}`;
 }
 
 /**
- * @description Ejecuta una herramienta según el nombre retornado por Gemini y devuelve el resultado.
- * @param {string} name - Nombre de la función.
- * @param {object} args - Argumentos de la función.
- * @returns {Promise<object>} Resultado de la herramienta.
+ * @description Ejecuta una herramienta según el nombre retornado por Gemini.
+ * @param {string} name
+ * @param {object} args
+ * @returns {Promise<object>}
  */
 async function executeTool(name, args) {
-  if (name === 'buscar_presupuestos') {
-    return buscarPresupuestos(args);
+  switch (name) {
+    case 'buscar_presupuestos': return buscarPresupuestos(args);
+    case 'listar_reuniones':    return listarReuniones(args);
+    case 'crear_reunion':       return crearReunion(args);
+    case 'reagendar_reunion':   return reagendarReunion(args);
+    case 'eliminar_reunion':    return eliminarReunion(args);
+    default: throw new Error(`Herramienta desconocida: ${name}`);
   }
-  if (name === 'crear_reunion') {
-    return crearReunion(args);
-  }
-  throw new Error(`Herramienta desconocida: ${name}`);
 }
 
 /**
  * @description Ejecuta un turno de conversación con Gemini, manejando el loop de function calling.
- * Continúa llamando al modelo hasta obtener una respuesta de texto final.
  *
- * @param {Array<{role: string, parts: Array<{text: string}>}>} history - Historial previo de la conversación.
- * @param {string} newMessage - Nuevo mensaje del usuario.
- * @param {string} phoneNumber - Número de teléfono del cliente.
- * @returns {Promise<{
- *   responseText: string,
- *   toolsExecuted: Array<{name: string, args: object, result: object}>
- * }>}
+ * @param {Array<{role: string, parts: Array<{text: string}>}>} history
+ * @param {string} newMessage
+ * @param {string} phoneNumber
+ * @returns {Promise<{responseText: string, toolsExecuted: Array<{name: string, args: object, result: object}>}>}
  */
 export async function runConversationTurn(history, newMessage, phoneNumber) {
   const genAI = await getGeminiClient();
 
   const model = genAI.getGenerativeModel({
-    model: 'gemini-3.1-pro-preview-customtools',
+    model: 'gemini-2.5-pro-preview-05-06',
     systemInstruction: buildSystemPrompt(phoneNumber),
     tools: TOOLS,
   });
 
   const chat = model.startChat({ history });
-
   let response = await chat.sendMessage(newMessage);
   const toolsExecuted = [];
 
-  // Loop de function calling: Gemini puede pedir varias herramientas antes de responder con texto.
   while (true) {
     const candidate = response.response.candidates?.[0];
     const parts = candidate?.content?.parts || [];
-
     const functionCallPart = parts.find((p) => p.functionCall);
     if (!functionCallPart) break;
 
     const { name, args } = functionCallPart.functionCall;
-    console.log(`[GEMINI] Llamando herramienta: ${name}`, JSON.stringify(args));
+    console.log(`[GEMINI] Herramienta: ${name}`, JSON.stringify(args));
 
     let result;
     try {
@@ -188,11 +251,9 @@ export async function runConversationTurn(history, newMessage, phoneNumber) {
     }
 
     toolsExecuted.push({ name, args, result });
-    console.log(`[GEMINI] Resultado de ${name}:`, JSON.stringify(result));
+    console.log(`[GEMINI] Resultado ${name}:`, JSON.stringify(result));
 
-    response = await chat.sendMessage([
-      { functionResponse: { name, response: result } },
-    ]);
+    response = await chat.sendMessage([{ functionResponse: { name, response: result } }]);
   }
 
   const responseText = response.response.text();

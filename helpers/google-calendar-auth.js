@@ -1,4 +1,4 @@
-import axios from 'axios';
+import * as httpClient from '../libs/axios.js';
 import { getParameterValue } from '../libs/parameter-store.js';
 
 /** Cache del access token en memoria para la vida útil de la invocación Lambda. */
@@ -34,7 +34,7 @@ export async function getCalendarAccessToken() {
 
   let data;
   try {
-    const response = await axios.post(
+    const response = await httpClient.post(
       'https://oauth2.googleapis.com/token',
       new URLSearchParams({
         grant_type: 'refresh_token',

@@ -1,5 +1,5 @@
 import { getAWSConfigs } from './configs';
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 let s3;
@@ -32,4 +32,29 @@ export const getPresignedUrl = async (params, expiresIn = 300) => {
   if (!s3) await initClient();
   const command = new GetObjectCommand(params);
   return getSignedUrl(s3, command, { expiresIn });
+};
+
+/**
+ * Lista objetos en un bucket de S3 bajo un prefijo dado.
+ * @param {Object} params - Parámetros de S3 (Bucket, Prefix, etc.).
+ * @returns {Promise<import('@aws-sdk/client-s3').ListObjectsV2CommandOutput>}
+ */
+export const listObjects = async (params) => {
+  if (!s3) await initClient();
+  const command = new ListObjectsV2Command(params);
+  return s3.send(command);
+};
+
+/**
+ * Descarga un objeto de S3 y retorna su contenido como Buffer.
+ * @param {Object} params - Parámetros de S3 (Bucket, Key).
+ * @returns {Promise<Buffer>}
+ */
+export const getObjectBuffer = async (params) => {
+  const response = await getObject(params);
+  const chunks = [];
+  for await (const chunk of response.Body) {
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
 };
