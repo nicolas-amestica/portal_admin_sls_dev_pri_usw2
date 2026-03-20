@@ -10,7 +10,7 @@ echo "🚀 Desplegando Portal Admin - Stage: $STAGE"
 echo ""
 
 # Infraestructura
-echo "📦 1/12 - Verificando infraestructura..."
+echo "📦 1/15 - Verificando infraestructura..."
 if aws cloudformation describe-stacks --stack-name "portal-admin-infrastructure-${STAGE}" --profile "pa-${STAGE}" --region us-west-2 >/dev/null 2>&1; then
     echo "   ✅ Infraestructura ya existe"
 else
@@ -31,13 +31,16 @@ services=(
     "api-extraction"
     "api-notification"
     "api-configuration"
+    "api-favorites"
+    "api-meet"
+    "api-whatsapp-agent"
     "job-trigger"
 )
 
 count=2
 for service in "${services[@]}"; do
     if [ -d "$PROJECT_ROOT/services/$service" ]; then
-        echo "📦 $count/12 - Desplegando $service..."
+        echo "📦 $count/15 - Desplegando $service..."
         cd "$PROJECT_ROOT/services/$service"
         # Si es un servicio Go, compilar antes de desplegar
         if [ -f "go.mod" ]; then
@@ -45,7 +48,7 @@ for service in "${services[@]}"; do
             make build
         fi
         npx sls deploy --stage "$STAGE" 2>&1 | grep -E '(Service deployed|Error|✔|✖)'
-        ((count++))
+        count=$((count + 1))
     fi
 done
 
