@@ -64,6 +64,11 @@ provider:
     - ${file(../../aws/policies/lambda-policy-lambda.yml)}
     - Effect: Allow
       Action:
+        - transcribe:StartTranscriptionJob
+        - transcribe:GetTranscriptionJob
+      Resource: '*'
+    - Effect: Allow
+      Action:
         - dynamodb:GetItem
         - dynamodb:PutItem
         - dynamodb:UpdateItem

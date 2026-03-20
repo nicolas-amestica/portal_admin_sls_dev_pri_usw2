@@ -1,7 +1,8 @@
 import { uuidv7 } from 'uuidv7';
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { getObjectBuffer } from '../../../libs/s3-v3.js';
-import { runConversationTurn, transcribeAudio } from '../helpers/gemini-agent.js';
+import { runConversationTurn } from '../helpers/gemini-agent.js';
+import { transcribeAudio } from '../helpers/aws-transcribe.js';
 import {
   markAsRead,
   sendTypingIndicator,
@@ -13,7 +14,9 @@ import {
 import { buildSessionItem, buildTurnItem, toGeminiHistory } from '../mappers/map-conversacion-item.js';
 
 const ACTION = 'Ejecutar agente WhatsApp';
+// Cada turno ocupa 2 items en DynamoDB (user + model). +1 por si el item de sesión aparece.
 const MAX_HISTORY_TURNS = 20;
+const MAX_HISTORY_ITEMS = MAX_HISTORY_TURNS * 2 + 1;
 
 /**
  * @description Calcula el tiempo de espera simulando escritura humana según el largo del texto.
@@ -38,7 +41,7 @@ async function loadConversation(phoneNumber) {
     KeyConditionExpression: 'pk = :pk',
     ExpressionAttributeValues: { ':pk': pk },
     ScanIndexForward: false,
-    Limit: MAX_HISTORY_TURNS + 1,
+    Limit: MAX_HISTORY_ITEMS,
   });
 
   if (!items) return { session: null, turnItems: [] };
@@ -155,6 +158,16 @@ export const main = async (event) => {
   const collectedData = session?.collectedData || {};
 
   const { responseText, toolsExecuted } = await runConversationTurn(history, text, phoneNumber);
+
+  // Si buscar_presupuestos no encontró archivos, dejar el mensaje sin responder ni marcar como
+  // leído para que el administrador lo atienda manualmente desde WhatsApp.
+  const sinPresupuesto = toolsExecuted.some(
+    (t) => t.name === 'buscar_presupuestos' && !t.result?.encontrados
+  );
+  if (sinPresupuesto) {
+    console.log(`[${ACTION}] Sin presupuesto para ${phoneNumber}. Mensaje dejado sin responder.`);
+    return;
+  }
 
   // Marcar como leído y mostrar "está escribiendo" antes de responder.
   await markAsRead(messageId).catch((err) =>

@@ -6,6 +6,9 @@ import { listarReuniones } from '../tools/listar-reuniones.js';
 import { reagendarReunion } from '../tools/reagendar-reunion.js';
 import { eliminarReunion } from '../tools/eliminar-reunion.js';
 
+/** Modelo para conversación con function calling (el más capaz disponible). */
+const MODEL_CHAT = 'gemini-3-pro-image-preview';
+
 /** Cache del cliente Gemini en memoria. */
 let _geminiClient = null;
 
@@ -158,18 +161,20 @@ function buildSystemPrompt(phoneNumber) {
     day: 'numeric',
   });
 
-  return `Eres Valentina, asesora de viajes de Giras Indómito, empresa chilena de giras de estudio para 1° a 4° Medio.
+  return `Eres Susana, asesora de viajes de Giras Indómito, empresa chilena de giras de estudio para 1° a 4° Medio.
 
 ## Cómo comunicarte
 Escribe como lo haría una persona real por WhatsApp: natural, cálida, directa. Frases cortas.
-No uses lenguaje corporativo ni frases de chatbot ("¡Claro que sí!", "¡Por supuesto!").
+No uses lenguaje corporativo ni frases de chatbot ("Claro que sí!", "Por supuesto!").
+Cuando sea apropiado, puedes usar modismos chilenos y un tono cercano, pero siempre profesional.
+IMPORTANTE — signos de puntuación: JAMÁS uses ¡ ni ¿. Están completamente prohibidos. Usa solo ? y ! al cerrar la frase. Ejemplo correcto: "Hola! En qué te puedo ayudar?" — Ejemplo incorrecto: "¡Hola! ¿En qué te puedo ayudar?"
 Un emoji ocasional está bien, pero sin excesos.
 Nunca menciones que eres una IA ni un asistente virtual.
 
 ## Destinos disponibles
-- Pucón (Sur de Chile)
-- Valdivia (Sur de Chile)
+- Pucón (Sur de Chile) con o sin pasada a Valdivia
 - Bariloche (Argentina)
+- Pucón y Bariloche (combinado)
 - Camboriú (Brasil)
 
 ## Flujo de atención
@@ -186,7 +191,7 @@ Nunca menciones que eres una IA ni un asistente virtual.
 ## Reglas
 - Solo atiendes colegios chilenos.
 - Nunca inventes precios, disponibilidad ni información que no tengas confirmada.
-- Si no hay presupuesto disponible, indica que el equipo preparará uno personalizado.
+- Si buscar_presupuestos retorna encontrados: false, NO escribas ninguna respuesta al cliente. Devuelve texto vacío y nada más. El equipo se encargará manualmente.
 - No pidas datos que el cliente ya entregó en el historial.
 - No uses herramientas de calendario sin que el cliente lo haya pedido explícitamente.
 - No agendes dos reuniones el mismo día y hora.
@@ -214,36 +219,6 @@ async function executeTool(name, args) {
 }
 
 /**
- * @description Transcribe un audio usando Gemini como paso previo a la conversación.
- * El audio se pasa como inline_data en base64.
- *
- * @param {Buffer} audioBuffer - Contenido binario del audio.
- * @param {string} mimeType - Tipo MIME del audio (ej: "audio/ogg; codecs=opus").
- * @returns {Promise<string>} Texto transcrito.
- */
-export async function transcribeAudio(audioBuffer, mimeType) {
-  const genAI = await getGeminiClient();
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-pro-preview-05-06' });
-
-  // Normalizar el mimeType: "audio/ogg; codecs=opus" → "audio/ogg"
-  const normalizedMime = mimeType.split(';')[0].trim();
-
-  const result = await model.generateContent([
-    {
-      inlineData: {
-        mimeType: normalizedMime,
-        data: audioBuffer.toString('base64'),
-      },
-    },
-    {
-      text: 'Transcribe exactamente lo que dice este audio, en el idioma en que fue grabado. Devuelve solo la transcripción, sin comentarios.',
-    },
-  ]);
-
-  return result.response.text().trim();
-}
-
-/**
  * @description Ejecuta un turno de conversación con Gemini, manejando el loop de function calling.
  *
  * @param {Array<{role: string, parts: Array<{text: string}>}>} history
@@ -255,7 +230,7 @@ export async function runConversationTurn(history, newMessage, phoneNumber) {
   const genAI = await getGeminiClient();
 
   const model = genAI.getGenerativeModel({
-    model: 'gemini-2.5-pro-preview-05-06',
+    model: MODEL_CHAT,
     systemInstruction: buildSystemPrompt(phoneNumber),
     tools: TOOLS,
   });

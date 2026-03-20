@@ -51,11 +51,17 @@ export function buildTurnItem(phoneNumber, sk, role, text) {
 
 /**
  * @description Convierte los items de turno de DynamoDB al formato de historial de Gemini.
+ * Garantiza que el historial siempre empiece con un turno 'user' (requisito de la API).
  * @param {object[]} items - Items de DynamoDB con campos role y parts.
  * @returns {Array<{role: string, parts: Array<{text: string}>}>}
  */
 export function toGeminiHistory(items) {
-  return items
+  const turns = items
     .filter((item) => item.sk.startsWith('MSG#'))
     .map((item) => ({ role: item.role, parts: item.parts }));
+
+  // Gemini rechaza historiales que comiencen con 'model'. Descartamos los turnos
+  // iniciales huérfanos si el corte de historial dejó un 'model' al inicio.
+  const firstUserIdx = turns.findIndex((t) => t.role === 'user');
+  return firstUserIdx > 0 ? turns.slice(firstUserIdx) : turns;
 }
