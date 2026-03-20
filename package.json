@@ -29,6 +29,7 @@
     "@aws-sdk/lib-dynamodb": "^3.859.0",
     "@aws-sdk/s3-request-presigner": "^3.916.0",
     "@aws-sdk/util-dynamodb": "^3.859.0",
+    "@google/generative-ai": "^0.24.1",
     "@middy/core": "^5.5.1",
     "@middy/http-multipart-body-parser": "^5.5.1",
     "@middy/util": "^5.5.1",

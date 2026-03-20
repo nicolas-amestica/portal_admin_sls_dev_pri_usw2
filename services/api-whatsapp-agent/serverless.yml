@@ -1,0 +1,122 @@
+service: agente-whatsapp
+frameworkVersion: '4'
+
+configValidationMode: warn
+projectDir: ./../../
+
+plugins:
+  - serverless-offline
+
+custom: ${file(../../common/custom.yml)}
+
+build:
+  esbuild:
+    bundle: true
+    minify: true
+    sourcemap: true
+    exclude:
+      - 'aws-sdk'
+      - '@aws-sdk/*'
+    target: 'node20'
+    platform: 'node'
+    format: 'cjs'
+
+package:
+  individually: true
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-west-2'}
+  profile: pa-${self:custom.stage}
+  lambdaHashingVersion: 20201221
+
+  httpApi:
+    id: ${self:custom.apiGatewayId}
+
+  architecture: arm64
+
+  environment:
+    STAGE: ${self:custom.stage}
+    PROFILE: ${self:provider.profile}
+    NODE_OPTIONS: '--enable-source-maps'
+    TIMEZONE: America/Santiago
+    WHATSAPP_SECRET_KEY: whatsapp-config-${self:custom.stage}-pri-${self:custom.shortRegion}
+    GEMINI_SECRET_KEY: gemini-api-key-${self:custom.stage}-pri-${self:custom.shortRegion}
+    GOOGLE_CALENDAR_OAUTH_SECRET_KEY: google-calendar-oauth-${self:custom.stage}-pri-${self:custom.shortRegion}
+    GOOGLE_CALENDAR_ID: 759a4c079308a364e5d183f7e279763550f1a25f677aa3b6967722a56d4a4eeb@group.calendar.google.com
+    CONVERSATIONS_TABLE: conversations-${self:custom.stage}-pri-${self:custom.shortRegion}
+    BUCKET_INFO_GI: giras-indomito-${self:custom.stage}-info
+    AGENT_LAMBDA_NAME: agente-whatsapp-${self:custom.stage}-ejecutar_agente_v1
+
+  tracing:
+    lambda: true
+
+  deploymentBucket:
+    name: sls-deploys-${self:custom.stage}-pri-${self:custom.shortRegion}
+
+  iamRoleStatements:
+    - ${file(../../aws/policies/lambda-policy-xray.yml)}
+    - ${file(../../aws/policies/lambda-policy-ssm.yml)}
+    - ${file(../../aws/policies/lambda-policy-secretsmanager.yml)}
+    - ${file(../../aws/policies/lambda-policy-s3.yml)}
+    - ${file(../../aws/policies/lambda-policy-lambda.yml)}
+    - Effect: Allow
+      Action:
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:Query
+      Resource:
+        - arn:aws:dynamodb:${self:provider.region}:*:table/conversations-${self:custom.stage}-pri-${self:custom.shortRegion}
+        - arn:aws:dynamodb:${self:provider.region}:*:table/conversations-${self:custom.stage}-pri-${self:custom.shortRegion}/index/*
+
+functions:
+  verificar_webhook_v1:
+    handler: functions/verificacion-webhook-v1.main
+    description: Verifica el handshake inicial de WhatsApp Cloud API (Meta).
+    timeout: 10
+    memorySize: 256
+    events:
+      - httpApi:
+          path: /v1/whatsapp/webhook
+          method: GET
+
+  procesar_mensaje_v1:
+    handler: functions/procesar-mensaje-v1.main
+    description: Recibe mensajes entrantes de WhatsApp y delega al agente de forma asíncrona.
+    timeout: 10
+    memorySize: 256
+    events:
+      - httpApi:
+          path: /v1/whatsapp/webhook
+          method: POST
+
+  ejecutar_agente_v1:
+    handler: functions/ejecutar-agente-v1.main
+    description: Orquesta la conversación con Gemini, ejecuta tools y envía la respuesta por WhatsApp.
+    timeout: 60
+    memorySize: 512
+
+resources:
+  Resources:
+    ConversationsTable:
+      Type: AWS::DynamoDB::Table
+      DeletionPolicy: Retain
+      Properties:
+        TableName: conversations-${self:custom.stage}-pri-${self:custom.shortRegion}
+        BillingMode: PAY_PER_REQUEST
+        TimeToLiveSpecification:
+          AttributeName: ttl
+          Enabled: true
+        AttributeDefinitions:
+          - AttributeName: pk
+            AttributeType: S
+          - AttributeName: sk
+            AttributeType: S
+        KeySchema:
+          - AttributeName: pk
+            KeyType: HASH
+          - AttributeName: sk
+            KeyType: RANGE
