@@ -37,7 +37,7 @@ const TOOLS = [
             codigoRegion: {
               type: 'STRING',
               description:
-                "Código de región de Chile en minúsculas. Ejemplos: 'rm' (Metropolitana), 'v' (Valparaíso), 'vi' (O'Higgins), 'vii' (Maule), 'viii' (Biobío), 'ix' (Araucanía), 'xiv' (Los Ríos), 'x' (Los Lagos), 'xi' (Aysén), 'xii' (Magallanes), 'i' (Tarapacá), 'ii' (Antofagasta), 'iii' (Atacama), 'iv' (Coquimbo).",
+                "Código de región de Chile en minúsculas. Ejemplos: 'i' (Tarapacá), 'ii' (Antofagasta), 'iii' (Atacama), 'iv' (Coquimbo), 'v' (Valparaíso), 'rm' (Metropolitana), 'vi' (O'Higgins), 'vii' (Maule), 'xvi' (Ñuble), 'viii' (Biobío), 'ix' (Araucanía), 'xiv' (Los Ríos), 'x' (Los Lagos), 'xi' (Aysén), 'xii' (Magallanes), 'xv' (Arica y Parinacota).",
             },
             nombreComuna: {
               type: 'STRING',
