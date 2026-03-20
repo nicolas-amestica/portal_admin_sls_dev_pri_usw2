@@ -42,7 +42,7 @@ provider:
     DYNAMODB_PROGRAM_TABLE: programs-${self:custom.stage}-pri-${self:custom.shortRegion}
     DYNAMODB_PAYMENT_TABLE: payments-${self:custom.stage}-pri-${self:custom.shortRegion}
     PROGRAM_TABLE_ID: PRG#8e3d823d-9f58-45df-8a8f-6779435a0001
-    SECRET_KEY: secret-pri-${self:custom.stage}-${self:custom.shortRegion}
+    SECRET_KEY: /pa/${self:custom.stage}/jwt-key
     PROFILE: ${self:provider.profile}
     BUCKET_INFO_GI: giras-indomito-${self:custom.stage}-info
 
@@ -57,6 +57,7 @@ provider:
   iamRoleStatements:
     - ${file(../../aws/policies/lambda-policy-xray.yml)}
     - ${file(../../aws/policies/lambda-policy-ssm.yml)}
+    - ${file(../../aws/policies/lambda-policy-kms-ssm.yml)}
     - ${file(../../aws/policies/lambda-policy-dynamodb-program.yml)}
     - ${file(../../aws/policies/lambda-policy-s3.yml)}
     - Effect: Allow

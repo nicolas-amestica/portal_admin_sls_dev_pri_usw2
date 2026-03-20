@@ -4,7 +4,7 @@ import { getAccessProfile } from "./access-profile.js";
 import { success } from "../../../helpers/responses.js";
 import * as dynamoDbLib from "../../../libs/dynamodb-v3.js";
 import { standardMiddleware } from "../../../libs/middleware/index.js";
-import { getSecretManagerValue } from "../../../libs/secret-manager.js";
+import { getParameterValue } from "../../../libs/parameter-store.js";
 import { getGlobalConfig } from "../../../helpers/get-global-config.js";
 
 const { DYNAMODB_USER_TABLE, DYNAMODB_CONFIG_TABLE, SECRET_KEY, GOOGLE_CLIENT_ID } = process.env;
@@ -139,7 +139,7 @@ const handler = async (event) => {
     ExpressionAttributeValues: { ":lastAccess": new Date().toISOString(), ":avatarUrl": googleUser.picture ?? null },
   });
 
-  const secret = await getSecretManagerValue(SECRET_KEY);
+  const secret = await getParameterValue(SECRET_KEY);
   const token = generateToken(
     { allowances: "crud", userRun: user.gsiOne, profiles: user.profiles },
     secret

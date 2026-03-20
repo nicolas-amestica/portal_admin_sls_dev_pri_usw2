@@ -47,12 +47,12 @@ provider:
 
   environment:
     STAGE: ${self:custom.stage}
-    SECRET_KEY: secret-pri-${self:custom.stage}-${self:custom.shortRegion}
+    SECRET_KEY: /pa/${self:custom.stage}/jwt-key
     PROFILE: ${self:provider.profile}
 
   iamRoleStatements:
     - ${file(../../aws/policies/lambda-policy-ssm.yml)}
-    - ${file(../../aws/policies/lambda-policy-secretsmanager.yml)}
+    - ${file(../../aws/policies/lambda-policy-kms-ssm.yml)}
 
 functions:
   auth:

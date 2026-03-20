@@ -2,4 +2,5 @@ Effect: Allow
 Action:
   - ssm:GetParameter
   - ssm:GetParameters
-Resource: '*'
+Resource:
+  - arn:aws:ssm:${self:provider.region}:*:parameter/pa/*

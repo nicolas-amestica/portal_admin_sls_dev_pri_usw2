@@ -75,3 +75,4 @@ env.yml
 # Scripts de infraestructura (pueden contener credenciales)
 scripts/bootstrap.sh
 scripts/teardown.sh
+scripts/migrate-secrets-to-ssm.sh

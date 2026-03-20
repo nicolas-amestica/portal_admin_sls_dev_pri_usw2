@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { getSecretManagerValue } from '../../../libs/secret-manager.js';
+import { getParameterValue } from '../../../libs/parameter-store.js';
 import { buscarPresupuestos } from '../tools/buscar-presupuestos.js';
 import { crearReunion } from '../tools/crear-reunion.js';
 
@@ -12,7 +12,7 @@ let _geminiClient = null;
  */
 async function getGeminiClient() {
   if (_geminiClient) return _geminiClient;
-  const secretJson = await getSecretManagerValue(process.env.GEMINI_SECRET_KEY);
+  const secretJson = await getParameterValue(process.env.GEMINI_SECRET_KEY);
   const { api_key } = JSON.parse(secretJson);
   _geminiClient = new GoogleGenerativeAI(api_key);
   return _geminiClient;

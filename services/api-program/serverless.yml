@@ -43,8 +43,8 @@ provider:
     DYNAMODB_PROGRAM_TABLE: programs-${self:custom.stage}-pri-${self:custom.shortRegion}
     DYNAMODB_USER_TABLE: users-${self:custom.stage}-pri-${self:custom.shortRegion}
     PROGRAM_TABLE: PRG#8e3d823d-9f58-45df-8a8f-6779435a0001
-    SECRET_KEY: secret-pri-${self:custom.stage}-${self:custom.shortRegion}
-    EMAIL_CONFIG_SECRET_KEY: email-config-${self:custom.stage}-pri-${self:custom.shortRegion}
+    SECRET_KEY: /pa/${self:custom.stage}/jwt-key
+    EMAIL_CONFIG_SECRET_KEY: /pa/${self:custom.stage}/email-config
     PROFILE: ${self:provider.profile}
     NODE_OPTIONS: '--enable-source-maps'
     BUCKET_INFO_GI: giras-indomito-${self:custom.stage}-info
@@ -60,7 +60,7 @@ provider:
   iamRoleStatements:
     - ${file(../../aws/policies/lambda-policy-xray.yml)}
     - ${file(../../aws/policies/lambda-policy-ssm.yml)}
-    - ${file(../../aws/policies/lambda-policy-secretsmanager.yml)}
+    - ${file(../../aws/policies/lambda-policy-kms-ssm.yml)}
     - ${file(../../aws/policies/lambda-policy-dynamodb-program.yml)}
     - ${file(../../aws/policies/lambda-policy-dynamodb-user.yml)}
     - ${file(../../aws/policies/lambda-policy-s3.yml)}

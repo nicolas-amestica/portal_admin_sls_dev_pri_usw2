@@ -1,5 +1,5 @@
 import jwt from "jsonwebtoken";
-import { getSecretManagerValue } from "../../libs/secret-manager";
+import { getParameterValue } from "../../libs/parameter-store.js";
 import { success, unsuccessful } from "../../helpers/responses";
 
 const { SECRET_KEY } = process.env;
@@ -95,7 +95,7 @@ const generatePolicy = async (token, methodArn, method) => {
       throw new Error("SECRET_KEY no está definido correctamente o es inválido");
     }
 
-    const SECRET = await getSecretManagerValue(SECRET_KEY);
+    const SECRET = await getParameterValue(SECRET_KEY);
 
     const decoded = jwt.verify(token, SECRET);
     const payload = decoded.body;
@@ -196,7 +196,7 @@ export const generateToken = async (event) => {
       action
     );
 
-  const SECRET = await getSecretManagerValue(SECRET_KEY);
+  const SECRET = await getParameterValue(SECRET_KEY);
 
   const { allowances } = JSON.parse(event.body);
   const TIMEOUT = "365d";

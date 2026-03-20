@@ -1,4 +1,4 @@
 Effect: Allow
 Action:
-  - secretsmanager:GetSecretValue
+  - kms:Decrypt
 Resource: '*'

@@ -4,7 +4,7 @@ import { getAccessProfile } from "./access-profile";
 import { success, } from "../../../helpers/responses";
 import * as dynamoDbLib from "../../../libs/dynamodb-v3";
 import { resolvePromises } from "../../../helpers/allsettled";
-import { getSecretManagerValue } from "../../../libs/secret-manager";
+import { getParameterValue } from "../../../libs/parameter-store.js";
 import { getGlobalConfig } from "../../../helpers/get-global-config";
 import { standardMiddleware } from "../../../libs/middleware/index.js";
 
@@ -24,7 +24,7 @@ const generateToken = (body, SECRET) => {
  */
 const handler = async (event) => {
   console.log("Event ==>", event);
-  const SECRET = await getSecretManagerValue(SECRET_KEY);
+  const SECRET = await getParameterValue(SECRET_KEY);
   const action = "Identificación de usuario.";
   const data = event.body;
 

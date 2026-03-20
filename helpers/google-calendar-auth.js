@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { getSecretManagerValue } from '../libs/secret-manager.js';
+import { getParameterValue } from '../libs/parameter-store.js';
 
 /** Cache del access token en memoria para la vida útil de la invocación Lambda. */
 let _cachedToken = null;
@@ -29,7 +29,7 @@ export async function getCalendarAccessToken() {
     throw new Error('Variable GOOGLE_CALENDAR_OAUTH_SECRET_KEY es requerida.');
   }
 
-  const credentialsJson = await getSecretManagerValue(GOOGLE_CALENDAR_OAUTH_SECRET_KEY);
+  const credentialsJson = await getParameterValue(GOOGLE_CALENDAR_OAUTH_SECRET_KEY);
   const { client_id, client_secret, refresh_token } = JSON.parse(credentialsJson);
 
   let data;

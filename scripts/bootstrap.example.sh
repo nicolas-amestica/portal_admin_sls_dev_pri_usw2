@@ -51,9 +51,12 @@ TABLE_CONFIG="config-${STAGE}-pri-${SHORT_REGION}"
 TABLE_PAYMENTS="payments-${STAGE}-pri-${SHORT_REGION}"
 TABLE_MAINTAINER="maintainer-${STAGE}-pri-${SHORT_REGION}"
 
-SECRET_JWT="secret-pri-${STAGE}-${SHORT_REGION}"
-SECRET_EMAIL="email-config-${STAGE}-pri-${SHORT_REGION}"
-SECRET_TRANSBANK="transbank-api-key-${STAGE}-pri-${SHORT_REGION}"
+PARAM_JWT="/pa/${STAGE}/jwt-key"
+PARAM_EMAIL="/pa/${STAGE}/email-config"
+PARAM_TRANSBANK="/pa/${STAGE}/transbank-api-key"
+PARAM_WHATSAPP="/pa/${STAGE}/whatsapp-config"
+PARAM_GEMINI="/pa/${STAGE}/gemini-api-key"
+PARAM_GOOGLE_CALENDAR="/pa/${STAGE}/google-calendar-oauth"
 
 # ─── Colores ──────────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
@@ -156,52 +159,68 @@ for prefix in contratos programas comprobantes; do
 done
 
 # =============================================================================
-# PASO 2 — SECRETS MANAGER
+# PASO 2 — SSM PARAMETER STORE
 # =============================================================================
-log_step "PASO 2/3 — Secrets Manager"
+log_step "PASO 2/3 — SSM Parameter Store (SecureString)"
 
-create_secret() {
+create_parameter() {
   local name="$1"
   local desc="$2"
   local value="$3"
 
-  log_info "Creando secreto: ${name}"
+  log_info "Creando parámetro SSM: ${name}"
 
-  if aws secretsmanager describe-secret \
-      --secret-id "$name" \
+  if aws ssm get-parameter \
+      --name "$name" \
       --profile "$PROFILE" \
       --region "$REGION" \
       --output text &>/dev/null 2>&1; then
-    already_exists "Secreto ${name}"
+    already_exists "Parámetro ${name}"
     return
   fi
 
-  aws secretsmanager create-secret \
+  aws ssm put-parameter \
     --name "$name" \
     --description "$desc" \
-    --secret-string "$value" \
+    --value "$value" \
+    --type "SecureString" \
     --profile "$PROFILE" \
     --region "$REGION" \
     --output text &>/dev/null
 
-  log_ok "Secreto creado: ${name}"
+  log_ok "Parámetro creado: ${name}"
   log_warn "⚠  REEMPLAZA el valor placeholder de '${name}' con el valor real."
 }
 
-create_secret \
-  "$SECRET_JWT" \
+create_parameter \
+  "$PARAM_JWT" \
   "Clave secreta para firma de tokens JWT" \
-  '{"jwtSecret":"CAMBIAR_POR_VALOR_REAL"}'
+  'CAMBIAR_POR_VALOR_REAL'
 
-create_secret \
-  "$SECRET_EMAIL" \
+create_parameter \
+  "$PARAM_EMAIL" \
   "Configuración SMTP" \
   '{"host":"mail.ejemplo.com","port":465,"secure":true,"user":"user@ejemplo.com","password":"PASSWORD_REAL"}'
 
-create_secret \
-  "$SECRET_TRANSBANK" \
+create_parameter \
+  "$PARAM_TRANSBANK" \
   "Credenciales Transbank Webpay Plus — Portal Admin ${STAGE}" \
   '[{"transbank_api_key":"KEY_REAL"},{"transbank_commerce_code":"CODE_REAL"},{"transbank_environment":"AMBIENTE_REAL"}]'
+
+create_parameter \
+  "$PARAM_WHATSAPP" \
+  "Credenciales WhatsApp Cloud API (Meta)" \
+  '{"access_token":"PLACEHOLDER","phone_number_id":"PLACEHOLDER","verify_token":"PLACEHOLDER","app_secret":"PLACEHOLDER"}'
+
+create_parameter \
+  "$PARAM_GEMINI" \
+  "API Key de Google Generative AI (Gemini)" \
+  '{"api_key":"PLACEHOLDER"}'
+
+create_parameter \
+  "$PARAM_GOOGLE_CALENDAR" \
+  "Credenciales OAuth2 de Google Calendar" \
+  '{"client_id":"PLACEHOLDER","client_secret":"PLACEHOLDER","refresh_token":"PLACEHOLDER"}'
 
 # =============================================================================
 # PASO 3 — TABLAS DYNAMODB

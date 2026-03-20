@@ -13,7 +13,7 @@
 # IMPORTANTE: Ejecutar ANTES de cualquier `sls deploy`.
 # Crea en orden:
 #   1. Buckets S3
-#   2. Secrets Manager
+#   2. SSM Parameter Store (SecureString)
 #   3. Tablas DynamoDB + índices GSI
 #   4. Verifica que el perfil AWS existe
 # =============================================================================
@@ -51,9 +51,13 @@ TABLE_CONFIG="config-${STAGE}-pri-${SHORT_REGION}"
 TABLE_PAYMENTS="payments-${STAGE}-pri-${SHORT_REGION}"
 TABLE_MAINTAINER="maintainer-${STAGE}-pri-${SHORT_REGION}"
 
-SECRET_JWT="secret-pri-${STAGE}-${SHORT_REGION}"
-SECRET_EMAIL="email-config-${STAGE}-pri-${SHORT_REGION}"
-SECRET_TRANSBANK="transbank-api-key-${STAGE}-pri-${SHORT_REGION}"
+PARAM_JWT="/pa/${STAGE}/jwt-key"
+PARAM_EMAIL="/pa/${STAGE}/email-config"
+PARAM_TRANSBANK="/pa/${STAGE}/transbank-api-key"
+PARAM_WHATSAPP="/pa/${STAGE}/whatsapp-config"
+PARAM_GEMINI="/pa/${STAGE}/gemini-api-key"
+PARAM_GOOGLE_CALENDAR="/pa/${STAGE}/google-calendar-oauth"
+PARAM_GOOGLE_CALENDAR_SA="/pa/${STAGE}/google-calendar-sa"
 
 # ─── Colores ──────────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
@@ -156,52 +160,73 @@ for prefix in contratos programas comprobantes; do
 done
 
 # =============================================================================
-# PASO 2 — SECRETS MANAGER
+# PASO 2 — SSM PARAMETER STORE
 # =============================================================================
-log_step "PASO 2/3 — Secrets Manager"
+log_step "PASO 2/3 — SSM Parameter Store (SecureString)"
 
-create_secret() {
+create_parameter() {
   local name="$1"
   local desc="$2"
   local value="$3"
 
-  log_info "Creando secreto: ${name}"
+  log_info "Creando parámetro SSM: ${name}"
 
-  if aws secretsmanager describe-secret \
-      --secret-id "$name" \
+  if aws ssm get-parameter \
+      --name "$name" \
       --profile "$PROFILE" \
       --region "$REGION" \
       --output text &>/dev/null 2>&1; then
-    already_exists "Secreto ${name}"
+    already_exists "Parámetro ${name}"
     return
   fi
 
-  aws secretsmanager create-secret \
+  aws ssm put-parameter \
     --name "$name" \
     --description "$desc" \
-    --secret-string "$value" \
+    --value "$value" \
+    --type "SecureString" \
     --profile "$PROFILE" \
     --region "$REGION" \
     --output text &>/dev/null
 
-  log_ok "Secreto creado: ${name}"
+  log_ok "Parámetro creado: ${name}"
   log_warn "⚠  REEMPLAZA el valor placeholder de '${name}' con el valor real."
 }
 
-create_secret \
-  "$SECRET_JWT" \
+create_parameter \
+  "$PARAM_JWT" \
   "Clave secreta para firma de tokens JWT — Portal Admin ${STAGE}" \
   'JHF3#VvCdswwQ8nF(7jGrvbd4s'
 
-create_secret \
-  "$SECRET_EMAIL" \
+create_parameter \
+  "$PARAM_EMAIL" \
   "Configuración SMTP para envío de correos — Portal Admin ${STAGE}" \
   '{"host":"mail.girasindomito.cl","port":465,"secure":true,"user":"no-reply@girasindomito.cl","password":"GirasIndomito20261."}'
 
-create_secret \
-  "$SECRET_TRANSBANK" \
+create_parameter \
+  "$PARAM_TRANSBANK" \
   "Credenciales Transbank Webpay Plus — Portal Admin ${STAGE}" \
   '[{"transbank_api_key":"hY6%&4rFh&2@k)9"},{"transbank_commerce_code":"597055555532"},{"transbank_environment":"integration"}]'
+
+create_parameter \
+  "$PARAM_WHATSAPP" \
+  "Credenciales WhatsApp Cloud API (Meta) — Portal Admin ${STAGE}" \
+  '{"access_token":"PLACEHOLDER","phone_number_id":"PLACEHOLDER","verify_token":"PLACEHOLDER","app_secret":"PLACEHOLDER"}'
+
+create_parameter \
+  "$PARAM_GEMINI" \
+  "API Key de Google Generative AI (Gemini) — Portal Admin ${STAGE}" \
+  '{"api_key":"PLACEHOLDER"}'
+
+create_parameter \
+  "$PARAM_GOOGLE_CALENDAR" \
+  "Credenciales OAuth2 de Google Calendar — Portal Admin ${STAGE}" \
+  '{"client_id":"PLACEHOLDER","client_secret":"PLACEHOLDER","refresh_token":"PLACEHOLDER"}'
+
+create_parameter \
+  "$PARAM_GOOGLE_CALENDAR_SA" \
+  "Service Account de Google Calendar (bot) — Portal Admin ${STAGE}" \
+  '{"type":"service_account","project_id":"PLACEHOLDER","private_key_id":"PLACEHOLDER","private_key":"PLACEHOLDER","client_email":"PLACEHOLDER","client_id":"PLACEHOLDER"}'
 
 # =============================================================================
 # PASO 3 — TABLAS DYNAMODB
@@ -499,10 +524,14 @@ echo "  S3 Buckets:"
 echo "    • ${BUCKET_DEPLOY}"
 echo "    • ${BUCKET_INFO}"
 echo ""
-echo "  Secrets Manager:"
-echo "    • ${SECRET_JWT}"
-echo "    • ${SECRET_EMAIL}"
-echo "    • ${SECRET_TRANSBANK}"
+echo "  SSM Parameter Store (SecureString):"
+echo "    • ${PARAM_JWT}"
+echo "    • ${PARAM_EMAIL}"
+echo "    • ${PARAM_TRANSBANK}"
+echo "    • ${PARAM_WHATSAPP}"
+echo "    • ${PARAM_GEMINI}"
+echo "    • ${PARAM_GOOGLE_CALENDAR}"
+echo "    • ${PARAM_GOOGLE_CALENDAR_SA}"
 echo ""
 echo "  DynamoDB Tables:"
 echo "    • ${TABLE_PROGRAMS}  (GSI: gsiOne-index, gsiStartDate-index)"
@@ -512,10 +541,13 @@ echo "    • ${TABLE_PAYMENTS}  (GSI: sk-index, gsiOne-index, gsiTwo-index, gsi
 echo "    • ${TABLE_MAINTAINER}"
 echo ""
 echo -e "${YELLOW}⚠  Próximos pasos:${NC}"
-echo "  1. Actualiza los Secrets con valores reales:"
-echo "     aws secretsmanager update-secret --secret-id ${SECRET_JWT} --secret-string '{\"jwtSecret\":\"TU_CLAVE\"}' --profile ${PROFILE} --region ${REGION}"
-echo "     aws secretsmanager update-secret --secret-id ${SECRET_EMAIL} --secret-string '{...}' --profile ${PROFILE} --region ${REGION}"
-echo "     aws secretsmanager update-secret --secret-id ${SECRET_TRANSBANK} --secret-string '{...}' --profile ${PROFILE} --region ${REGION}"
+echo "  1. Actualiza los parámetros SSM con valores reales:"
+echo "     aws ssm put-parameter --name ${PARAM_JWT} --value 'TU_CLAVE_JWT' --type SecureString --overwrite --profile ${PROFILE} --region ${REGION}"
+echo "     aws ssm put-parameter --name ${PARAM_EMAIL} --value '{...}' --type SecureString --overwrite --profile ${PROFILE} --region ${REGION}"
+echo "     aws ssm put-parameter --name ${PARAM_TRANSBANK} --value '{...}' --type SecureString --overwrite --profile ${PROFILE} --region ${REGION}"
+echo "     aws ssm put-parameter --name ${PARAM_WHATSAPP} --value '{...}' --type SecureString --overwrite --profile ${PROFILE} --region ${REGION}"
+echo "     aws ssm put-parameter --name ${PARAM_GEMINI} --value '{...}' --type SecureString --overwrite --profile ${PROFILE} --region ${REGION}"
+echo "     aws ssm put-parameter --name ${PARAM_GOOGLE_CALENDAR} --value '{...}' --type SecureString --overwrite --profile ${PROFILE} --region ${REGION}"
 echo ""
 echo "  2. Despliega la infraestructura compartida (API Gateway):"
 echo "     cd infrastructure && sls deploy --stage ${STAGE} --region ${REGION}"

@@ -1,6 +1,6 @@
 import nodemailer from 'nodemailer';
 import { getAWSConfigs } from './configs';
-import { getSecretManagerValue } from './secret-manager.js';
+import { getParameterValue } from './parameter-store.js';
 
 let transporter;
 
@@ -161,7 +161,7 @@ export const generateEmailHTML = ({ recipientName, bodyHtml, footerText }) => {
 const initTransporter = async () => {
   await getAWSConfigs();
 
-  const secretValue = await getSecretManagerValue(process.env.EMAIL_CONFIG_SECRET_KEY);
+  const secretValue = await getParameterValue(process.env.EMAIL_CONFIG_SECRET_KEY);
   const { host, port, secure, user, password } = JSON.parse(secretValue);
 
   transporter = nodemailer.createTransport({

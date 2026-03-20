@@ -52,9 +52,13 @@ TABLE_CONFIG="config-${STAGE}-pri-${SHORT_REGION}"
 TABLE_PAYMENTS="payments-${STAGE}-pri-${SHORT_REGION}"
 TABLE_MAINTAINER="maintainer-${STAGE}-pri-${SHORT_REGION}"
 
-SECRET_JWT="secret-pri-${STAGE}-${SHORT_REGION}"
-SECRET_EMAIL="email-config-${STAGE}-pri-${SHORT_REGION}"
-SECRET_TRANSBANK="transbank-api-key-${STAGE}-pri-${SHORT_REGION}"
+PARAM_JWT="/pa/${STAGE}/jwt-key"
+PARAM_EMAIL="/pa/${STAGE}/email-config"
+PARAM_TRANSBANK="/pa/${STAGE}/transbank-api-key"
+PARAM_WHATSAPP="/pa/${STAGE}/whatsapp-config"
+PARAM_GEMINI="/pa/${STAGE}/gemini-api-key"
+PARAM_GOOGLE_CALENDAR="/pa/${STAGE}/google-calendar-oauth"
+PARAM_GOOGLE_CALENDAR_SA="/pa/${STAGE}/google-calendar-sa"
 
 # Stacks de CloudFormation en orden de eliminación (dependencias primero)
 CF_STACKS=(
@@ -186,35 +190,37 @@ delete_table "$TABLE_PAYMENTS"
 delete_table "$TABLE_MAINTAINER"
 
 # =============================================================================
-# PASO 3 — ELIMINAR SECRETS MANAGER
+# PASO 3 — ELIMINAR SSM PARAMETER STORE
 # =============================================================================
-log_step "PASO 3/4 — Secrets Manager"
+log_step "PASO 3/4 — SSM Parameter Store"
 
-delete_secret() {
-  local secret="$1"
-  if aws secretsmanager describe-secret \
-      --secret-id "$secret" \
+delete_parameter() {
+  local param="$1"
+  if aws ssm get-parameter \
+      --name "$param" \
       --profile "$PROFILE" \
       --region "$REGION" \
       --output text &>/dev/null 2>&1; then
 
-    echo -e "  Eliminando secreto: ${YELLOW}${secret}${NC}"
-    # force-delete-without-recovery elimina inmediatamente sin los 7 días de retención
-    aws secretsmanager delete-secret \
-      --secret-id "$secret" \
-      --force-delete-without-recovery \
+    echo -e "  Eliminando parámetro SSM: ${YELLOW}${param}${NC}"
+    aws ssm delete-parameter \
+      --name "$param" \
       --profile "$PROFILE" \
       --region "$REGION" \
       --output text &>/dev/null
-    log_ok "Secreto eliminado: ${secret}"
+    log_ok "Parámetro eliminado: ${param}"
   else
-    log_skip "Secreto ${secret}"
+    log_skip "Parámetro ${param}"
   fi
 }
 
-delete_secret "$SECRET_JWT"
-delete_secret "$SECRET_EMAIL"
-delete_secret "$SECRET_TRANSBANK"
+delete_parameter "$PARAM_JWT"
+delete_parameter "$PARAM_EMAIL"
+delete_parameter "$PARAM_TRANSBANK"
+delete_parameter "$PARAM_WHATSAPP"
+delete_parameter "$PARAM_GEMINI"
+delete_parameter "$PARAM_GOOGLE_CALENDAR"
+delete_parameter "$PARAM_GOOGLE_CALENDAR_SA"
 
 # =============================================================================
 # PASO 4 — VACIAR Y ELIMINAR BUCKETS S3

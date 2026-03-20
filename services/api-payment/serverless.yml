@@ -44,11 +44,11 @@ provider:
     DYNAMODB_USER_TABLE: users-${self:custom.stage}-pri-${self:custom.shortRegion}
     TRANSBANK_ENVIRONMENT: integration  # TODO: cambiar a 'production' en stage prd
     TRANSBANK_COMMERCE_CODE: ''         # TODO: commerce code de producción (solo requerido en prd)
-    TRANSBANK_API_KEY_SECRET: transbank-api-key-${self:custom.stage}-pri-${self:custom.shortRegion}
-    SECRET_KEY: secret-pri-${self:custom.stage}-${self:custom.shortRegion}
+    TRANSBANK_API_KEY_SECRET: /pa/${self:custom.stage}/transbank-api-key
+    SECRET_KEY: /pa/${self:custom.stage}/jwt-key
     PROFILE: ${self:provider.profile}
     BUCKET_INFO_GI: giras-indomito-${self:custom.stage}-info
-    EMAIL_CONFIG_SECRET_KEY: email-config-${self:custom.stage}-pri-${self:custom.shortRegion}
+    EMAIL_CONFIG_SECRET_KEY: /pa/${self:custom.stage}/email-config
 
   # Configurar seguimiento mediante aws x-ray para identificar y resolver problemas y errores de rendimiento.
   tracing:
@@ -61,7 +61,7 @@ provider:
   iamRoleStatements:
     - ${file(../../aws/policies/lambda-policy-xray.yml)}
     - ${file(../../aws/policies/lambda-policy-ssm.yml)}
-    - ${file(../../aws/policies/lambda-policy-secretsmanager.yml)}
+    - ${file(../../aws/policies/lambda-policy-kms-ssm.yml)}
     - ${file(../../aws/policies/lambda-policy-cloudwatch.yml)}
     - Effect: Allow
       Action:

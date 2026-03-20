@@ -40,7 +40,7 @@ provider:
   environment:
     STAGE: ${self:custom.stage}
     DYNAMODB_FAVORITES_TABLE: favorites-${self:custom.stage}-pri-${self:custom.shortRegion}
-    SECRET_KEY: secret-pri-${self:custom.stage}-${self:custom.shortRegion}
+    SECRET_KEY: /pa/${self:custom.stage}/jwt-key
     PROFILE: ${self:provider.profile}
     NODE_OPTIONS: '--enable-source-maps'
 
@@ -53,7 +53,7 @@ provider:
   iamRoleStatements:
     - ${file(../../aws/policies/lambda-policy-xray.yml)}
     - ${file(../../aws/policies/lambda-policy-ssm.yml)}
-    - ${file(../../aws/policies/lambda-policy-secretsmanager.yml)}
+    - ${file(../../aws/policies/lambda-policy-kms-ssm.yml)}
     - ${file(../../aws/policies/lambda-policy-dynamodb-favorites.yml)}
 
 functions:

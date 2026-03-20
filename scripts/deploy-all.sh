@@ -84,7 +84,7 @@ FAILED=0
 FAILED_SERVICES=()
 
 # Directorio raíz del proyecto
-PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$PROJECT_ROOT"
 
 echo -e "${BLUE}📂 Directorio del proyecto: ${PROJECT_ROOT}${NC}\n"

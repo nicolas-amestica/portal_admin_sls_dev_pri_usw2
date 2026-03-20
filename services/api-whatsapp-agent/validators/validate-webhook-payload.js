@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from 'crypto';
-import { getSecretManagerValue } from '../../../libs/secret-manager.js';
+import { getParameterValue } from '../../../libs/parameter-store.js';
 
 /** Cache del app_secret en memoria. */
 let _cachedAppSecret = null;
@@ -10,7 +10,7 @@ let _cachedAppSecret = null;
  */
 async function getAppSecret() {
   if (_cachedAppSecret) return _cachedAppSecret;
-  const secretJson = await getSecretManagerValue(process.env.WHATSAPP_SECRET_KEY);
+  const secretJson = await getParameterValue(process.env.WHATSAPP_SECRET_KEY);
   _cachedAppSecret = JSON.parse(secretJson).app_secret;
   return _cachedAppSecret;
 }

@@ -1,4 +1,4 @@
-import { getSecretManagerValue } from '../../../libs/secret-manager.js';
+import { getParameterValue } from '../../../libs/parameter-store.js';
 
 const ACTION = 'Verificar webhook WhatsApp';
 
@@ -19,7 +19,7 @@ export const main = async (event) => {
       return { statusCode: 400, body: 'Bad Request' };
     }
 
-    const secretJson = await getSecretManagerValue(process.env.WHATSAPP_SECRET_KEY);
+    const secretJson = await getParameterValue(process.env.WHATSAPP_SECRET_KEY);
     const { verify_token } = JSON.parse(secretJson);
 
     if (token !== verify_token) {

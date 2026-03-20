@@ -43,7 +43,7 @@ provider:
     PRG_TABLE_ID: PRG#8e3d823d-9f58-45df-8a8f-6779435a0001
     USR_TABLE_ID: USR#4f7cb502-4256-11ec-81d3-0242ac130003
     PER_TABLE_ID: PER#4f7cb502-4256-11ec-81d3-0242ac13000H
-    SECRET_KEY: secret-pri-${self:custom.stage}-${self:custom.shortRegion}
+    SECRET_KEY: /pa/${self:custom.stage}/jwt-key
     PROFILE: ${self:provider.profile}
     BUCKET_INFO_GI: giras-indomito-${self:custom.stage}-info
 
@@ -58,6 +58,7 @@ provider:
   iamRoleStatements:
     - ${file(../../aws/policies/lambda-policy-xray.yml)}
     - ${file(../../aws/policies/lambda-policy-ssm.yml)}
+    - ${file(../../aws/policies/lambda-policy-kms-ssm.yml)}
     - ${file(../../aws/policies/lambda-policy-dynamodb-program.yml)}
     - ${file(../../aws/policies/lambda-policy-dynamodb-user.yml)}
     - ${file(../../aws/policies/lambda-policy-s3.yml)}

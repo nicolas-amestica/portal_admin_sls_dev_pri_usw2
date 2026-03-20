@@ -44,10 +44,10 @@ provider:
     URL_LOCAL: http://localhost:4200
     URL_DEV: https://d2q00w63koc9yz.cloudfront.net
     URL_PRD: https://d2e3zvke409odp.cloudfront.net
-    SECRET_KEY: secret-pri-${self:custom.stage}-${self:custom.shortRegion}
+    SECRET_KEY: /pa/${self:custom.stage}/jwt-key
     DYNAMODB_USER_TABLE: users-${self:custom.stage}-pri-${self:custom.shortRegion}
     DYNAMODB_CONFIG_TABLE: config-${self:custom.stage}-pri-${self:custom.shortRegion}
-    EMAIL_CONFIG_SECRET_KEY: email-config-${self:custom.stage}-pri-${self:custom.shortRegion}
+    EMAIL_CONFIG_SECRET_KEY: /pa/${self:custom.stage}/email-config
     GOOGLE_CLIENT_ID: 135592101346-nqh4bi4le3lef7phuqtdpt0m6tm067hh.apps.googleusercontent.com
 
   # Configurar seguimiento mediante aws x-ray para identificar y resolver problemas y errores de rendimiento.
@@ -60,10 +60,10 @@ provider:
 
   iamRoleStatements:
     - ${file(../../aws/policies/lambda-policy-ssm.yml)}
+    - ${file(../../aws/policies/lambda-policy-kms-ssm.yml)}
     - ${file(../../aws/policies/lambda-policy-xray.yml)}
     - ${file(../../aws/policies/lambda-policy-cloudwatch.yml)}
     - ${file(../../aws/policies/lambda-policy-dynamodb-user.yml)}
-    - ${file(../../aws/policies/lambda-policy-secretsmanager.yml)}
     - ${file(../../aws/policies/lambda-policy-dynamodb-config.yml)}
 
 functions:

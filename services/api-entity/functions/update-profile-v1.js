@@ -2,7 +2,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { success } from "../../../helpers/responses.js";
 import * as dynamoDbLib from "../../../libs/dynamodb-v3.js";
-import { getSecretManagerValue } from "../../../libs/secret-manager.js";
+import { getParameterValue } from "../../../libs/parameter-store.js";
 import { standardMiddleware } from "../../../libs/middleware/index.js";
 
 const { DYNAMODB_USER_TABLE, SECRET_KEY } = process.env;
@@ -71,7 +71,7 @@ const handler = async (event) => {
   const { fullName, phoneNumber, currentPassword, newPassword } = event.body ?? {};
   const authHeader = event.headers?.authorization ?? event.headers?.Authorization;
 
-  const secret = await getSecretManagerValue(SECRET_KEY);
+  const secret = await getParameterValue(SECRET_KEY);
   const decoded = await verifyToken(authHeader, secret);
   const userRun = decoded.body?.userRun;
 

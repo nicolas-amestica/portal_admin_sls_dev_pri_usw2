@@ -4,20 +4,20 @@
 # Uso: ./deploy-quick.sh [dev|prd]
 
 STAGE=${1:-dev}
+PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 echo "🚀 Desplegando Portal Admin - Stage: $STAGE"
 echo ""
 
 # Infraestructura
 echo "📦 1/12 - Verificando infraestructura..."
-cd infrastructure
 if aws cloudformation describe-stacks --stack-name "portal-admin-infrastructure-${STAGE}" --profile "pa-${STAGE}" --region us-west-2 >/dev/null 2>&1; then
     echo "   ✅ Infraestructura ya existe"
 else
     echo "   🏗️  Desplegando infraestructura..."
+    cd "$PROJECT_ROOT/infrastructure"
     npx sls deploy --stage "$STAGE" 2>&1 | grep -E '(Service deployed|Error|✔|✖)'
 fi
-cd ..
 
 # Servicios (job-authorizer primero: los demás dependen de su AuthorizerId)
 services=(
@@ -36,16 +36,15 @@ services=(
 
 count=2
 for service in "${services[@]}"; do
-    if [ -d "services/$service" ]; then
+    if [ -d "$PROJECT_ROOT/services/$service" ]; then
         echo "📦 $count/12 - Desplegando $service..."
-        cd "services/$service"
+        cd "$PROJECT_ROOT/services/$service"
         # Si es un servicio Go, compilar antes de desplegar
         if [ -f "go.mod" ]; then
             echo "   🔨 Compilando binarios Go..."
             make build
         fi
         npx sls deploy --stage "$STAGE" 2>&1 | grep -E '(Service deployed|Error|✔|✖)'
-        cd ../..
         ((count++))
     fi
 done

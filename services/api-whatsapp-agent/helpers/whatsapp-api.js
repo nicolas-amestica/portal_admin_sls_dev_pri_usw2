@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { getSecretManagerValue } from '../../../libs/secret-manager.js';
+import { getParameterValue } from '../../../libs/parameter-store.js';
 
 /** Cache de credenciales en memoria para la vida útil de la invocación Lambda. */
 let _cachedCreds = null;
@@ -14,7 +14,7 @@ const GRAPH_API_VERSION = 'v21.0';
 async function getCredentials() {
   if (_cachedCreds) return _cachedCreds;
 
-  const secretJson = await getSecretManagerValue(process.env.WHATSAPP_SECRET_KEY);
+  const secretJson = await getParameterValue(process.env.WHATSAPP_SECRET_KEY);
   const { access_token, phone_number_id } = JSON.parse(secretJson);
 
   _cachedCreds = { accessToken: access_token, phoneNumberId: phone_number_id };

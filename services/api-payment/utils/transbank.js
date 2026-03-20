@@ -4,7 +4,7 @@ import {
   Environment,
   IntegrationCommerceCodes,
 } from "transbank-sdk";
-import { getSecretManagerValue } from "../../../libs/secret-manager";
+import { getParameterValue } from "../../../libs/parameter-store.js";
 
 const {
   TRANSBANK_ENVIRONMENT,
@@ -17,7 +17,7 @@ const {
  */
 export const configureTransbank = async () => {
   if (TRANSBANK_ENVIRONMENT === "production") {
-    const apiKey = await getSecretManagerValue(TRANSBANK_API_KEY_SECRET);
+    const apiKey = await getParameterValue(TRANSBANK_API_KEY_SECRET);
     return new Options(TRANSBANK_COMMERCE_CODE, apiKey, Environment.Production);
   }
   return new Options(
