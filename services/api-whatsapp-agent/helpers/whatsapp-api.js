@@ -107,6 +107,29 @@ export async function sendDocumentById(to, mediaId, filename, caption = '') {
 }
 
 /**
+ * @description Descarga un archivo multimedia desde los servidores de Meta.
+ * Primero obtiene la URL del archivo usando el media_id, luego descarga el binario.
+ * @param {string} mediaId - ID del media devuelto por Meta en el webhook.
+ * @returns {Promise<{buffer: Buffer, mimeType: string}>}
+ */
+export async function downloadMedia(mediaId) {
+  const { accessToken } = await getCredentials();
+
+  const metaResponse = await httpClient.get(
+    `https://graph.facebook.com/${GRAPH_API_VERSION}/${mediaId}`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  const { url, mime_type } = metaResponse.data;
+
+  const fileResponse = await httpClient.get(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    responseType: 'arraybuffer',
+  });
+
+  return { buffer: Buffer.from(fileResponse.data), mimeType: mime_type };
+}
+
+/**
  * @description Marca un mensaje recibido como leído (muestra el doble check azul).
  * @param {string} messageId - ID del mensaje de WhatsApp a marcar como leído.
  */

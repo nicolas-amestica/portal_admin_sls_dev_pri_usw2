@@ -1,13 +1,14 @@
 import { uuidv7 } from 'uuidv7';
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { getObjectBuffer } from '../../../libs/s3-v3.js';
-import { runConversationTurn } from '../helpers/gemini-agent.js';
+import { runConversationTurn, transcribeAudio } from '../helpers/gemini-agent.js';
 import {
   markAsRead,
   sendTypingIndicator,
   uploadMedia,
   sendDocumentById,
   sendTextMessage,
+  downloadMedia,
 } from '../helpers/whatsapp-api.js';
 import { buildSessionItem, buildTurnItem, toGeminiHistory } from '../mappers/map-conversacion-item.js';
 
@@ -131,11 +132,20 @@ async function sendPresupuestoDocuments(phoneNumber, toolsExecuted) {
  * @param {{ phoneNumber: string, messageId: string, text: string }} event
  */
 export const main = async (event) => {
-  const { phoneNumber, messageId, text } = event;
+  const { phoneNumber, messageId, type, mediaId } = event;
+  let { text } = event;
 
-  if (!phoneNumber || !text) {
+  if (!phoneNumber || (!text && !mediaId)) {
     console.error(`[${ACTION}] Evento inválido:`, JSON.stringify(event));
     return;
+  }
+
+  // Si es un audio, descargarlo de Meta y transcribirlo con Gemini.
+  if (type === 'audio' && mediaId) {
+    console.log(`[${ACTION}] Audio recibido de ${phoneNumber}, transcribiendo...`);
+    const { buffer, mimeType } = await downloadMedia(mediaId);
+    text = await transcribeAudio(buffer, mimeType);
+    console.log(`[${ACTION}] Transcripción: "${text.slice(0, 80)}"`);
   }
 
   console.log(`[${ACTION}] Procesando mensaje de ${phoneNumber}`);

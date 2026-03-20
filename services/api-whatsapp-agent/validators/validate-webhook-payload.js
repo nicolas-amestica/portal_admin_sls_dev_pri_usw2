@@ -40,11 +40,11 @@ export async function validateWebhookSignature(rawBody, signatureHeader) {
 }
 
 /**
- * @description Extrae el primer mensaje de texto entrante del payload de Meta.
+ * @description Extrae el primer mensaje de texto o audio entrante del payload de Meta.
  * Ignora status updates, reactions y otros tipos de notificaciones.
  *
  * @param {object} body - Payload parseado del webhook de Meta.
- * @returns {{ phoneNumber: string, messageId: string, text: string } | null}
+ * @returns {{ phoneNumber: string, messageId: string, text: string } | { phoneNumber: string, messageId: string, type: 'audio', mediaId: string } | null}
  */
 export function extractIncomingMessage(body) {
   try {
@@ -55,15 +55,19 @@ export function extractIncomingMessage(body) {
     if (change?.field !== 'messages') return null;
 
     const message = value?.messages?.[0];
-    if (!message || message.type !== 'text') return null;
+    if (!message) return null;
 
     const phoneNumber = `+${value.contacts?.[0]?.wa_id}`;
 
-    return {
-      phoneNumber,
-      messageId: message.id,
-      text: message.text.body,
-    };
+    if (message.type === 'text') {
+      return { phoneNumber, messageId: message.id, text: message.text.body };
+    }
+
+    if (message.type === 'audio') {
+      return { phoneNumber, messageId: message.id, type: 'audio', mediaId: message.audio.id };
+    }
+
+    return null;
   } catch {
     return null;
   }

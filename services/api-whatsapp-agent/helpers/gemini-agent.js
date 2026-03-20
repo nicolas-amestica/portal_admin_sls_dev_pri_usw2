@@ -214,6 +214,36 @@ async function executeTool(name, args) {
 }
 
 /**
+ * @description Transcribe un audio usando Gemini como paso previo a la conversación.
+ * El audio se pasa como inline_data en base64.
+ *
+ * @param {Buffer} audioBuffer - Contenido binario del audio.
+ * @param {string} mimeType - Tipo MIME del audio (ej: "audio/ogg; codecs=opus").
+ * @returns {Promise<string>} Texto transcrito.
+ */
+export async function transcribeAudio(audioBuffer, mimeType) {
+  const genAI = await getGeminiClient();
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-pro-preview-05-06' });
+
+  // Normalizar el mimeType: "audio/ogg; codecs=opus" → "audio/ogg"
+  const normalizedMime = mimeType.split(';')[0].trim();
+
+  const result = await model.generateContent([
+    {
+      inlineData: {
+        mimeType: normalizedMime,
+        data: audioBuffer.toString('base64'),
+      },
+    },
+    {
+      text: 'Transcribe exactamente lo que dice este audio, en el idioma en que fue grabado. Devuelve solo la transcripción, sin comentarios.',
+    },
+  ]);
+
+  return result.response.text().trim();
+}
+
+/**
  * @description Ejecuta un turno de conversación con Gemini, manejando el loop de function calling.
  *
  * @param {Array<{role: string, parts: Array<{text: string}>}>} history

@@ -38,15 +38,15 @@ export const main = async (event) => {
   const incoming = extractIncomingMessage(body);
   if (!incoming) return ok;
 
-  const { phoneNumber, messageId, text } = incoming;
-  console.log(`[${ACTION}] Mensaje de ${phoneNumber}: "${text.slice(0, 80)}"`);
+  const { phoneNumber, messageId, text, type, mediaId } = incoming;
+  console.log(`[${ACTION}] Mensaje de ${phoneNumber}: tipo=${type ?? 'text'} "${(text ?? mediaId ?? '').slice(0, 80)}"`);
 
   try {
     await getLambdaClient().send(
       new InvokeCommand({
         FunctionName: process.env.AGENT_LAMBDA_NAME,
         InvocationType: 'Event',
-        Payload: Buffer.from(JSON.stringify({ phoneNumber, messageId, text })),
+        Payload: Buffer.from(JSON.stringify({ phoneNumber, messageId, text, type, mediaId })),
       })
     );
   } catch (err) {
