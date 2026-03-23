@@ -1,6 +1,7 @@
 import { success } from "../../../helpers/responses";
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { standardMiddleware } from "../../../libs/middleware/index.js";
+import { validateFinancialData } from "../helpers/fn-validate-financial-data.js";
 
 const { DYNAMODB_PROGRAM_TABLE } = process.env;
 const ACTION = "Actualización del programa.";
@@ -31,6 +32,19 @@ const handler = async (event) => {
 
   if (!sk) {
     const error = new Error('Falta el identificador del programa en la solicitud.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!content?.[0]) {
+    const error = new Error('El contenido del programa es requerido.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const financialValidation = validateFinancialData(content[0]);
+  if (!financialValidation.valid) {
+    const error = new Error(financialValidation.error);
     error.statusCode = 400;
     throw error;
   }

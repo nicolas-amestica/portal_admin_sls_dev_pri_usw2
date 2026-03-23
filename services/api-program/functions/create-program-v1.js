@@ -2,6 +2,7 @@ import { uuidv7 } from "uuidv7";
 import { success } from "../../../helpers/responses";
 import * as dynamoDbLib from '../../../libs/dynamodb-v3';
 import { standardMiddleware } from "../../../libs/middleware/index.js";
+import { validateFinancialData } from "../helpers/fn-validate-financial-data.js";
 
 const { DYNAMODB_PROGRAM_TABLE, PROGRAM_TABLE } = process.env;
 const ACTION = "Creación de programa.";
@@ -49,6 +50,13 @@ const handler = async (event) => {
 
   if (!firstContent.dates?.[0]) {
     const error = new Error('La fecha de inicio es requerida.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const financialValidation = validateFinancialData(firstContent);
+  if (!financialValidation.valid) {
+    const error = new Error(financialValidation.error);
     error.statusCode = 400;
     throw error;
   }
