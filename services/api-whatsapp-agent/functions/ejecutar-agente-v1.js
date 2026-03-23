@@ -17,6 +17,11 @@ const ACTION = 'Ejecutar agente WhatsApp';
 // Cada turno ocupa 2 items en DynamoDB (user + model). +1 por si el item de sesión aparece.
 const MAX_HISTORY_TURNS = 20;
 const MAX_HISTORY_ITEMS = MAX_HISTORY_TURNS * 2 + 1;
+// Límite de caracteres por mensaje para mitigar prompt injection y abuso de contexto.
+const MAX_MESSAGE_LENGTH = 800;
+// Rate limiting: máximo de mensajes permitidos por ventana de tiempo.
+const RATE_LIMIT_MAX = 5;
+const RATE_LIMIT_WINDOW_SEC = 60;
 
 /**
  * @description Calcula el tiempo de espera simulando escritura humana según el largo del texto.
@@ -25,6 +30,56 @@ const MAX_HISTORY_ITEMS = MAX_HISTORY_TURNS * 2 + 1;
  */
 function calculateTypingDelay(text) {
   return Math.min(Math.max(text.length * 40, 1500), 7000);
+}
+
+/**
+ * @description Verifica si el número de teléfono superó el límite de mensajes por minuto.
+ * Usa DynamoDB con TTL para mantener el contador dentro de la ventana de tiempo.
+ * @param {string} phoneNumber
+ * @returns {Promise<boolean>} true si el mensaje está permitido, false si debe bloquearse.
+ */
+async function checkRateLimit(phoneNumber) {
+  const { CONVERSATIONS_TABLE } = process.env;
+  const pk = `RATE#${phoneNumber}`;
+  const now = Math.floor(Date.now() / 1000);
+
+  const item = await dynamoDbLib.getOne({
+    TableName: CONVERSATIONS_TABLE,
+    Key: { pk, sk: pk },
+  });
+
+  const windowActive = item && item.ttl > now;
+  if (windowActive && item.count >= RATE_LIMIT_MAX) {
+    return false;
+  }
+
+  const newCount = windowActive ? item.count + 1 : 1;
+  const ttl = windowActive ? item.ttl : now + RATE_LIMIT_WINDOW_SEC;
+
+  await dynamoDbLib.put({
+    TableName: CONVERSATIONS_TABLE,
+    Item: { pk, sk: pk, count: newCount, ttl },
+  });
+
+  return true;
+}
+
+/**
+ * @description Sanitiza el texto del usuario antes de persistirlo en el historial.
+ * Elimina patrones que podrían usarse para envenenar el contexto de Gemini en turnos futuros:
+ * prefijos de rol, etiquetas de sistema, caracteres de control y null bytes.
+ * @param {string} text
+ * @returns {string}
+ */
+function sanitizeForHistory(text) {
+  if (!text) return '';
+  return text
+    .replace(/\0/g, '')                                         // null bytes
+    .replace(/[\x01-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')         // caracteres de control
+    .replace(/^(system|assistant|user|model)\s*:/gim, '')       // prefijos de rol falsos
+    .replace(/<\|.*?\|>/g, '')                                   // tokens especiales estilo <|im_start|>
+    .replace(/###\s*(system|instruction|prompt)/gi, '')          // encabezados de instrucción
+    .trim();
 }
 
 /**
@@ -64,8 +119,8 @@ async function saveConversation(phoneNumber, userText, modelText, collectedData)
   const now = new Date().toISOString();
   const ttl = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60;
 
-  const userItem = buildTurnItem(phoneNumber, `MSG#${uuidv7()}`, 'user', userText);
-  const modelItem = buildTurnItem(phoneNumber, `MSG#${uuidv7()}`, 'model', modelText);
+  const userItem = buildTurnItem(phoneNumber, `MSG#${uuidv7()}`, 'user', sanitizeForHistory(userText));
+  const modelItem = buildTurnItem(phoneNumber, `MSG#${uuidv7()}`, 'model', sanitizeForHistory(modelText));
   const sessionItem = { ...buildSessionItem(phoneNumber, collectedData), updatedAt: now, ttl };
 
   await Promise.all([
@@ -143,6 +198,13 @@ export const main = async (event) => {
     return;
   }
 
+  // Verificar rate limit antes de procesar.
+  const allowed = await checkRateLimit(phoneNumber);
+  if (!allowed) {
+    console.warn(`[${ACTION}] Rate limit excedido para ${phoneNumber}. Mensaje ignorado.`);
+    return;
+  }
+
   console.log(`[${ACTION}] Procesando mensaje de ${phoneNumber}`);
 
   // Si es mensaje de audio, transcribir antes de continuar.
@@ -154,6 +216,12 @@ export const main = async (event) => {
       console.error(`[${ACTION}] Error transcribiendo audio de ${phoneNumber}:`, err.message);
       return;
     }
+  }
+
+  // Truncar el mensaje para mitigar prompt injection y abuso de contexto.
+  if (text && text.length > MAX_MESSAGE_LENGTH) {
+    console.warn(`[${ACTION}] Mensaje de ${phoneNumber} truncado de ${text.length} a ${MAX_MESSAGE_LENGTH} chars.`);
+    text = text.slice(0, MAX_MESSAGE_LENGTH);
   }
 
   // 1. Cargar historial de la conversación.

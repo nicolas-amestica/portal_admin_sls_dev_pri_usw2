@@ -44,21 +44,16 @@ function buildEndDateTime(date, time) {
  * @description Crea una reunión de Google Meet en el calendario de Giras Indómito.
  *
  * @param {object} params
- * @param {string} params.destino - Destino del viaje (se incluye en el título).
  * @param {string} params.nombreCliente - Nombre del apoderado.
  * @param {string} [params.emailCliente] - Email opcional del cliente.
  * @param {string} params.fechaSugerida - Fecha en formato YYYY-MM-DD.
  * @param {string} params.horaSugerida - Hora en formato HH:MM (America/Santiago).
- * @returns {Promise<{meetLink: string, eventId: string, fecha: string, hora: string}>}
+ * @returns {Promise<{meetLink: string, eventId: string, codigoEvento: string, fecha: string, hora: string}>}
  */
-export async function crearReunion({ destino, nombreCliente, emailCliente, fechaSugerida, horaSugerida }) {
+export async function crearReunion({ nombreCliente, emailCliente, fechaSugerida, horaSugerida }) {
   const { GOOGLE_CALENDAR_ID = 'primary', TIMEZONE = 'America/Santiago' } = process.env;
   const accessToken = await getCalendarAccessToken();
   const codigoEvento = generarCodigoEvento();
-
-  const destinoLabel = destino
-    ? destino.charAt(0).toUpperCase() + destino.slice(1).toLowerCase()
-    : 'Gira';
 
   const guests = emailCliente ? [{ email: emailCliente }] : [];
 

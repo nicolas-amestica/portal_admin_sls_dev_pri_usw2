@@ -1,9 +1,18 @@
 /**
- * @description Calcula el TTL de DynamoDB para 7 días desde ahora.
+ * @description Calcula el TTL de DynamoDB para el historial de mensajes (7 días).
  * @returns {number} Unix timestamp en segundos.
  */
-function ttl7Days() {
+function ttlMessages() {
   return Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60;
+}
+
+/**
+ * @description Calcula el TTL de DynamoDB para la sesión (48 horas).
+ * Ventana corta para mitigar herencia de sesión por reciclaje de número telefónico.
+ * @returns {number} Unix timestamp en segundos.
+ */
+function ttlSession() {
+  return Math.floor(Date.now() / 1000) + 48 * 60 * 60;
 }
 
 /**
@@ -24,7 +33,7 @@ export function buildSessionItem(phoneNumber, collectedData = {}) {
     lastMessageAt: now,
     createdAt: now,
     updatedAt: now,
-    ttl: ttl7Days(),
+    ttl: ttlSession(),
   };
 }
 
@@ -45,7 +54,7 @@ export function buildTurnItem(phoneNumber, sk, role, text) {
     role,
     parts: [{ text }],
     createdAt: new Date().toISOString(),
-    ttl: ttl7Days(),
+    ttl: ttlMessages(),
   };
 }
 

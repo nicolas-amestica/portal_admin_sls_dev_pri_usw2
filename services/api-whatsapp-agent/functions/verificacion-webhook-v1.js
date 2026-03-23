@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'crypto';
 import { getParameterValue } from '../../../libs/parameter-store.js';
 
 const ACTION = 'Verificar webhook WhatsApp';
@@ -22,7 +23,10 @@ export const main = async (event) => {
     const secretJson = await getParameterValue(process.env.WHATSAPP_SECRET_KEY);
     const { verify_token } = JSON.parse(secretJson);
 
-    if (token !== verify_token) {
+    const tokenBuf = Buffer.from(token);
+    const expectedBuf = Buffer.from(verify_token);
+    const tokenMatch = tokenBuf.length === expectedBuf.length && timingSafeEqual(tokenBuf, expectedBuf);
+    if (!tokenMatch) {
       console.warn(`[${ACTION}] verify_token no coincide.`);
       return { statusCode: 403, body: 'Forbidden' };
     }

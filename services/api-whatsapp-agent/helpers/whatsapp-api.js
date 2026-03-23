@@ -1,8 +1,10 @@
 import * as httpClient from '../../../libs/axios.js';
 import { getParameterValue } from '../../../libs/parameter-store.js';
 
-/** Cache de credenciales en memoria para la vida útil de la invocación Lambda. */
+/** Cache de credenciales en memoria con TTL de 1 hora para permitir rotación de secretos. */
 let _cachedCreds = null;
+let _credExpiry = 0;
+const CREDS_CACHE_TTL = 3600;
 
 const GRAPH_API_VERSION = 'v21.0';
 
@@ -12,10 +14,12 @@ const GRAPH_API_VERSION = 'v21.0';
  * @returns {Promise<{accessToken: string, phoneNumberId: string}>}
  */
 async function getCredentials() {
-  if (_cachedCreds) return _cachedCreds;
+  const now = Math.floor(Date.now() / 1000);
+  if (_cachedCreds && _credExpiry > now) return _cachedCreds;
   const secretJson = await getParameterValue(process.env.WHATSAPP_SECRET_KEY);
   const { access_token, phone_number_id } = JSON.parse(secretJson);
   _cachedCreds = { accessToken: access_token, phoneNumberId: phone_number_id };
+  _credExpiry = now + CREDS_CACHE_TTL;
   return _cachedCreds;
 }
 

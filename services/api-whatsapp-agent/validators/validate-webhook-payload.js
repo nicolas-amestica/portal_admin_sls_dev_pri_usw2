@@ -1,17 +1,21 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 import { getParameterValue } from '../../../libs/parameter-store.js';
 
-/** Cache del app_secret en memoria. */
+/** Cache del app_secret con TTL de 1 hora para permitir rotación de secretos. */
 let _cachedAppSecret = null;
+let _appSecretExpiry = 0;
+const SECRET_CACHE_TTL = 3600;
 
 /**
- * @description Obtiene el app_secret desde Secrets Manager con caché en memoria.
+ * @description Obtiene el app_secret desde Parameter Store con caché en memoria.
  * @returns {Promise<string>}
  */
 async function getAppSecret() {
-  if (_cachedAppSecret) return _cachedAppSecret;
+  const now = Math.floor(Date.now() / 1000);
+  if (_cachedAppSecret && _appSecretExpiry > now) return _cachedAppSecret;
   const secretJson = await getParameterValue(process.env.WHATSAPP_SECRET_KEY);
   _cachedAppSecret = JSON.parse(secretJson).app_secret;
+  _appSecretExpiry = now + SECRET_CACHE_TTL;
   return _cachedAppSecret;
 }
 
@@ -57,16 +61,24 @@ export function extractIncomingMessage(body) {
     const message = value?.messages?.[0];
     if (!message) return null;
 
-    const phoneNumber = `+${value.contacts?.[0]?.wa_id}`;
+    // Validar wa_id para evitar phoneNumber = "+undefined".
+    const waId = value.contacts?.[0]?.wa_id;
+    if (!waId || !/^\d+$/.test(waId)) return null;
+    const phoneNumber = `+${waId}`;
 
     if (message.type === 'text') {
-      return { phoneNumber, messageId: message.id, text: message.text.body };
+      const text = message.text?.body;
+      if (!text) return null;
+      return { phoneNumber, messageId: message.id, text };
     }
 
     if (message.type === 'audio') {
-      return { phoneNumber, messageId: message.id, type: 'audio', mediaId: message.audio.id };
+      const mediaId = message.audio?.id;
+      if (!mediaId) return null;
+      return { phoneNumber, messageId: message.id, type: 'audio', mediaId };
     }
 
+    // Ignorar explícitamente tipos no soportados (imagen, video, sticker, etc.).
     return null;
   } catch {
     return null;
