@@ -1,8 +1,20 @@
-import * as httpClient from '../../../libs/axios.js';
-import { randomUUID } from '../../../libs/crypto.js';
+import { randomUUID, randomBytes } from 'crypto';
 import { getCalendarAccessToken, buildCalendarApiUrl, mapGoogleEventToMeetEvent } from '../../../helpers/google-calendar-auth.js';
 
 const FLAMINGO_COLOR_ID = '4';
+const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Sin caracteres ambiguos (I, O, 0, 1)
+
+/**
+ * @description Genera un código único de 8 caracteres para identificar el evento del cliente.
+ * @returns {string} Código alfanumérico en mayúsculas.
+ */
+function generarCodigoEvento() {
+  const bytes = randomBytes(8);
+  return Array.from(bytes)
+    .map((b) => CODE_CHARS[b % CODE_CHARS.length])
+    .join('')
+    .slice(0, 8);
+}
 const NOTIFICATIONS = [
   { method: 'popup', minutes: 60 },
   { method: 'popup', minutes: 15 },
@@ -41,6 +53,7 @@ function buildEndDateTime(date, time) {
 export async function crearReunion({ destino, nombreCliente, emailCliente, fechaSugerida, horaSugerida }) {
   const { GOOGLE_CALENDAR_ID = 'primary', TIMEZONE = 'America/Santiago' } = process.env;
   const accessToken = await getCalendarAccessToken();
+  const codigoEvento = generarCodigoEvento();
 
   const destinoLabel = destino
     ? destino.charAt(0).toUpperCase() + destino.slice(1).toLowerCase()
@@ -49,8 +62,8 @@ export async function crearReunion({ destino, nombreCliente, emailCliente, fecha
   const guests = emailCliente ? [{ email: emailCliente }] : [];
 
   const eventBody = {
-    summary: `Reunión ${destinoLabel} — ${nombreCliente}`,
-    description: `Reunión informativa sobre gira de estudio a ${destinoLabel} con el apoderado ${nombreCliente}.`,
+    summary: `Reunión Giras Indómito — ${nombreCliente} [${codigoEvento}]`,
+    description: `Reunión informativa sobre giras de estudio con el apoderado ${nombreCliente}.`,
     start: { dateTime: `${fechaSugerida}T${horaSugerida}:00`, timeZone: TIMEZONE },
     end: { dateTime: buildEndDateTime(fechaSugerida, horaSugerida), timeZone: TIMEZONE },
     attendees: guests,
@@ -81,6 +94,7 @@ export async function crearReunion({ destino, nombreCliente, emailCliente, fecha
   return {
     meetLink: mapped.googleMeetLink,
     eventId: mapped.id,
+    codigoEvento,
     fecha: mapped.date,
     hora: mapped.startTime,
   };

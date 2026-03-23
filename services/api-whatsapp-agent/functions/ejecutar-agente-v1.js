@@ -84,24 +84,24 @@ async function saveConversation(phoneNumber, userText, modelText, collectedData)
 function mergeCollectedData(existingData, toolsExecuted) {
   const data = { ...existingData };
 
-  for (const tool of toolsExecuted) {
-    if (tool.name === 'buscar_presupuestos') {
-      data.destino = tool.args.destino;
-      data.region = tool.args.codigoRegion;
-      data.comuna = tool.args.nombreComuna;
-    }
-    if (tool.name === 'crear_reunion' && tool.result?.eventId) {
-      data.reunionEventId = tool.result.eventId;
-      data.reunionFecha = tool.result.fecha;
-    }
-    if (tool.name === 'reagendar_reunion' && tool.result?.eventId) {
-      data.reunionEventId = tool.result.eventId;
-      data.reunionFecha = tool.result.fecha;
-    }
-    if (tool.name === 'eliminar_reunion' && tool.result?.eliminada) {
-      delete data.reunionEventId;
-      delete data.reunionFecha;
-    }
+  const presupuestoTool = toolsExecuted.find((t) => t.name === 'buscar_presupuestos');
+  if (presupuestoTool) {
+    data.destino = presupuestoTool.args.destino;
+    data.region = presupuestoTool.args.codigoRegion;
+  }
+
+  // Guardar el código y el ID del evento cuando se crea una reunión.
+  const reunionTool = toolsExecuted.find((t) => t.name === 'crear_reunion' && t.result?.codigoEvento);
+  if (reunionTool) {
+    data.codigoEvento = reunionTool.result.codigoEvento;
+    data.eventId = reunionTool.result.eventId;
+  }
+
+  // Limpiar el evento si fue cancelado exitosamente.
+  const cancelarTool = toolsExecuted.find((t) => t.name === 'cancelar_reunion' && t.result?.exito);
+  if (cancelarTool) {
+    delete data.codigoEvento;
+    delete data.eventId;
   }
 
   return data;
@@ -143,12 +143,40 @@ export const main = async (event) => {
     return;
   }
 
-  // Si es un audio, descargarlo de Meta y transcribirlo con Gemini.
-  if (type === 'audio' && mediaId) {
-    console.log(`[${ACTION}] Audio recibido de ${phoneNumber}, transcribiendo...`);
-    const { buffer, mimeType } = await downloadMedia(mediaId);
-    text = await transcribeAudio(buffer, mimeType);
-    console.log(`[${ACTION}] Transcripción: "${text.slice(0, 80)}"`);
+  try {
+    console.log(`[${ACTION}] Procesando mensaje de ${phoneNumber}`);
+
+    // 1. Cargar historial de la conversación.
+    const { session, turnItems } = await loadConversation(phoneNumber);
+    const history = toGeminiHistory(turnItems);
+    const collectedData = session?.collectedData || {};
+
+    // 2. Llamar a Gemini con function calling.
+    const { responseText, toolsExecuted } = await runConversationTurn(history, text, phoneNumber, collectedData);
+
+    // 3. Enviar documentos PDF si el agente buscó presupuestos.
+    await sendPresupuestoDocuments(phoneNumber, toolsExecuted);
+
+    // 4. Enviar la respuesta de texto del agente.
+    await sendTextMessage(phoneNumber, responseText);
+
+    // 5. Persistir el turno en DynamoDB.
+    const updatedData = mergeCollectedData(collectedData, toolsExecuted);
+    await saveConversation(phoneNumber, text, responseText, updatedData);
+
+    console.log(`[${ACTION}] Turno completado para ${phoneNumber}`);
+  } catch (error) {
+    console.error(`[${ACTION}] Error procesando mensaje de ${phoneNumber}:`, error.message, error.stack);
+
+    // Intentar notificar al cliente del error para no dejarlo sin respuesta.
+    try {
+      await sendTextMessage(
+        phoneNumber,
+        'Lo siento, estoy teniendo problemas técnicos en este momento. Por favor intenta nuevamente en unos minutos o contáctanos directamente.'
+      );
+    } catch (sendErr) {
+      console.error(`[${ACTION}] No se pudo enviar mensaje de error al cliente:`, sendErr.message);
+    }
   }
 
   console.log(`[${ACTION}] Procesando mensaje de ${phoneNumber}`);

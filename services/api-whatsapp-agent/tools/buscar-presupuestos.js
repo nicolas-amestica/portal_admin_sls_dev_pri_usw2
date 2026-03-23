@@ -12,32 +12,22 @@ async function listKeys(bucket, prefix) {
 }
 
 /**
- * @description Busca PDFs de presupuesto en S3 para un destino y ubicación del cliente.
- * Intenta primero con la comuna específica; si no encuentra, usa el prefijo _default.
- * Retorna los keys de S3 para que el orquestador envíe los archivos directamente.
+ * @description Busca los PDFs de presupuesto en S3 para un destino y región del cliente.
+ * Los archivos siguen la estructura: agente-ia/{destino}/{region}/presupuesto-N-v1.pdf
+ * Por cada PDF encontrado genera una presigned URL válida por 24 horas.
  *
  * @param {object} params
- * @param {'bariloche'|'camboriu'|'pucon'|'valdivia'} params.destino
- * @param {string} params.codigoRegion
- * @param {string} params.nombreComuna
- * @returns {Promise<{encontrados: boolean, archivos: Array<{nombre: string, key: string}>}>}
+ * @param {'bariloche'|'camboriu'|'pucon'|'valdivia'} params.destino - Destino del viaje.
+ * @param {string} params.codigoRegion - Código de región de Chile (ej: 'rm', 'ix', 'x').
+ * @returns {Promise<{encontrados: boolean, archivos: Array<{nombre: string, url: string}>}>}
  */
-export async function buscarPresupuestos({ destino, codigoRegion, nombreComuna }) {
+export async function buscarPresupuestos({ destino, codigoRegion }) {
   const bucket = process.env.BUCKET_INFO_GI;
   const destinoNorm = destino.toLowerCase().replace(/\s+/g, '-');
   const regionNorm = codigoRegion.toLowerCase();
-  const comunaNorm = nombreComuna.toLowerCase().replace(/\s+/g, '-');
 
-  const prefijos = [
-    `presupuestos/${destinoNorm}/${regionNorm}/${comunaNorm}/`,
-    `presupuestos/${destinoNorm}/${regionNorm}/_default/`,
-  ];
-
-  let keys = [];
-  for (const prefijo of prefijos) {
-    keys = await listKeys(bucket, prefijo);
-    if (keys.length > 0) break;
-  }
+  const prefijo = `agente-ia/${destinoNorm}/${regionNorm}/`;
+  const keys = await listKeys(bucket, prefijo);
 
   if (keys.length === 0) return { encontrados: false, archivos: [] };
 
