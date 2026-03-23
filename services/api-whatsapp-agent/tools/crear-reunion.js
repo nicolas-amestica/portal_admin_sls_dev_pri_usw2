@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { randomUUID, randomBytes } from 'crypto';
 import { getCalendarAccessToken, buildCalendarApiUrl, mapGoogleEventToMeetEvent } from '../../../helpers/google-calendar-auth.js';
 
@@ -81,7 +82,7 @@ export async function crearReunion({ destino, nombreCliente, emailCliente, fecha
 
   let createdEvent;
   try {
-    const response = await httpClient.post(url, eventBody, {
+    const response = await axios.post(url, eventBody, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     createdEvent = response.data;

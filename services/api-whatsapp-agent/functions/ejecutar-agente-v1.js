@@ -143,52 +143,35 @@ export const main = async (event) => {
     return;
   }
 
-  try {
-    console.log(`[${ACTION}] Procesando mensaje de ${phoneNumber}`);
+  console.log(`[${ACTION}] Procesando mensaje de ${phoneNumber}`);
 
-    // 1. Cargar historial de la conversación.
-    const { session, turnItems } = await loadConversation(phoneNumber);
-    const history = toGeminiHistory(turnItems);
-    const collectedData = session?.collectedData || {};
-
-    // 2. Llamar a Gemini con function calling.
-    const { responseText, toolsExecuted } = await runConversationTurn(history, text, phoneNumber, collectedData);
-
-    // 3. Enviar documentos PDF si el agente buscó presupuestos.
-    await sendPresupuestoDocuments(phoneNumber, toolsExecuted);
-
-    // 4. Enviar la respuesta de texto del agente.
-    await sendTextMessage(phoneNumber, responseText);
-
-    // 5. Persistir el turno en DynamoDB.
-    const updatedData = mergeCollectedData(collectedData, toolsExecuted);
-    await saveConversation(phoneNumber, text, responseText, updatedData);
-
-    console.log(`[${ACTION}] Turno completado para ${phoneNumber}`);
-  } catch (error) {
-    console.error(`[${ACTION}] Error procesando mensaje de ${phoneNumber}:`, error.message, error.stack);
-
-    // Intentar notificar al cliente del error para no dejarlo sin respuesta.
+  // Si es mensaje de audio, transcribir antes de continuar.
+  if (mediaId && type === 'audio') {
     try {
-      await sendTextMessage(
-        phoneNumber,
-        'Lo siento, estoy teniendo problemas técnicos en este momento. Por favor intenta nuevamente en unos minutos o contáctanos directamente.'
-      );
-    } catch (sendErr) {
-      console.error(`[${ACTION}] No se pudo enviar mensaje de error al cliente:`, sendErr.message);
+      const audioBuffer = await downloadMedia(mediaId);
+      text = await transcribeAudio(audioBuffer);
+    } catch (err) {
+      console.error(`[${ACTION}] Error transcribiendo audio de ${phoneNumber}:`, err.message);
+      return;
     }
   }
 
-  console.log(`[${ACTION}] Procesando mensaje de ${phoneNumber}`);
-
+  // 1. Cargar historial de la conversación.
   const { session, turnItems } = await loadConversation(phoneNumber);
   const history = toGeminiHistory(turnItems);
   const collectedData = session?.collectedData || {};
 
-  const { responseText, toolsExecuted } = await runConversationTurn(history, text, phoneNumber);
+  // 2. Llamar a Gemini con function calling.
+  let responseText, toolsExecuted;
+  try {
+    ({ responseText, toolsExecuted } = await runConversationTurn(history, text, phoneNumber, collectedData));
+  } catch (error) {
+    console.error(`[${ACTION}] Error en Gemini para ${phoneNumber}:`, error.message, error.stack);
+    // No responder al cliente; el mensaje queda sin leer para que el administrador lo atienda.
+    return;
+  }
 
-  // Si buscar_presupuestos no encontró archivos, dejar el mensaje sin responder ni marcar como
-  // leído para que el administrador lo atienda manualmente desde WhatsApp.
+  // 3. Si no hay presupuesto disponible, dejar el mensaje sin responder para atención manual.
   const sinPresupuesto = toolsExecuted.some(
     (t) => t.name === 'buscar_presupuestos' && !t.result?.encontrados
   );
@@ -197,18 +180,18 @@ export const main = async (event) => {
     return;
   }
 
-  // Marcar como leído y mostrar "está escribiendo" antes de responder.
+  // 4. Marcar como leído y simular escritura antes de responder.
   await markAsRead(messageId).catch((err) =>
     console.warn(`[${ACTION}] No se pudo marcar como leído:`, err.message)
   );
-  await sendTypingIndicator(phoneNumber).catch(() => {/* silencioso si no está soportado */});
+  await sendTypingIndicator(phoneNumber).catch(() => {});
   await new Promise((resolve) => setTimeout(resolve, calculateTypingDelay(responseText)));
 
-  // Enviar documentos PDF y luego el texto.
+  // 5. Enviar documentos PDF y luego el texto de respuesta.
   await sendPresupuestoDocuments(phoneNumber, toolsExecuted);
   await sendTextMessage(phoneNumber, responseText);
 
-  // Persistir la conversación.
+  // 6. Persistir el turno en DynamoDB.
   const updatedData = mergeCollectedData(collectedData, toolsExecuted);
   await saveConversation(phoneNumber, text, responseText, updatedData);
 

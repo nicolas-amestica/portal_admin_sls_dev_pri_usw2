@@ -47,28 +47,9 @@ const TOOLS = [
         },
       },
       {
-        name: 'listar_reuniones',
-        description:
-          'Crea una reunión de Google Meet y retorna el link y un código único del evento. Usar SOLO cuando el cliente confirme explícitamente que quiere una videollamada para conocer más detalles.',
-        parameters: {
-          type: 'OBJECT',
-          properties: {
-            fechaInicio: {
-              type: 'STRING',
-              description: 'Fecha de inicio del rango a consultar en formato YYYY-MM-DD.',
-            },
-            fechaFin: {
-              type: 'STRING',
-              description: 'Fecha de fin del rango a consultar en formato YYYY-MM-DD.',
-            },
-          },
-          required: ['fechaInicio', 'fechaFin'],
-        },
-      },
-      {
         name: 'crear_reunion',
         description:
-          'Crea una reunión de Google Meet. Usar SOLO cuando el cliente confirme explícitamente que quiere la videollamada y ya se haya verificado disponibilidad con listar_reuniones.',
+          'Crea una reunión de Google Meet. Usar SOLO cuando el cliente confirme explícitamente que quiere la videollamada.',
         parameters: {
           type: 'OBJECT',
           properties: {
@@ -95,44 +76,6 @@ const TOOLS = [
             },
           },
           required: ['destino', 'nombreCliente', 'fechaSugerida', 'horaSugerida'],
-        },
-      },
-      {
-        name: 'reagendar_reunion',
-        description:
-          'Reagenda una reunión existente a una nueva fecha y hora. Verificar disponibilidad con listar_reuniones antes de llamar esta función. El eventId se obtiene de listar_reuniones.',
-        parameters: {
-          type: 'OBJECT',
-          properties: {
-            eventId: {
-              type: 'STRING',
-              description: 'ID del evento de Google Calendar a reagendar. Obtenido de listar_reuniones.',
-            },
-            nuevaFecha: {
-              type: 'STRING',
-              description: 'Nueva fecha en formato YYYY-MM-DD. No puede ser fecha pasada.',
-            },
-            nuevaHora: {
-              type: 'STRING',
-              description: 'Nueva hora de inicio en formato HH:MM (America/Santiago).',
-            },
-          },
-          required: ['eventId', 'nuevaFecha', 'nuevaHora'],
-        },
-      },
-      {
-        name: 'eliminar_reunion',
-        description:
-          'Cancela y elimina una reunión del calendario. Usar SOLO con confirmación explícita del cliente. El eventId se obtiene de listar_reuniones.',
-        parameters: {
-          type: 'OBJECT',
-          properties: {
-            eventId: {
-              type: 'STRING',
-              description: 'ID del evento de Google Calendar a eliminar. Obtenido de listar_reuniones.',
-            },
-          },
-          required: ['eventId'],
         },
       },
       {
