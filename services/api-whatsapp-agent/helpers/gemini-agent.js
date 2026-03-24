@@ -28,19 +28,20 @@ const TOOLS = [
       {
         name: 'buscar_presupuestos',
         description:
-          'Busca los PDFs de presupuesto disponibles en S3 para un destino y región del cliente. Retorna URLs de descarga válidas por 24 horas. Llamar solo cuando se tengan destino y codigoRegion confirmados.',
+          'Busca los PDFs de presupuesto disponibles en S3 para un destino y región del cliente. Un archivo puede incluir varios destinos en su nombre (ej: pucon-bariloche-valdivia-1.pdf). Llamar solo cuando se tengan destino y codigoRegion confirmados.',
         parameters: {
           type: 'OBJECT',
           properties: {
             destino: {
               type: 'STRING',
-              description: 'Destino del viaje.',
-              enum: ['bariloche', 'camboriu', 'pucon', 'valdivia'],
+              description:
+                "Destino principal del viaje en minúsculas. Los destinos con más de una palabra usan guión bajo. Valores válidos: 'bariloche', 'pucon', 'valdivia', 'puerto_varas', 'chiloe'.",
+              enum: ['bariloche', 'pucon', 'valdivia', 'puerto_varas', 'chiloe'],
             },
             codigoRegion: {
               type: 'STRING',
               description:
-                "Código de región de Chile en minúsculas. Ejemplos: 'rm' (Metropolitana), 'v' (Valparaíso), 'vi' (O'Higgins), 'vii' (Maule), 'viii' (Biobío), 'ix' (Araucanía), 'xiv' (Los Ríos), 'x' (Los Lagos), 'xi' (Aysén), 'xii' (Magallanes), 'xvi' (Ñuble), 'i' (Tarapacá), 'ii' (Antofagasta), 'iii' (Atacama), 'iv' (Coquimbo).",
+                "Código de región de Chile en minúsculas. Valores válidos: 'xv' (Arica y Parinacota), 'i' (Tarapacá), 'ii' (Antofagasta), 'iii' (Atacama), 'iv' (Coquimbo), 'v' (Valparaíso), 'rm' (Metropolitana), 'vi' (O'Higgins), 'vii' (Maule), 'xvi' (Ñuble), 'viii' (Biobío), 'ix' (Araucanía), 'xiv' (Los Ríos), 'x' (Los Lagos), 'xi' (Aysén), 'xii' (Magallanes).",
             },
           },
           required: ['destino', 'codigoRegion'],
@@ -160,6 +161,14 @@ Amigable, profesional y conciso. Español chileno formal pero cercano. Sin emoji
 
 ## Destinos disponibles
 - Bariloche
+- Pucon
+- Pucon + Valdivia
+- Pucon + Bariloche + Valdivia
+- Puerto Varas
+- Chiloe
+- Pucon + Puerto Varas + Chiloe
+
+Nota: un presupuesto puede incluir varios destinos en un mismo tour. Cuando el cliente mencione un destino, busca todos los presupuestos que lo incluyan (sin importar si el tour pasa por otros lugares).
 
 ## Flujo para entregar presupuestos
 1. Identifica el destino de interés.
