@@ -42,6 +42,9 @@ provider:
     STAGE: ${self:custom.stage}
     DYNAMODB_PROGRAM_TABLE: programs-${self:custom.stage}-pri-${self:custom.shortRegion}
     DYNAMODB_USER_TABLE: users-${self:custom.stage}-pri-${self:custom.shortRegion}
+    DYNAMODB_MAINTAINER_TABLE: maintainer-${self:custom.stage}-pri-${self:custom.shortRegion}
+    DYNAMODB_PK_MAINTAINER_TABLE: BNK#ACCOUNT
+    DYNAMODB_PAYMENT_TABLE: payments-${self:custom.stage}-pri-${self:custom.shortRegion}
     PROGRAM_TABLE: PRG#8e3d823d-9f58-45df-8a8f-6779435a0001
     SECRET_KEY: /pa/${self:custom.stage}/jwt-key
     EMAIL_CONFIG_SECRET_KEY: /pa/${self:custom.stage}/email-config
@@ -63,6 +66,8 @@ provider:
     - ${file(../../aws/policies/lambda-policy-kms-ssm.yml)}
     - ${file(../../aws/policies/lambda-policy-dynamodb-program.yml)}
     - ${file(../../aws/policies/lambda-policy-dynamodb-user.yml)}
+    - ${file(../../aws/policies/lambda-policy-dynamodb-maintainer.yml)}
+    - ${file(../../aws/policies/lambda-policy-dynamodb-payment.yml)}
     - ${file(../../aws/policies/lambda-policy-s3.yml)}
 
 functions:
@@ -172,6 +177,18 @@ functions:
     events:
       - httpApi:
           path: /v1/programas/monedas/tasas
+          method: GET
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  get_dashboard_v1:
+    handler: functions/get-dashboard-v1.main
+    description: Obtiene datos consolidados del panel de control (conteos, KPIs, próximos viajes, actividad reciente y cuentas bancarias).
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/dashboard
           method: GET
           authorizer:
             id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}

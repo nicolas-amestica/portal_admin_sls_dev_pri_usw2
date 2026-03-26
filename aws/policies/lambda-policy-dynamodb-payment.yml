@@ -1,0 +1,7 @@
+Effect: Allow
+Action:
+  - dynamodb:Query
+  - dynamodb:GetItem
+Resource:
+  - arn:aws:dynamodb:${self:provider.region}:*:table/payments-${self:custom.stage}-pri-${self:custom.shortRegion}
+  - arn:aws:dynamodb:${self:provider.region}:*:table/payments-${self:custom.stage}-pri-${self:custom.shortRegion}/index/*
