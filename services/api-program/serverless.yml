@@ -193,3 +193,15 @@ functions:
           authorizer:
             id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
             type: request
+
+  get_analytics_v1:
+    handler: functions/get-analytics-v1.main
+    description: Obtiene estadísticas completas del periodo (viajes, cuotas, montos, programas) para el dashboard de analytics.
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/analytics
+          method: GET
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request

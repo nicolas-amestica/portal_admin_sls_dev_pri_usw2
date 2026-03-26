@@ -1,14 +1,11 @@
 import { success } from "../../../helpers/responses.js";
-import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { CachedDynamoDB, CacheKeys } from '../../../libs/cache/index.js';
 import { standardMiddleware } from "../../../libs/middleware/index.js";
+import { getProgramsByPeriod, getAuthorizedPaymentsByProgram } from '../helpers/fn-query-programs.js';
 
 const {
-  DYNAMODB_PROGRAM_TABLE,
-  PROGRAM_TABLE,
   DYNAMODB_MAINTAINER_TABLE,
   DYNAMODB_PK_MAINTAINER_TABLE,
-  DYNAMODB_PAYMENT_TABLE,
 } = process.env;
 
 const STATUS_ACTIONS = {
@@ -18,18 +15,6 @@ const STATUS_ACTIONS = {
   completed: 'completó el programa de',
   rejected: 'rechazó el programa de',
 };
-
-/**
- * Obtiene todos los programas del periodo desde DynamoDB usando el GSI de fecha.
- */
-const getProgramsByPeriod = (periodo) =>
-  dynamoDbLib.query({
-    TableName: DYNAMODB_PROGRAM_TABLE,
-    IndexName: 'gsiStartDate-index',
-    KeyConditionExpression: '#pk = :pk AND begins_with(#startDate, :startDate)',
-    ExpressionAttributeValues: { ':pk': PROGRAM_TABLE, ':startDate': periodo },
-    ExpressionAttributeNames: { '#pk': 'pk', '#startDate': 'startDate' },
-  });
 
 /**
  * Obtiene la lista de bancos desde el mantenedor con caché en memoria.
@@ -46,20 +31,6 @@ const getBanksList = () =>
     CacheKeys.bankList(),
     CacheKeys.TTL.BANK_LIST
   );
-
-/**
- * Obtiene los pagos AUTHORIZED de un programa usando el GSI sk-index.
- * El sk del pago sigue el patrón: PAY#<programSk>, donde programSk = PRG#<id>.
- */
-const getAuthorizedPaymentsByProgram = (programSk) =>
-  dynamoDbLib.query({
-    TableName: DYNAMODB_PAYMENT_TABLE,
-    IndexName: 'sk-index',
-    KeyConditionExpression: 'sk = :sk',
-    FilterExpression: '#status = :status',
-    ExpressionAttributeNames: { '#status': 'status' },
-    ExpressionAttributeValues: { ':sk': `PAY#${programSk}`, ':status': 'AUTHORIZED' },
-  });
 
 /**
  * Calcula contadores de programas agrupados por estado.
@@ -80,16 +51,36 @@ const formatCLP = (value) =>
 
 /**
  * Construye los KPIs del dashboard.
- * - Ingresos estimados: suma de totalWithUtilities de programas no rechazados.
- * - Ingresos recibidos: suma de amounts de pagos AUTHORIZED (se recibe como parámetro).
+ * - Programas activos: programas que no están rechazados ni cancelados.
+ * - Ingresos estimados: suma de contract.payments.totalGroup de programas approved/completed,
+ *   más los montos pagados (pagos AUTHORIZED) de programas en estado canceled.
+ * - Ingresos recibidos: suma de amounts de pagos AUTHORIZED de todos los programas.
  * - Pasajeros: fijados en 0 hasta que esa funcionalidad esté implementada.
+ *
+ * @param {Array} programs - Lista de programas del periodo.
+ * @param {number} collectedRevenue - Total de pagos AUTHORIZED de todos los programas.
+ * @param {Array<Array>} paymentResults - Pagos AUTHORIZED por programa (mismo orden que programs).
  */
-const buildKpis = (programs, collectedRevenue) => {
-  const active = programs.filter((p) => p.status !== 'rejected');
-  const totalRevenue = active.reduce((sum, p) => sum + (p.content?.[0]?.totalWithUtilities ?? 0), 0);
+const buildKpis = (programs, collectedRevenue, paymentResults) => {
+  const active = programs.filter((p) => p.status !== 'rejected' && p.status !== 'canceled');
+
+  const revenueFromContracts = programs
+    .filter((p) => p.status === 'approved' || p.status === 'completed')
+    .reduce((sum, p) => sum + (parseFloat(p.content?.[0]?.contract?.payments?.totalGroup) || 0), 0);
+
+  const canceledPaidRevenue = programs
+    .filter((p) => p.status === 'canceled')
+    .reduce((sum, p) => {
+      const idx = programs.indexOf(p);
+      const payments = paymentResults[idx] ?? [];
+      return sum + payments.reduce((s, pay) => s + (pay.amount ?? 0), 0);
+    }, 0);
+
+  const estimatedRevenue = revenueFromContracts + canceledPaidRevenue;
+
   return [
     { title: 'Programas Activos', value: String(active.length), icon: 'pi pi-briefcase', change: 0, changeType: 'neutral' },
-    { title: 'Ingresos Estimados', value: formatCLP(totalRevenue), icon: 'pi pi-dollar', change: 0, changeType: 'neutral' },
+    { title: 'Ingresos Estimados', value: formatCLP(estimatedRevenue), icon: 'pi pi-dollar', change: 0, changeType: 'neutral' },
     { title: 'Ingresos Recibidos', value: formatCLP(collectedRevenue), icon: 'pi pi-credit-card', change: 0, changeType: 'neutral' },
     { title: 'Pasajeros Totales', value: '0', icon: 'pi pi-users', change: 0, changeType: 'neutral' },
   ];
@@ -161,7 +152,7 @@ const handler = async (event) => {
     .reduce((sum, payment) => sum + (payment.amount ?? 0), 0);
 
   const counts = countProgramsByStatus(programs);
-  const kpis = buildKpis(programs, collectedRevenue);
+  const kpis = buildKpis(programs, collectedRevenue, paymentResults);
   const upcomingTrips = buildUpcomingTrips(programs, today);
   const recentActivities = buildRecentActivity(programs);
 
