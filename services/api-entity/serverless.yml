@@ -111,6 +111,18 @@ functions:
           path: /v1/iam/accesos/aplicaciones/GI/user
           method: GET
 
+  renew_session_v1:
+    handler: functions/renew-session-v1.main
+    description: Renueva el token JWT del usuario autenticado sin cerrar sesión.
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/sesiones/renovar-sesion
+          method: POST
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
   update_profile_v1:
     handler: functions/update-profile-v1.main
     description: Actualiza los datos personales o la contraseña del usuario autenticado.
