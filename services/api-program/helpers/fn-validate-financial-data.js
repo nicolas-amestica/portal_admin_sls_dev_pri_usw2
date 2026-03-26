@@ -118,8 +118,8 @@ const validateService = (service, passengers, nightsStay, totals) => {
  * - Subtotal de cada ítem consistente con precio × multiplicador según tipo.
  * - total = subTotal + iva para cada ítem.
  * - Total neto CLP consistente con la suma de ítems convertidos a CLP.
- * - totalWithUtilities >= total (las utilidades no pueden ser negativas).
- * - pricePerPassenger dentro del rango [total/passengers, total/payingPassengers].
+ * - netoWithUtilities >= neto (las utilidades no pueden ser negativas).
+ * - pricePerPassengerWithRecharge dentro del rango [totalWithRecharge/passengers, totalWithRecharge/payingPassengers].
  *
  * @param {Object} data - Contenido del programa (content[0]).
  * @param {number} data.passengers - Total de pasajeros.
@@ -131,9 +131,10 @@ const validateService = (service, passengers, nightsStay, totals) => {
  * @param {Object} data.brlIncrease - Aumento por BRL ({ id: number }).
  * @param {Array}  data.crews - Tripulantes.
  * @param {Array}  data.services - Servicios.
- * @param {number} data.total - Total neto en CLP declarado por el cliente.
- * @param {number} data.totalWithUtilities - Total con utilidades e IVA.
- * @param {number} data.pricePerPassenger - Precio por pasajero pagante.
+ * @param {number} data.neto - Total neto en CLP declarado por el cliente.
+ * @param {number} data.netoWithUtilities - Neto + utilidad.
+ * @param {number} data.totalWithRecharge - Neto + utilidad + recargo.
+ * @param {number} data.pricePerPassengerWithRecharge - Precio por pasajero pagante (con recargo).
  * @returns {{ valid: boolean, error: string|null }}
  */
 export const validateFinancialData = (data) => {
@@ -175,20 +176,20 @@ export const validateFinancialData = (data) => {
   const brlRate = (rates?.brl || 0) + Number(brlIncrease?.id || 0);
   const expectedNetCLP = Math.round(totals.CLP + totals.USD * usdRate + totals.BRL * brlRate);
 
-  if (!isClose(data.total, expectedNetCLP, AGGREGATE_TOLERANCE))
-    return fail(`El total neto (${data.total}) no coincide con la suma de los ítems (${expectedNetCLP}).`);
+  if (!isClose(data.neto, expectedNetCLP, AGGREGATE_TOLERANCE))
+    return fail(`El total neto (${data.neto}) no coincide con la suma de los ítems (${expectedNetCLP}).`);
 
-  // Validar que totalWithUtilities no sea menor al total neto
-  if (!Number.isFinite(data.totalWithUtilities) || data.totalWithUtilities < data.total)
-    return fail('El total con utilidades no puede ser menor que el total neto.');
+  // Validar que netoWithUtilities no sea menor al neto
+  if (!Number.isFinite(data.netoWithUtilities) || data.netoWithUtilities < data.neto)
+    return fail('El neto con utilidades no puede ser menor que el total neto.');
 
-  // Validar pricePerPassenger dentro del rango posible
+  // Validar pricePerPassengerWithRecharge dentro del rango posible
   const payingPassengers = Math.max(1, passengers - freePassengers);
-  const minExpected = Math.floor(data.totalWithUtilities / passengers);
-  const maxExpected = Math.ceil(data.totalWithUtilities / payingPassengers) + 10;
+  const minExpected = Math.floor(data.totalWithRecharge / passengers);
+  const maxExpected = Math.ceil(data.totalWithRecharge / payingPassengers) + 10;
 
-  if (!Number.isFinite(data.pricePerPassenger) || data.pricePerPassenger < minExpected || data.pricePerPassenger > maxExpected)
-    return fail(`El precio por pasajero (${data.pricePerPassenger}) está fuera del rango esperado [${minExpected}, ${maxExpected}].`);
+  if (!Number.isFinite(data.pricePerPassengerWithRecharge) || data.pricePerPassengerWithRecharge < minExpected || data.pricePerPassengerWithRecharge > maxExpected)
+    return fail(`El precio por pasajero (${data.pricePerPassengerWithRecharge}) está fuera del rango esperado [${minExpected}, ${maxExpected}].`);
 
   return { valid: true, error: null };
 };
