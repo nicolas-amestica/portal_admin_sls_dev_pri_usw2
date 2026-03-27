@@ -1,30 +1,11 @@
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { success } from '../../../helpers/responses.js';
-import { getAWSConfigs } from '../../../libs/configs.js';
 import { standardMiddleware } from '../../../libs/middleware/index.js';
 
 const { DYNAMODB_PROGRAM_TABLE, PROGRAM_TABLE } = process.env;
 
 /** Recargo por defecto (10%) cuando no se especifica en el request. */
 const DEFAULT_SURCHARGE_RATE = 0.10;
-
-/**
- * Crea (y cachea) un DynamoDBDocumentClient correctamente inicializado.
- *
- * Se usa DynamoDBDocumentClient en lugar del DynamoDBClient de dynamodb-v3.js porque
- * solo el DocumentClient aplica el middleware de marshalling/unmarshalling de
- * @aws-sdk/lib-dynamodb. Sin él, los arrays de objetos en ExpressionAttributeValues
- * no se serializan correctamente, provocando sobreescritura de datos.
- */
-let _docClient;
-const getDocClient = async () => {
-  if (!_docClient) {
-    const config = await getAWSConfigs();
-    _docClient = DynamoDBDocumentClient.from(new DynamoDBClient(config));
-  }
-  return _docClient;
-};
 
 /**
  * Agrega una nueva cuota manual al historial de cuotas de un programa con sii = false.
@@ -63,14 +44,12 @@ const handler = async (event) => {
     throw error;
   }
 
-  const docClient = await getDocClient();
-
   // Lectura fuertemente consistente: garantiza el array actual real en DynamoDB.
-  const { Item: program } = await docClient.send(new GetCommand({
+  const program = await dynamoDbLib.getOne({
     TableName: DYNAMODB_PROGRAM_TABLE,
     Key: { pk: PROGRAM_TABLE, sk: programId },
     ConsistentRead: true,
-  }));
+  });
 
   if (!program) {
     const error = new Error('Programa no encontrado.');
@@ -102,8 +81,7 @@ const handler = async (event) => {
   };
 
   // list_append es atómico en DynamoDB: añade al final sin reemplazar el array existente.
-  // DynamoDBDocumentClient garantiza que ':new' y ':empty' se serializan correctamente.
-  await docClient.send(new UpdateCommand({
+  await dynamoDbLib.update({
     TableName: DYNAMODB_PROGRAM_TABLE,
     Key: { pk: PROGRAM_TABLE, sk: programId },
     UpdateExpression: 'SET assignedInstallments = list_append(if_not_exists(assignedInstallments, :empty), :new), updatedAt = :now',
@@ -112,7 +90,7 @@ const handler = async (event) => {
       ':empty': [],
       ':now': now,
     },
-  }));
+  });
 
   const updatedInstallments = [...currentInstallments, newInstallment];
 

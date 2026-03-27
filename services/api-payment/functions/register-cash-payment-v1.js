@@ -1,31 +1,15 @@
 import { uuidv7 } from 'uuidv7';
 import middy from '@middy/core';
 import multipartBodyParser from '@middy/http-multipart-body-parser';
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import * as S3 from '../../../libs/s3-v3.js';
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { success } from '../../../helpers/responses.js';
-import { getAWSConfigs } from '../../../libs/configs.js';
 import { errorHandlerMiddleware } from '../../../libs/middleware/error-handler.js';
 
 const { DYNAMODB_PAYMENT_TABLE, DYNAMODB_PROGRAM_TABLE, PROGRAM_TABLE, BUCKET_INFO_GI } = process.env;
 
 const ALLOWED_EXTENSIONS = ['pdf', 'jpg', 'jpeg', 'png'];
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
-
-/**
- * Crea (y cachea) un DynamoDBDocumentClient con marshalling correcto
- * para operaciones sobre arrays de objetos en ExpressionAttributeValues.
- */
-let _docClient;
-const getDocClient = async () => {
-  if (!_docClient) {
-    const config = await getAWSConfigs();
-    _docClient = DynamoDBDocumentClient.from(new DynamoDBClient(config));
-  }
-  return _docClient;
-};
 
 /**
  * Sube el comprobante de pago en efectivo a S3.
@@ -104,14 +88,12 @@ const handler = async (event) => {
     throw error;
   }
 
-  const docClient = await getDocClient();
-
   // Lectura fuertemente consistente para obtener el estado real de assignedInstallments
-  const { Item: program } = await docClient.send(new GetCommand({
+  const program = await dynamoDbLib.getOne({
     TableName: DYNAMODB_PROGRAM_TABLE,
     Key: { pk: PROGRAM_TABLE, sk: programId },
     ConsistentRead: true,
-  }));
+  });
 
   if (!program) {
     const error = new Error('Programa no encontrado.');
@@ -141,7 +123,7 @@ const handler = async (event) => {
   };
 
   // list_append atómico: añade al final sin reemplazar el array existente
-  await docClient.send(new UpdateCommand({
+  await dynamoDbLib.update({
     TableName: DYNAMODB_PROGRAM_TABLE,
     Key: { pk: PROGRAM_TABLE, sk: programId },
     UpdateExpression: 'SET assignedInstallments = list_append(if_not_exists(assignedInstallments, :empty), :new), updatedAt = :now',
@@ -150,7 +132,7 @@ const handler = async (event) => {
       ':empty': [],
       ':now': now,
     },
-  }));
+  });
 
   console.log(`[register-cash-payment] programa=${programId} cuota=${installmentNumber} monto=${parsedAmount}`);
 

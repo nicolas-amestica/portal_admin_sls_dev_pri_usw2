@@ -1,12 +1,12 @@
 import { getAWSConfigs } from "./configs";
-import { unmarshall } from "@aws-sdk/util-dynamodb";
-import { DynamoDBClient, ScanCommand } from "@aws-sdk/client-dynamodb";
-import { DeleteCommand, GetCommand, PutCommand, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient, DeleteCommand, GetCommand, PutCommand, QueryCommand, ScanCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 
 let dynamoDb;
 
 /**
  * Inicializa el cliente de DynamoDB utilizando la configuración de AWS obtenida.
+ * Usa DynamoDBDocumentClient para marshalling/unmarshalling automático de objetos JS nativos.
  *
  * @async
  * @function
@@ -15,7 +15,7 @@ let dynamoDb;
 const initClient = async () => {
   const config = await getAWSConfigs();
 
-  dynamoDb = new DynamoDBClient(config);
+  dynamoDb = DynamoDBDocumentClient.from(new DynamoDBClient(config));
 };
 
 /**
@@ -180,7 +180,7 @@ export const scan = async (params) => {
     const { Items } = await dynamoDb.send(command);
 
     if (!Items || Items.length === 0) return [];
-    return Items.map((item) => unmarshall(item));
+    return Items;
   } catch (e) {
     throw e;
   }
