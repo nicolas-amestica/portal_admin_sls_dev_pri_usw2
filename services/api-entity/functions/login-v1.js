@@ -77,30 +77,15 @@ const handler = async (event) => {
     throw error;
   }
 
-  // Inicializar configuración de usuario si no existe
-  const userConfig = user.userConfig || { language: "es" };
-
-  // Actualizar fecha de último acceso y userConfig (si aplica) en paralelo
-  const updates = [
+  const [globalConfig] = await Promise.all([
+    getGlobalConfig(DYNAMODB_CONFIG_TABLE),
     dynamoDbLib.update({
       TableName: DYNAMODB_USER_TABLE,
       Key: { pk: user.pk, sk: user.sk },
       UpdateExpression: "SET lastAccess = :lastAccess",
       ExpressionAttributeValues: { ":lastAccess": new Date().toISOString() },
     }),
-  ];
-  if (!user.userConfig) {
-    updates.push(
-      dynamoDbLib.update({
-        TableName: DYNAMODB_USER_TABLE,
-        Key: { pk: user.pk, sk: user.sk },
-        UpdateExpression: "SET userConfig = :userConfig",
-        ExpressionAttributeValues: { ":userConfig": userConfig },
-      })
-    );
-  }
-
-  const [globalConfig] = await Promise.all([getGlobalConfig(DYNAMODB_CONFIG_TABLE), ...updates]);
+  ]);
 
   const token = generateToken(
     {
@@ -123,7 +108,6 @@ const handler = async (event) => {
     token,
     access,
     profiles: profileTitles,
-    userConfig,
     globalConfig,
   }, action);
 };

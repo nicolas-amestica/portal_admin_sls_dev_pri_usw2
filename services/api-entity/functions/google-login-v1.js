@@ -118,7 +118,6 @@ const handler = async (event) => {
   }
 
   const avatarUrl = googleUser.picture ?? null;
-  const userConfig = user.userConfig ?? { language: "es" };
 
   const [secret, globalConfig] = await Promise.all([
     getParameterValue(SECRET_KEY),
@@ -155,7 +154,6 @@ const handler = async (event) => {
     token,
     access,
     profiles: profileTitles,
-    userConfig,
     globalConfig,
   }, action);
 };
