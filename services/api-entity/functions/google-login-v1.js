@@ -1,6 +1,6 @@
 import axios from "axios";
 import jwt from "jsonwebtoken";
-import { getAccessProfile } from "./access-profile.js";
+import { resolveUserSession } from "./access-profile.js";
 import { success } from "../../../helpers/responses.js";
 import * as dynamoDbLib from "../../../libs/dynamodb-v3.js";
 import { standardMiddleware } from "../../../libs/middleware/index.js";
@@ -68,31 +68,16 @@ const findUserByEmail = async (email) => {
 };
 
 /**
- * Obtiene la lista consolidada de accesos del usuario, combinando
- * accesos directos del usuario y accesos de sus perfiles asignados.
- *
- * @param {Object} user - Objeto usuario de DynamoDB.
- * @returns {Promise<Array>} Lista de accesos combinados del usuario.
- */
-const resolveUserAccess = async (user) => {
-  const profileAccess = [];
-  for (const profile of user.profiles ?? []) {
-    const access = await getAccessProfile(profile);
-    if (access) profileAccess.push(...(access[0]?.access ?? []));
-  }
-  return [...(user.access ?? []), ...profileAccess];
-};
-
-/**
  * Manejador principal del inicio de sesión con Google OAuth.
  *
  * Flujo:
  * 1. Valida el credential (ID token) emitido por Google Identity Services.
  * 2. Busca al usuario registrado por su email en DynamoDB.
- * 3. Verifica que el usuario esté activo y tenga accesos configurados.
- * 4. Actualiza la fecha de último acceso.
- * 5. Genera un JWT de la aplicación con los mismos permisos que el login tradicional.
- * 6. Retorna la respuesta en el mismo formato que el login con credenciales.
+ * 3. Verifica que el usuario esté activo.
+ * 4. Resuelve los accesos IAM del usuario.
+ * 5. Actualiza la fecha de último acceso y avatar.
+ * 6. Genera un JWT de la aplicación.
+ * 7. Retorna la respuesta en el mismo formato que el login con credenciales.
  *
  * @note Solo usuarios previamente registrados por el administrador pueden acceder.
  */
@@ -124,7 +109,7 @@ const handler = async (event) => {
     throw error;
   }
 
-  const access = await resolveUserAccess(user);
+  const { access, profileIds, profileTitles } = await resolveUserSession(user.email);
 
   if (access.length === 0) {
     const error = new Error("Acceso Restringido.");
@@ -132,29 +117,47 @@ const handler = async (event) => {
     throw error;
   }
 
-  await dynamoDbLib.update({
-    TableName: DYNAMODB_USER_TABLE,
-    Key: { pk: user.pk, sk: user.sk },
-    UpdateExpression: "SET lastAccess = :lastAccess, avatarUrl = :avatarUrl",
-    ExpressionAttributeValues: { ":lastAccess": new Date().toISOString(), ":avatarUrl": googleUser.picture ?? null },
-  });
+  const avatarUrl = googleUser.picture ?? null;
+  const userConfig = user.userConfig ?? { language: "es" };
 
-  const secret = await getParameterValue(SECRET_KEY);
+  const [secret, globalConfig] = await Promise.all([
+    getParameterValue(SECRET_KEY),
+    getGlobalConfig(DYNAMODB_CONFIG_TABLE),
+    dynamoDbLib.update({
+      TableName: DYNAMODB_USER_TABLE,
+      Key: { pk: user.pk, sk: user.sk },
+      UpdateExpression: "SET lastAccess = :lastAccess, avatarUrl = :avatarUrl",
+      ExpressionAttributeValues: {
+        ":lastAccess": new Date().toISOString(),
+        ":avatarUrl": avatarUrl,
+      },
+    }),
+  ]);
+
   const token = generateToken(
-    { allowances: "crud", userRun: user.gsiOne, profiles: user.profiles },
+    {
+      allowances: "crud",
+      userRun: user.gsiOne,
+      email: user.email,
+      profiles: profileTitles,  // títulos legibles: ["Administrador"]
+      profileIds,
+    },
     secret
   );
 
-  const responseUser = { ...user };
-  delete responseUser.password;
-  delete responseUser.content;
-  responseUser.token = token;
-  responseUser.access = access;
-  responseUser.globalConfig = await getGlobalConfig(DYNAMODB_CONFIG_TABLE);
-  responseUser.userConfig = user.userConfig ?? { language: "es" };
-  responseUser.avatarUrl = googleUser.picture ?? null;
-
-  return success(200, responseUser, action);
+  return success(200, {
+    sk: user.sk,
+    email: user.email,
+    fullName: user.fullName,
+    gsiOne: user.gsiOne,
+    phoneNumber: user.phoneNumber ?? null,
+    avatarUrl,
+    token,
+    access,
+    profiles: profileTitles,
+    userConfig,
+    globalConfig,
+  }, action);
 };
 
 export const main = standardMiddleware(handler);

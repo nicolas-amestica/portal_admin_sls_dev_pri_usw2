@@ -105,7 +105,7 @@ const generatePolicy = async (token, methodArn, method) => {
 
     // Restricción para api-configuration: solo administradores
     if (methodArn.includes("v1/configuracion/global")) {
-      const isAdmin = profiles.some((p) => p.includes("ACC#ADMIN"));
+      const isAdmin = profiles.some((p) => p.includes("ACC#ADMIN") || p === "Administrador");
       if (!isAdmin) {
         console.warn(
           `Acceso denegado: Se requiere perfil ADMIN para acceder a configuración. Perfiles: ${JSON.stringify(
