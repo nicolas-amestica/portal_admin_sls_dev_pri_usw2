@@ -15,7 +15,7 @@ const { DYNAMODB_USER_TABLE } = process.env;
  * - hasAssignedInstallment: si sii=false, indica si ya se asignó cuota manual
  *
  * @example
- * GET /v1/pagos/programas?userId=USR%2312345678K
+ * GET /v1/pagos/programas?userId=USR%236f770265-9eb3-4dee-83da-bbc5707bcef0
  */
 const handler = async (event) => {
   const action = "Obtener programas activos del usuario.";
@@ -27,25 +27,11 @@ const handler = async (event) => {
     throw error;
   }
 
-  // El userId viene como "USR#<rut>"; se extrae el rut para consultar por gsiOne
-  const rut = userId.split('#').slice(1).join('#');
-
-  if (!rut) {
-    const error = new Error('El userId no tiene el formato esperado (USR#<rut>).');
-    error.statusCode = 400;
-    throw error;
-  }
-
-  const results = await dynamoDbLib.query({
+  // El userId viene como "USR#<uuid>"; se consulta directamente por pk/sk
+  const user = await dynamoDbLib.getOne({
     TableName: DYNAMODB_USER_TABLE,
-    IndexName: 'gsiOne-index',
-    KeyConditionExpression: '#gsiOne = :gsiOne',
-    ExpressionAttributeValues: { ':gsiOne': rut },
-    ExpressionAttributeNames: { '#gsiOne': 'gsiOne' },
-    Limit: 1,
+    Key: { pk: userId, sk: userId },
   });
-
-  const user = results?.[0] ?? null;
 
   if (!user) {
     const error = new Error('Usuario no encontrado.');
