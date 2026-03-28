@@ -1,8 +1,6 @@
 import crypto from "crypto";
-import { success } from "../../../helpers/responses";
-import * as dynamoDbLib from "../../../libs/dynamodb-v3";
-import { cleanRut as parseRut } from "../../../utils/rut.js";
-import { resolvePromises } from "../../../helpers/allsettled";
+import { success } from "../../../helpers/responses.js";
+import * as dynamoDbLib from "../../../libs/dynamodb-v3.js";
 import { FORGOT_PASSWORD } from "../helpers/forgot-password-email.js";
 import { standardMiddleware } from "../../../libs/middleware/index.js";
 import { sendEmail, generateEmailHTML } from "../../../libs/nodemailer.js";
@@ -15,7 +13,7 @@ const {
   IS_OFFLINE,
   TOKEN_EXPIRATION,
   DYNAMODB_USER_TABLE
- } = process.env;
+} = process.env;
 
 const STAGE_URL_MAP = {
   local: URL_LOCAL,
@@ -34,80 +32,55 @@ const generateResetToken = () => {
 };
 
 /**
- * Función principal para la recuperación de contraseña de usuario.
+ * Función principal para la recuperación de contraseña de usuario por email.
  */
 const handler = async (event) => {
   console.log("Event ==>", event);
   const action = "Recuperación de contraseña.";
   const data = event.body;
 
-  if (!data.rut) {
-    const error = new Error('El RUT es requerido.');
+  if (!data.email) {
+    const error = new Error('El email es requerido.');
     error.statusCode = 400;
     throw error;
   }
 
-  const cleanRut = parseRut(data.rut);
+  const email = data.email.trim().toLowerCase();
 
-  const params = {
-    TableName: DYNAMODB_USER_TABLE,
-    IndexName: "gsiOne-index",
-    ReturnConsumedCapacity: "TOTAL",
-    KeyConditionExpression: "#gsiOne = :gsiOne",
-    ExpressionAttributeValues: {
-      ":gsiOne": cleanRut,
-    },
-    ExpressionAttributeNames: {
-      "#gsiOne": "gsiOne",
-    },
+  const securityMessage = {
+    message: "Si el email está registrado, recibirás un correo con instrucciones para recuperar tu contraseña.",
   };
 
   try {
-    const userPromise = dynamoDbLib.query(params);
-    const [resultPromises] = await resolvePromises([userPromise]);
+    const items = await dynamoDbLib.query({
+      TableName: DYNAMODB_USER_TABLE,
+      IndexName: "email-index",
+      KeyConditionExpression: "#email = :email",
+      FilterExpression: "begins_with(pk, :pkPrefix)",
+      ExpressionAttributeNames: { "#email": "email" },
+      ExpressionAttributeValues: { ":email": email, ":pkPrefix": "USR#" },
+    });
 
-    const securityMessage = {
-      message:
-        "Si el RUT está registrado, recibirás un correo con instrucciones para recuperar tu contraseña.",
-    };
+    const user = items?.[0];
 
-    if (!resultPromises[0]) {
-      console.log(`Usuario con RUT ${cleanRut} no encontrado.`);
-      return success(200, securityMessage, action);
-    }
-
-    const user = resultPromises[0];
-
-    if (!user.isActive) {
-      console.log(`Usuario con RUT ${cleanRut} está desactivado.`);
-      return success(200, securityMessage, action);
-    }
-
-    if (!user.email) {
-      console.log(`Usuario con RUT ${cleanRut} no tiene email registrado.`);
+    if (!user || !user.isActive) {
+      console.log(`Usuario con email ${email} no encontrado o desactivado.`);
       return success(200, securityMessage, action);
     }
 
     const resetToken = generateResetToken();
     const resetTokenExpiry = new Date(Date.now() + Number(TOKEN_EXPIRATION)).toISOString();
 
-    const updateParams = {
+    await dynamoDbLib.update({
       TableName: DYNAMODB_USER_TABLE,
-      ReturnConsumedCapacity: "TOTAL",
-      Key: {
-        pk: user.pk,
-        sk: user.sk,
-      },
-      UpdateExpression:
-        "SET resetToken = :token, resetTokenExpiry = :expiry, updatedAt = :updatedAt",
+      Key: { pk: user.pk, sk: user.sk },
+      UpdateExpression: "SET resetToken = :token, resetTokenExpiry = :expiry, updatedAt = :updatedAt",
       ExpressionAttributeValues: {
         ":token": resetToken,
         ":expiry": resetTokenExpiry,
         ":updatedAt": new Date().toISOString(),
       },
-    };
-
-    await dynamoDbLib.update(updateParams);
+    });
 
     const resetUrl = `${FRONTEND_URL}/auth/reset-password?token=${resetToken}`;
 
@@ -115,17 +88,16 @@ const handler = async (event) => {
       to: user.email,
       subject: MESSAGE.subject,
       html: generateEmailHTML({
-        recipientName: user.name || user.gsiOne,
+        recipientName: user.fullName || user.email,
         bodyHtml: MESSAGE.buildBody(resetUrl)
       })
     });
 
-    console.log(`Correo de recuperación enviado exitosamente a ${user.email} para el usuario ${cleanRut}`);
-
+    console.log(`Correo de recuperación enviado a ${user.email}`);
     return success(200, securityMessage, action);
   } catch (e) {
     console.error("Error en recuperación de contraseña:", e);
-    return success(200, { message: "Si el RUT está registrado, recibirás un correo con instrucciones para recuperar tu contraseña.", }, action);
+    return success(200, securityMessage, action);
   }
 };
 

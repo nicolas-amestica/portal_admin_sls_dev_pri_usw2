@@ -8,6 +8,7 @@ import { getParameterValue } from "../../../libs/parameter-store.js";
 import { getGlobalConfig } from "../../../helpers/get-global-config.js";
 
 const { DYNAMODB_USER_TABLE, DYNAMODB_CONFIG_TABLE, SECRET_KEY, GOOGLE_CLIENT_ID } = process.env;
+const APP_USERS_PK = 'APP#USERS';
 
 /**
  * Genera un token JWT firmado con los datos del usuario.
@@ -59,8 +60,9 @@ const findUserByEmail = async (email) => {
     TableName: DYNAMODB_USER_TABLE,
     IndexName: "email-index",
     KeyConditionExpression: "#email = :email",
+    FilterExpression: "begins_with(pk, :pkPrefix)",
     ExpressionAttributeNames: { "#email": "email" },
-    ExpressionAttributeValues: { ":email": email },
+    ExpressionAttributeValues: { ":email": email, ":pkPrefix": "USR#" },
   };
 
   const items = await dynamoDbLib.query(params);
@@ -118,6 +120,8 @@ const handler = async (event) => {
   }
 
   const avatarUrl = googleUser.picture ?? null;
+  const now = new Date().toISOString();
+  const userId = user.pk.replace('USR#', '');
 
   const [secret, globalConfig] = await Promise.all([
     getParameterValue(SECRET_KEY),
@@ -126,9 +130,22 @@ const handler = async (event) => {
       TableName: DYNAMODB_USER_TABLE,
       Key: { pk: user.pk, sk: user.sk },
       UpdateExpression: "SET lastAccess = :lastAccess, avatarUrl = :avatarUrl",
-      ExpressionAttributeValues: {
-        ":lastAccess": new Date().toISOString(),
-        ":avatarUrl": avatarUrl,
+      ExpressionAttributeValues: { ":lastAccess": now, ":avatarUrl": avatarUrl },
+    }),
+    // Actualizar directorio de usuarios para listado sin scan
+    dynamoDbLib.put({
+      TableName: DYNAMODB_USER_TABLE,
+      Item: {
+        pk: APP_USERS_PK,
+        sk: `USR#${user.email}`,
+        id: userId,
+        email: user.email,
+        fullName: user.fullName,
+        gsiOne: user.gsiOne,
+        isActive: user.isActive,
+        phoneNumber: user.phoneNumber ?? null,
+        createdAt: user.createdAt ?? now,
+        updatedAt: now,
       },
     }),
   ]);
@@ -136,9 +153,8 @@ const handler = async (event) => {
   const token = generateToken(
     {
       allowances: "crud",
-      userRun: user.gsiOne,
       email: user.email,
-      profiles: profileTitles,  // títulos legibles: ["Administrador"]
+      profiles: profileTitles,
       profileIds,
     },
     secret

@@ -32,19 +32,20 @@ const verifyToken = async (authHeader, secret) => {
 };
 
 /**
- * Obtiene el usuario de DynamoDB por su RUT (gsiOne).
+ * Obtiene el usuario de DynamoDB por su email.
  *
- * @param {string} gsiOne - RUT del usuario.
+ * @param {string} email - Email del usuario.
  * @returns {Promise<Object>} Usuario encontrado.
  * @throws {Error} Si el usuario no existe.
  */
-const findUserByRut = async (gsiOne) => {
+const findUserByEmail = async (email) => {
   const items = await dynamoDbLib.query({
     TableName: DYNAMODB_USER_TABLE,
-    IndexName: "gsiOne-index",
-    KeyConditionExpression: "#gsiOne = :gsiOne",
-    ExpressionAttributeNames: { "#gsiOne": "gsiOne" },
-    ExpressionAttributeValues: { ":gsiOne": gsiOne },
+    IndexName: "email-index",
+    KeyConditionExpression: "#email = :email",
+    FilterExpression: "begins_with(pk, :pkPrefix)",
+    ExpressionAttributeNames: { "#email": "email" },
+    ExpressionAttributeValues: { ":email": email, ":pkPrefix": "USR#" },
   });
   if (!items?.[0]) {
     const error = new Error("Usuario no encontrado.");
@@ -73,15 +74,15 @@ const handler = async (event) => {
 
   const secret = await getParameterValue(SECRET_KEY);
   const decoded = await verifyToken(authHeader, secret);
-  const userRun = decoded.body?.userRun;
+  const email = decoded.body?.email;
 
-  if (!userRun) {
+  if (!email) {
     const error = new Error("Token sin información de usuario.");
     error.statusCode = 401;
     throw error;
   }
 
-  const user = await findUserByRut(userRun);
+  const user = await findUserByEmail(email);
 
   const updateParts = [];
   const expressionValues = {};

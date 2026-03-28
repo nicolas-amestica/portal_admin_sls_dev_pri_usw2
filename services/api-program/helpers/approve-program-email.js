@@ -21,7 +21,7 @@ const buildApprovedProgramBody = (username, password, portalUrl) => `
   <div class="credentials-box">
     <h3>🔐 Credenciales de Acceso al Portal</h3>
     <div class="credential-item">
-      <span class="credential-label">Usuario:</span>
+      <span class="credential-label">Correo:</span>
       <span class="credential-value">${username}</span>
     </div>
     <div class="credential-item">

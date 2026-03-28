@@ -66,7 +66,7 @@ const handler = async (event) => {
   const now = new Date();
 
   if (now > tokenExpiry) {
-    console.log(`Token expirado para usuario ${user.gsiOne}. Expiry: ${user.resetTokenExpiry}, Now: ${now.toISOString()}`);
+    console.log(`Token expirado para usuario ${user.email}. Expiry: ${user.resetTokenExpiry}, Now: ${now.toISOString()}`);
     const error = new Error('El token ha expirado. Solicita un nuevo enlace de recuperación.');
     error.statusCode = 400;
     throw error;
@@ -74,7 +74,7 @@ const handler = async (event) => {
 
   // Validar que el usuario esté activo
   if (!user.isActive) {
-    console.log(`Intento de restablecer contraseña para usuario desactivado: ${user.gsiOne}`);
+    console.log(`Intento de restablecer contraseña para usuario desactivado: ${user.email}`);
     const error = new Error('Usuario desactivado.');
     error.statusCode = 403;
     throw error;
@@ -101,7 +101,7 @@ const handler = async (event) => {
 
   await dynamoDbLib.update(updateParams);
 
-  console.log(`Contraseña actualizada exitosamente para usuario ${user.gsiOne}`);
+  console.log(`Contraseña actualizada exitosamente para usuario ${user.email}`);
 
   return success(200, {
     message: "Contraseña restablecida exitosamente. Ahora puedes iniciar sesión con tu nueva contraseña."

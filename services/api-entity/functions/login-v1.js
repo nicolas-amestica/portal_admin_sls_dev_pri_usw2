@@ -3,12 +3,12 @@ import jwt from "jsonwebtoken";
 import { resolveUserSession } from "./access-profile.js";
 import { success } from "../../../helpers/responses.js";
 import * as dynamoDbLib from "../../../libs/dynamodb-v3.js";
-import { resolvePromises } from "../../../helpers/allsettled.js";
 import { getParameterValue } from "../../../libs/parameter-store.js";
 import { getGlobalConfig } from "../../../helpers/get-global-config.js";
 import { standardMiddleware } from "../../../libs/middleware/index.js";
 
 const { DYNAMODB_USER_TABLE, DYNAMODB_CONFIG_TABLE, SECRET_KEY } = process.env;
+const APP_USERS_PK = 'APP#USERS';
 
 /**
  * Genera un token JWT firmado con los datos proporcionados y una clave secreta.
@@ -31,17 +31,15 @@ const handler = async (event) => {
   const action = "Identificación de usuario.";
   const data = event.body;
 
-  const params = {
+  const items = await dynamoDbLib.query({
     TableName: DYNAMODB_USER_TABLE,
-    IndexName: "gsiOne-index",
-    ReturnConsumedCapacity: "TOTAL",
-    KeyConditionExpression: "#gsiOne = :gsiOne",
-    ExpressionAttributeValues: { ":gsiOne": data.username },
-    ExpressionAttributeNames: { "#gsiOne": "gsiOne" },
-  };
-
-  const [resultPromises] = await resolvePromises([dynamoDbLib.query(params)]);
-  const user = resultPromises[0];
+    IndexName: "email-index",
+    KeyConditionExpression: "#email = :email",
+    FilterExpression: "begins_with(pk, :pkPrefix)",
+    ExpressionAttributeNames: { "#email": "email" },
+    ExpressionAttributeValues: { ":email": data.email?.trim()?.toLowerCase(), ":pkPrefix": "USR#" },
+  });
+  const user = items?.[0];
 
   if (!user) {
     const error = new Error("Usuario no existe.");
@@ -77,22 +75,40 @@ const handler = async (event) => {
     throw error;
   }
 
+  const now = new Date().toISOString();
+  const userId = user.pk.replace('USR#', '');
+
   const [globalConfig] = await Promise.all([
     getGlobalConfig(DYNAMODB_CONFIG_TABLE),
     dynamoDbLib.update({
       TableName: DYNAMODB_USER_TABLE,
       Key: { pk: user.pk, sk: user.sk },
       UpdateExpression: "SET lastAccess = :lastAccess",
-      ExpressionAttributeValues: { ":lastAccess": new Date().toISOString() },
+      ExpressionAttributeValues: { ":lastAccess": now },
+    }),
+    // Actualizar directorio de usuarios para listado sin scan
+    dynamoDbLib.put({
+      TableName: DYNAMODB_USER_TABLE,
+      Item: {
+        pk: APP_USERS_PK,
+        sk: `USR#${user.email}`,
+        id: userId,
+        email: user.email,
+        fullName: user.fullName,
+        gsiOne: user.gsiOne,
+        isActive: user.isActive,
+        phoneNumber: user.phoneNumber ?? null,
+        createdAt: user.createdAt ?? now,
+        updatedAt: now,
+      },
     }),
   ]);
 
   const token = generateToken(
     {
       allowances: "crud",
-      userRun: user.gsiOne,
       email: user.email,
-      profiles: profileTitles,  // títulos legibles: ["Administrador"]
+      profiles: profileTitles,
       profileIds,
     },
     SECRET

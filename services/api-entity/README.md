@@ -140,15 +140,14 @@ GET /v1/iam/accesos/aplicaciones/GI/user?userId=<uuid-v7>
 
 ```javascript
 {
-  pk: "USR#4f7cb502-4256-11ec-81d3-0242ac130003",   // Constante
-  sk: "USR#<uuid-v7>",
-  id: "uuid-v7",
-  rut: "12345678-9",
+  pk: "USR#<uuid-propio>",   // UUID único por usuario
+  sk: "USR#<uuid-propio>",
+  id: "<uuid-propio>",
+  email: "usuario@correo.com",
   password: "bcrypt-hash",
-  firstName: "Juan",
-  lastName: "Pérez",
-  role: "ADMIN | CLIENTE",
-  status: "ACTIVE | INACTIVE",
+  fullName: "Juan Pérez",
+  gsiOne: "rut-sin-guion",
+  isActive: true,
   resetToken: "token-recuperacion",
   resetTokenExpiry: "2025-01-20T15:00:00Z",
   createdAt: "2025-01-15T09:30:00Z",

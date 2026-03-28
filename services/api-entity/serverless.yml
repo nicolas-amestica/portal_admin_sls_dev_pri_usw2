@@ -134,3 +134,177 @@ functions:
           authorizer:
             id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
             type: request
+
+  list_users_v1:
+    handler: functions/list-users-v1.main
+    description: Retorna todos los usuarios del sistema.
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/usuarios
+          method: GET
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  upsert_user_v1:
+    handler: functions/upsert-user-v1.main
+    description: Crea o actualiza un usuario del sistema.
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/usuarios
+          method: POST
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+      - httpApi:
+          path: /v1/usuarios
+          method: PUT
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  toggle_user_status_v1:
+    handler: functions/toggle-user-status-v1.main
+    description: Activa o desactiva un usuario del sistema.
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/usuarios/estado
+          method: PATCH
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  list_profiles_v1:
+    handler: functions/list-profiles-v1.main
+    description: Retorna todos los perfiles IAM.
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/iam/perfiles
+          method: GET
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  upsert_profile_v1:
+    handler: functions/upsert-profile-v1.main
+    description: Crea o actualiza un perfil IAM.
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/iam/perfiles
+          method: POST
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+      - httpApi:
+          path: /v1/iam/perfiles
+          method: PUT
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  delete_profile_v1:
+    handler: functions/delete-profile-v1.main
+    description: Elimina un perfil IAM y sus permisos asociados.
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/iam/perfiles
+          method: DELETE
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  list_modules_v1:
+    handler: functions/list-modules-v1.main
+    description: Retorna todos los módulos de la aplicación.
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/iam/modulos
+          method: GET
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  upsert_module_v1:
+    handler: functions/upsert-module-v1.main
+    description: Crea o actualiza un módulo de la aplicación.
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/iam/modulos
+          method: POST
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+      - httpApi:
+          path: /v1/iam/modulos
+          method: PUT
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  delete_module_v1:
+    handler: functions/delete-module-v1.main
+    description: Elimina un módulo (y sus LV2 si es LV1).
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/iam/modulos
+          method: DELETE
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  get_user_iam_v1:
+    handler: functions/get-user-iam-v1.main
+    description: Retorna los perfiles asignados y permisos directos de un usuario.
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/iam/usuarios/asignaciones
+          method: GET
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  save_user_iam_v1:
+    handler: functions/save-user-iam-v1.main
+    description: Guarda los perfiles y permisos directos de un usuario.
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/iam/usuarios/asignaciones
+          method: PUT
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  get_profile_permissions_v1:
+    handler: functions/get-profile-permissions-v1.main
+    description: Retorna los módulos asignados a un perfil.
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/iam/perfiles/permisos
+          method: GET
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  save_profile_permissions_v1:
+    handler: functions/save-profile-permissions-v1.main
+    description: Guarda los módulos asignados a un perfil.
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/iam/perfiles/permisos
+          method: PUT
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request

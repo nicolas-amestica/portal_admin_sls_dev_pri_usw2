@@ -31,15 +31,15 @@ const getProgramBySk = (sk) =>
   });
 
 /**
- * Busca un usuario existente por su DNI usando el índice GSI.
+ * Busca un usuario existente por su email usando el índice GSI.
  */
-const getUserByDni = (dniClean) =>
+const getUserByEmail = (email) =>
   dynamoDbLib.query({
     TableName: DYNAMODB_USER_TABLE,
-    IndexName: 'gsiOne-index',
-    KeyConditionExpression: '#gsiOne = :gsiOne',
-    ExpressionAttributeValues: { ':gsiOne': dniClean },
-    ExpressionAttributeNames: { '#gsiOne': 'gsiOne' }
+    IndexName: 'email-index',
+    KeyConditionExpression: '#email = :email',
+    ExpressionAttributeValues: { ':email': email },
+    ExpressionAttributeNames: { '#email': 'email' }
   });
 
 /**
@@ -64,35 +64,44 @@ const uploadPdfToS3 = async (pdfBuffer) => {
 };
 
 /**
- * Construye el objeto de nuevo usuario a partir del representante del contrato.
+ * Construye los objetos de nuevo usuario (auth + directorio) a partir del representante del contrato.
  */
 const buildUser = async ({ dniClean, clientRepresentative, representative, sk }) => {
-  const rutFormatted = clientRepresentative.dni.replace(/\./g, '');
-  const fullName = clientRepresentative.name || '';
-  const nameParts = fullName.trim().split(' ');
-  const names = nameParts.slice(0, Math.ceil(nameParts.length / 2)).join(' ');
-  const surnames = nameParts.slice(Math.ceil(nameParts.length / 2)).join(' ');
   const hashedPassword = await bcrypt.hash('Indomito1234$', 10);
   const currentDate = new Date().toISOString();
   const userId = uuidv7();
+  const email = representative.email.trim().toLowerCase();
+  const fullName = clientRepresentative.name || '';
 
-  return {
+  const authRecord = {
     pk: `USR#${userId}`,
-    sk: `USR#${dniClean}`,
+    sk: `USR#${userId}`,
     id: userId,
+    email,
+    fullName,
     gsiOne: dniClean,
-    email: representative.email,
-    names: names || clientRepresentative.name,
-    surnames: surnames || '',
-    rut: rutFormatted,
     phoneNumber: representative.phone || '',
     password: hashedPassword,
-    profiles: ['ACC#CLI#Cliente'],
     isActive: true,
     createdAt: currentDate,
-    lastAccess: currentDate,
+    updatedAt: currentDate,
     content: [{ createdAt: currentDate, program: sk, isActive: true }]
   };
+
+  const dirRecord = {
+    pk: 'APP#USERS',
+    sk: `USR#${email}`,
+    id: userId,
+    email,
+    fullName,
+    gsiOne: dniClean,
+    isActive: true,
+    phoneNumber: representative.phone || null,
+    createdAt: currentDate,
+    updatedAt: currentDate,
+  };
+
+  return { authRecord, dirRecord };
 };
 
 /**
@@ -187,7 +196,8 @@ const handler = async (event) => {
   }
 
   const dniClean = cleanRut(clientRepresentative.dni);
-  const existingUsers = await getUserByDni(dniClean);
+  const clientEmail = representative.email.trim().toLowerCase();
+  const existingUsers = await getUserByEmail(clientEmail);
 
   if (existingUsers?.length) {
     const existingUser = existingUsers[0];
@@ -195,7 +205,7 @@ const handler = async (event) => {
     const alreadyLinked = currentContent.some(c => c.program === sk);
 
     if (!alreadyLinked) {
-      console.log(`Usuario con DNI ${dniClean} ya existe. Agregando programa ${sk} a su content.`);
+      console.log(`Usuario con email ${clientEmail} ya existe. Agregando programa ${sk} a su content.`);
       const updatedContent = [...currentContent, { createdAt: new Date().toISOString(), program: sk, isActive: true }];
       await dynamoDbLib.update({
         TableName: DYNAMODB_USER_TABLE,
@@ -204,11 +214,14 @@ const handler = async (event) => {
         ExpressionAttributeValues: { ':content': updatedContent },
       });
     } else {
-      console.log(`Usuario con DNI ${dniClean} ya tiene vinculado el programa ${sk}.`);
+      console.log(`Usuario con email ${clientEmail} ya tiene vinculado el programa ${sk}.`);
     }
   } else {
-    const newUser = await buildUser({ dniClean, clientRepresentative, representative, sk });
-    await dynamoDbLib.put({ TableName: DYNAMODB_USER_TABLE, Item: newUser });
+    const { authRecord, dirRecord } = await buildUser({ dniClean, clientRepresentative, representative, sk });
+    await Promise.all([
+      dynamoDbLib.put({ TableName: DYNAMODB_USER_TABLE, Item: authRecord }),
+      dynamoDbLib.put({ TableName: DYNAMODB_USER_TABLE, Item: dirRecord }),
+    ]);
   }
 
   const emailSet = new Set();
@@ -222,7 +235,7 @@ const handler = async (event) => {
   const logoBuffer = await loadLogoFromS3();
   const htmlContent = generateEmailHTML({
     recipientName,
-    bodyHtml: MESSAGE.buildBody(dniClean, temporaryPassword),
+    bodyHtml: MESSAGE.buildBody(clientEmail, temporaryPassword),
     useCidLogo: !!logoBuffer
   });
 
