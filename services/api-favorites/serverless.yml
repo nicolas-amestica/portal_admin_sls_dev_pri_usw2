@@ -106,6 +106,18 @@ functions:
             id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
             type: request
 
+  toggle_module_favorite_v1:
+    handler: functions/toggle-module-favorite-v1.main
+    description: Agrega o elimina un módulo del set de favoritos del menú del usuario (1 WCU, sin lectura previa).
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/favoritos/modulos/toggle
+          method: PUT
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
 # Tabla DynamoDB de favoritos con GSI para lookup por favoriteId
 resources:
   Resources:

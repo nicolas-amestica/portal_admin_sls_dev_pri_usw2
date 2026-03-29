@@ -1,4 +1,4 @@
-import { resolveUserSession } from "./access-profile.js";
+import { resolveUserSession, findModuleFavorites } from "./access-profile.js";
 import { success } from "../../../helpers/responses.js";
 import { cache, CacheKeys } from "../../../libs/cache/index.js";
 import { standardMiddleware } from "../../../libs/middleware/index.js";
@@ -20,27 +20,32 @@ const handler = async (event) => {
   }
 
   const cacheKey = CacheKeys.userAccess(userId);
-  const cachedAccess = cache.get(cacheKey);
+  const cached = cache.get(cacheKey);
 
-  if (cachedAccess) {
+  let access;
+
+  if (cached) {
     console.log("CACHE_HIT", { key: cacheKey });
-    return success(200, cachedAccess, action);
+    access = cached.access;
+  } else {
+    console.log("CACHE_MISS", { key: cacheKey });
+    const result = await resolveUserSession(userId);
+
+    if (!result.access || result.access.length === 0) {
+      const error = new Error("Acceso Restringido.");
+      error.statusCode = 403;
+      throw error;
+    }
+
+    access = result.access;
+    cache.set(cacheKey, { access }, CacheKeys.TTL.USER_ACCESS);
+    console.log("CACHE_SET", { key: cacheKey, ttl: `${CacheKeys.TTL.USER_ACCESS}ms` });
   }
 
-  console.log("CACHE_MISS", { key: cacheKey });
+  // moduleFavorites nunca se cachea: cambia con cada toggle del usuario
+  const moduleFavorites = await findModuleFavorites(userId);
 
-  const { access } = await resolveUserSession(userId);
-
-  if (!access || access.length === 0) {
-    const error = new Error("Acceso Restringido.");
-    error.statusCode = 403;
-    throw error;
-  }
-
-  cache.set(cacheKey, access, CacheKeys.TTL.USER_ACCESS);
-  console.log("CACHE_SET", { key: cacheKey, ttl: `${CacheKeys.TTL.USER_ACCESS}ms` });
-
-  return success(200, access, action);
+  return success(200, { access, moduleFavorites: moduleFavorites ?? [] }, action);
 };
 
 export const main = standardMiddleware(handler);

@@ -1,6 +1,6 @@
 import * as dynamoDbLib from "../../../libs/dynamodb-v3.js";
 
-const { DYNAMODB_USER_TABLE } = process.env;
+const { DYNAMODB_USER_TABLE, DYNAMODB_FAVORITES_TABLE } = process.env;
 
 export const APP_PK = "APP#ADMIN_PORTAL";
 
@@ -84,6 +84,30 @@ const findAppModules = async (appPk) => {
 };
 
 /**
+ * Obtiene los módulos favoritos del menú principal para un usuario.
+ * Usa un único GetItem (0.5 RCU) sobre el ítem agregado FAV#MODULE_MENU.
+ * Se exporta para que otros handlers puedan consultarla sin pasar por la caché de accesos.
+ *
+ * @param {string} email - Email del usuario.
+ * @returns {Promise<string[]>} Lista de SKs de módulos favoritos.
+ */
+export const findModuleFavorites = async (email) => {
+  if (!DYNAMODB_FAVORITES_TABLE) return [];
+  try {
+    const item = await dynamoDbLib.getOne({
+      TableName: DYNAMODB_FAVORITES_TABLE,
+      Key: { pk: `FAV#${email}`, sk: "FAV#MODULE_MENU" },
+    });
+    if (!item?.moduleOptions) return [];
+    // DynamoDB StringSet se deserializa como un Set nativo o array según el cliente
+    const opts = item.moduleOptions;
+    return Array.isArray(opts) ? opts : [...opts];
+  } catch {
+    return [];
+  }
+};
+
+/**
  * Verifica si un permiso ha expirado.
  *
  * @param {string|null} expiration - Fecha de expiración o "null".
@@ -110,11 +134,14 @@ const buildAccessList = (appModules, profilePermissions, directPermissions) => {
   for (const perm of profilePermissions) permissionMap.set(perm.id, perm);
   for (const perm of directPermissions) permissionMap.set(perm.id, perm); // directos sobrescriben perfil
 
-  // Mapa de orden de LV1 para ordenar el menú correctamente
+  // Mapa de LV1: orden, título e ícono para categorizar los módulos LV2 en el menú
   const lv1OrderMap = new Map();
+  const lv1Map = new Map();
   for (const m of appModules) {
     if (m.sk.includes("#LV1#") && !m.sk.includes("#LV2#")) {
-      lv1OrderMap.set(m.sk, Number(m.order) || 99);
+      const order = Number(m.order) || 99;
+      lv1OrderMap.set(m.sk, order);
+      lv1Map.set(m.sk, { title: m.title || "", icon: m.icon || "", order });
     }
   }
 
@@ -133,6 +160,8 @@ const buildAccessList = (appModules, profilePermissions, directPermissions) => {
     const permission = permissionMap.get(module.id);
     if (!permission || isExpired(permission.expiration)) return acc;
 
+    const lv1Sk = module.sk.split("#LV2#")[0];
+    const lv1 = lv1Map.get(lv1Sk);
     acc.push({
       allow: permission.allowances || "[create, read, update, delete]",
       icon: module.icon || "",
@@ -140,6 +169,9 @@ const buildAccessList = (appModules, profilePermissions, directPermissions) => {
       path: module.path || "",
       title: module.title || "",
       option: module.sk,
+      category: lv1?.title ?? "",
+      categoryIcon: lv1?.icon ?? "",
+      categoryOrder: lv1?.order ?? 99,
     });
     return acc;
   }, []);
@@ -166,14 +198,15 @@ export const resolveUserSession = async (email, appPk = APP_PK) => {
 
   const profileModulePromises = profileIds.map((id) => findModulesByProfile(id, appPk));
 
-  const [appModules, directPermissions, ...profileModulesArrays] = await Promise.all([
+  const [appModules, directPermissions, moduleFavorites, ...profileModulesArrays] = await Promise.all([
     findAppModules(appPk),
     findDirectPermissions(email, appPk),
+    findModuleFavorites(email),
     ...profileModulePromises,
   ]);
 
   const profilePermissions = profileModulesArrays.flat();
   const access = buildAccessList(appModules, profilePermissions, directPermissions);
 
-  return { access, profileIds, profileTitles };
+  return { access, profileIds, profileTitles, moduleFavorites };
 };

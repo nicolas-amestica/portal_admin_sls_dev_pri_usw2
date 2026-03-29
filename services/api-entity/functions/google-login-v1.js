@@ -111,7 +111,7 @@ const handler = async (event) => {
     throw error;
   }
 
-  const { access, profileIds, profileTitles } = await resolveUserSession(user.email);
+  const { access, profileIds, profileTitles, moduleFavorites } = await resolveUserSession(user.email);
 
   if (access.length === 0) {
     const error = new Error("Acceso Restringido.");
@@ -169,6 +169,7 @@ const handler = async (event) => {
     avatarUrl,
     token,
     access,
+    moduleFavorites: moduleFavorites ?? [],
     profiles: profileTitles,
     globalConfig,
   }, action);

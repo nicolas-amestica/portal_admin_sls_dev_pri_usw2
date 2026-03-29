@@ -66,8 +66,8 @@ const handler = async (event) => {
     throw error;
   }
 
-  // Resolver accesos IAM y perfiles desde la nueva estructura
-  const { access, profileIds, profileTitles } = await resolveUserSession(user.email);
+  // Resolver accesos IAM, perfiles y módulos favoritos del menú
+  const { access, profileIds, profileTitles, moduleFavorites } = await resolveUserSession(user.email);
 
   if (!access || access.length === 0) {
     const error = new Error("Acceso Restringido.");
@@ -123,6 +123,7 @@ const handler = async (event) => {
     avatarUrl: user.avatarUrl ?? null,
     token,
     access,
+    moduleFavorites: moduleFavorites ?? [],
     profiles: profileTitles,
     globalConfig,
   }, action);

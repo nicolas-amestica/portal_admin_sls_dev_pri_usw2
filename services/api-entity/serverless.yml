@@ -47,6 +47,7 @@ provider:
     SECRET_KEY: /pa/${self:custom.stage}/jwt-key
     DYNAMODB_USER_TABLE: users-${self:custom.stage}-pri-${self:custom.shortRegion}
     DYNAMODB_CONFIG_TABLE: config-${self:custom.stage}-pri-${self:custom.shortRegion}
+    DYNAMODB_FAVORITES_TABLE: favorites-${self:custom.stage}-pri-${self:custom.shortRegion}
     EMAIL_CONFIG_SECRET_KEY: /pa/${self:custom.stage}/email-config
     GOOGLE_CLIENT_ID: 135592101346-nqh4bi4le3lef7phuqtdpt0m6tm067hh.apps.googleusercontent.com
 
@@ -65,6 +66,7 @@ provider:
     - ${file(../../aws/policies/lambda-policy-cloudwatch.yml)}
     - ${file(../../aws/policies/lambda-policy-dynamodb-user.yml)}
     - ${file(../../aws/policies/lambda-policy-dynamodb-config.yml)}
+    - ${file(../../aws/policies/lambda-policy-dynamodb-favorites.yml)}
 
 functions:
 
