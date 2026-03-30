@@ -72,12 +72,48 @@ export function buildCalendarApiUrl(calendarId, eventId, queryParams = {}) {
 }
 
 /**
+ * Crea un espacio de Google Meet via Meet REST API y lo configura con acceso abierto.
+ * Los espacios creados así son administrables (a diferencia de los generados por Calendar).
+ *
+ * Requiere el scope OAuth: https://www.googleapis.com/auth/meetings.space.created
+ *
+ * @param {string} accessToken - Access token de OAuth2.
+ * @returns {Promise<{meetingUri: string, meetingCode: string, hostKey: string|null}>}
+ */
+export async function createMeetSpace(accessToken) {
+  // Crear el espacio
+  const createResponse = await httpClient.post(
+    'https://meet.googleapis.com/v2/spaces',
+    { config: { accessType: 'OPEN' } },
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  const space = createResponse.data;
+
+  // Obtener hostKey (requiere segundo GET ya que POST no siempre lo retorna)
+  let hostKey = space?.config?.hostKey ?? null;
+  if (!hostKey) {
+    try {
+      const getResponse = await httpClient.get(
+        `https://meet.googleapis.com/v2/spaces/${space.meetingCode}`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      hostKey = getResponse.data?.config?.hostKey ?? null;
+    } catch (_) {
+      // hostKey opcional, no es bloqueante
+    }
+  }
+
+  return { meetingUri: space.meetingUri, meetingCode: space.meetingCode, hostKey };
+}
+
+/**
  * Mapea un evento de Google Calendar al formato interno MeetEvent.
  *
  * @param {object} event - Evento de Google Calendar API.
+ * @param {string|null} [hostKey] - Clave de anfitrión de Google Meet (opcional).
  * @returns {object} Evento en formato MeetEvent.
  */
-export function mapGoogleEventToMeetEvent(event) {
+export function mapGoogleEventToMeetEvent(event, hostKey = null) {
   const dateTime = event.start?.dateTime || '';
   const endDateTime = event.end?.dateTime || '';
 
@@ -94,6 +130,8 @@ export function mapGoogleEventToMeetEvent(event) {
     googleMeetLink: event.conferenceData?.entryPoints?.find(
       (e) => e.entryPointType === 'video'
     )?.uri ?? null,
+    meetingCode: event.conferenceData?.conferenceId ?? null,
+    hostKey,
     createdAt: event.created || new Date().toISOString(),
   };
 }

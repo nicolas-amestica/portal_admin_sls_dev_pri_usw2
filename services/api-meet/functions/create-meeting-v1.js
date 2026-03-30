@@ -2,7 +2,7 @@ import axios from '../../../libs/axios.js';
 import { randomUUID } from '../../../libs/crypto.js';
 import { standardMiddleware } from '../../../libs/middleware/index.js';
 import { success, unsuccessful } from '../../../helpers/responses.js';
-import { getCalendarAccessToken, buildCalendarApiUrl, mapGoogleEventToMeetEvent } from '../../../helpers/google-calendar-auth.js';
+import { getCalendarAccessToken, buildCalendarApiUrl, mapGoogleEventToMeetEvent, createMeetSpace } from '../../../helpers/google-calendar-auth.js';
 
 const ACTION = 'Crear reunión';
 const FLAMINGO_COLOR_ID = '4';
@@ -43,6 +43,31 @@ const baseHandler = async (event) => {
 
   const accessToken = await getCalendarAccessToken();
 
+  // Crear el espacio de Meet primero para tener control total sobre él.
+  let meetSpace = null;
+  try {
+    meetSpace = await createMeetSpace(accessToken);
+  } catch (meetErr) {
+    console.warn(
+      '[CREATE-MEETING] No se pudo crear espacio Meet API (fallback a hangoutsMeet):',
+      meetErr.response?.data?.message ?? meetErr.message
+    );
+  }
+
+  // Construir conferenceData según si se pudo crear el espacio vía Meet API o no.
+  const conferenceData = meetSpace
+    ? {
+        conferenceId: meetSpace.meetingCode,
+        conferenceSolution: { key: { type: 'hangoutsMeet' } },
+        entryPoints: [{ entryPointType: 'video', uri: meetSpace.meetingUri }],
+      }
+    : {
+        createRequest: {
+          requestId: randomUUID(),
+          conferenceSolutionKey: { type: 'hangoutsMeet' },
+        },
+      };
+
   const eventBody = {
     summary: title,
     description,
@@ -51,12 +76,7 @@ const baseHandler = async (event) => {
     attendees: guests.map((email) => ({ email })),
     colorId: FLAMINGO_COLOR_ID,
     reminders: { useDefault: false, overrides: NOTIFICATIONS },
-    conferenceData: {
-      createRequest: {
-        requestId: randomUUID(),
-        conferenceSolutionKey: { type: 'hangoutsMeet' },
-      },
-    },
+    conferenceData,
   };
 
   const url = buildCalendarApiUrl(GOOGLE_CALENDAR_ID, null, { conferenceDataVersion: '1' });
@@ -72,7 +92,7 @@ const baseHandler = async (event) => {
     throw axiosErr;
   }
 
-  return success(201, { Item: mapGoogleEventToMeetEvent(createdEvent) }, ACTION, {});
+  return success(201, { Item: mapGoogleEventToMeetEvent(createdEvent, meetSpace?.hostKey ?? null) }, ACTION, {});
 };
 
 export const main = standardMiddleware(baseHandler);

@@ -44,7 +44,7 @@ const baseHandler = async (event) => {
 
   const meetings = (data.items || [])
     .filter((e) => e.start?.dateTime)
-    .map(mapGoogleEventToMeetEvent);
+    .map((e) => mapGoogleEventToMeetEvent(e));
 
   return success(200, { Items: meetings, Count: meetings.length }, ACTION, { year, month });
 };
