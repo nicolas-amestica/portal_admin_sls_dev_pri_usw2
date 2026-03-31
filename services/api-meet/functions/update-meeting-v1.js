@@ -33,7 +33,7 @@ function buildEndDateTime(date, time) {
  */
 const baseHandler = async (event) => {
   const eventId = event.pathParameters?.eventId;
-  const { title, date, startTime, description = '', guests = [] } = event.body;
+  const { title, date, startTime, description = '', guests = [], hostSk = null, hostName = null } = event.body;
 
   if (!eventId) {
     return unsuccessful(400, { message: 'El parámetro eventId es requerido.' }, ACTION);
@@ -55,6 +55,7 @@ const baseHandler = async (event) => {
     attendees: guests.map((email) => ({ email })),
     colorId: FLAMINGO_COLOR_ID,
     reminders: { useDefault: false, overrides: NOTIFICATIONS },
+    ...(hostSk && { extendedProperties: { shared: { hostSk, hostName: hostName ?? '' } } }),
   };
 
   const url = buildCalendarApiUrl(GOOGLE_CALENDAR_ID, eventId);

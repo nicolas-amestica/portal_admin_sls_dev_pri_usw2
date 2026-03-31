@@ -129,3 +129,51 @@ functions:
           authorizer:
             id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
             type: request
+
+  list_presenters_v1:
+    handler: functions/list-presenters-v1.main
+    description: Lista todos los presentadores del mantenedor (activos e inactivos). Usado por el formulario de reuniones y el módulo de configuración.
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/mantenedor/presentadores
+          method: GET
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  create_presenter_v1:
+    handler: functions/create-presenter-v1.main
+    description: Crea un nuevo presentador en el mantenedor.
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/mantenedor/presentadores
+          method: POST
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  update_presenter_v1:
+    handler: functions/update-presenter-v1.main
+    description: Actualiza un presentador existente del mantenedor.
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/mantenedor/presentadores
+          method: PUT
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  delete_presenter_v1:
+    handler: functions/delete-presenter-v1.main
+    description: Elimina permanentemente un presentador del mantenedor.
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/mantenedor/presentadores
+          method: DELETE
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request

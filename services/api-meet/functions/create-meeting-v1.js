@@ -35,7 +35,7 @@ function buildEndDateTime(date, time) {
  * siempre tenga controles de anfitrión al entrar, sin importar el orden de entrada.
  */
 const baseHandler = async (event) => {
-  const { title, date, startTime, description = '', guests = [] } = event.body;
+  const { title, date, startTime, description = '', guests = [], hostSk = null, hostName = null } = event.body;
 
   if (!title || !date || !startTime) {
     return unsuccessful(400, { message: 'Los campos title, date y startTime son requeridos.' }, ACTION);
@@ -81,6 +81,7 @@ const baseHandler = async (event) => {
     colorId: FLAMINGO_COLOR_ID,
     reminders: { useDefault: false, overrides: NOTIFICATIONS },
     conferenceData,
+    ...(hostSk && { extendedProperties: { shared: { hostSk, hostName: hostName ?? '' } } }),
   };
 
   const url = buildCalendarApiUrl(GOOGLE_CALENDAR_ID, null, { conferenceDataVersion: '1' });
