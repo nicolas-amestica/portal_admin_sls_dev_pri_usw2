@@ -14,7 +14,7 @@ const { DYNAMODB_MAINTAINER_TABLE } = process.env;
  */
 const handler = async (event) => {
   const action = "Crear presentador.";
-  const { content, description, active = true } = event.body ?? {};
+  const { content, description, active = true, color } = event.body ?? {};
 
   if (!content?.name || typeof content.name !== "string" || content.name.trim().length < 2) {
     const error = new Error('El campo "content.name" es requerido (mínimo 2 caracteres).');
@@ -37,6 +37,7 @@ const handler = async (event) => {
     content: { name: content.name.trim() },
     description: description.trim(),
     active: Boolean(active),
+    color: typeof color === "string" && color.trim() ? color.trim() : "#6366f1",
     createdAt: now,
     updatedAt: now,
   };

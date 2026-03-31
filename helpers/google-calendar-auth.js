@@ -167,5 +167,6 @@ export function mapGoogleEventToMeetEvent(event) {
     createdAt: event.created || new Date().toISOString(),
     hostSk: extProps.hostSk ?? null,
     hostName: extProps.hostName ?? null,
+    hostColor: extProps.hostColor ?? null,
   };
 }

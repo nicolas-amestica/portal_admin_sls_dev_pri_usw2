@@ -15,7 +15,7 @@ const { DYNAMODB_MAINTAINER_TABLE } = process.env;
  */
 const handler = async (event) => {
   const action = "Actualizar presentador.";
-  const { sk, content, description, active } = event.body ?? {};
+  const { sk, content, description, active, color } = event.body ?? {};
 
   if (!sk || typeof sk !== "string") {
     const error = new Error('El campo "sk" es requerido.');
@@ -38,18 +38,20 @@ const handler = async (event) => {
   const updated = await dynamoDb.update({
     TableName: DYNAMODB_MAINTAINER_TABLE,
     Key: { pk: "PRESENTER", sk },
-    UpdateExpression: "SET #content = :content, #description = :description, #active = :active, #updatedAt = :updatedAt",
+    UpdateExpression: "SET #content = :content, #description = :description, #active = :active, #color = :color, #updatedAt = :updatedAt",
     ConditionExpression: "attribute_exists(sk)",
     ExpressionAttributeNames: {
       "#content": "content",
       "#description": "description",
       "#active": "active",
+      "#color": "color",
       "#updatedAt": "updatedAt",
     },
     ExpressionAttributeValues: {
       ":content": { name: content.name.trim() },
       ":description": description.trim(),
       ":active": Boolean(active),
+      ":color": typeof color === "string" && color.trim() ? color.trim() : "#6366f1",
       ":updatedAt": new Date().toISOString(),
     },
   });
