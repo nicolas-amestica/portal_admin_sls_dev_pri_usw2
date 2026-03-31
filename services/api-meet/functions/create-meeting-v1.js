@@ -2,7 +2,7 @@ import axios from '../../../libs/axios.js';
 import { randomUUID } from '../../../libs/crypto.js';
 import { standardMiddleware } from '../../../libs/middleware/index.js';
 import { success, unsuccessful } from '../../../helpers/responses.js';
-import { getCalendarAccessToken, buildCalendarApiUrl, mapGoogleEventToMeetEvent, createMeetSpace } from '../../../helpers/google-calendar-auth.js';
+import { getCalendarAccessToken, getMeetHostAccessToken, buildCalendarApiUrl, mapGoogleEventToMeetEvent, createMeetSpace } from '../../../helpers/google-calendar-auth.js';
 
 const ACTION = 'Crear reunión';
 const FLAMINGO_COLOR_ID = '4';
@@ -31,6 +31,8 @@ function buildEndDateTime(date, time) {
 
 /**
  * Lambda handler: crea un evento en Google Calendar con Google Meet.
+ * El espacio de Meet se crea bajo la cuenta anfitriona para que el coordinador
+ * siempre tenga controles de anfitrión al entrar, sin importar el orden de entrada.
  */
 const baseHandler = async (event) => {
   const { title, date, startTime, description = '', guests = [] } = event.body;
@@ -41,20 +43,22 @@ const baseHandler = async (event) => {
 
   const { GOOGLE_CALENDAR_ID = 'primary', TIMEZONE = 'America/Santiago' } = process.env;
 
-  const accessToken = await getCalendarAccessToken();
+  const [calendarToken, hostToken] = await Promise.all([
+    getCalendarAccessToken(),
+    getMeetHostAccessToken(),
+  ]);
 
-  // Crear el espacio de Meet primero para tener control total sobre él.
+  // Crear el espacio de Meet bajo la cuenta anfitriona (coordinador.girasindomito@gmail.com).
   let meetSpace = null;
   try {
-    meetSpace = await createMeetSpace(accessToken);
+    meetSpace = await createMeetSpace(hostToken);
   } catch (meetErr) {
     console.warn(
-      '[CREATE-MEETING] No se pudo crear espacio Meet API (fallback a hangoutsMeet):',
+      '[CREATE-MEETING] No se pudo crear espacio vía Meet API (fallback a hangoutsMeet):',
       meetErr.response?.data?.message ?? meetErr.message
     );
   }
 
-  // Construir conferenceData según si se pudo crear el espacio vía Meet API o no.
   const conferenceData = meetSpace
     ? {
         conferenceId: meetSpace.meetingCode,
@@ -84,7 +88,7 @@ const baseHandler = async (event) => {
   let createdEvent;
   try {
     const response = await axios.post(url, eventBody, {
-      headers: { Authorization: `Bearer ${accessToken}` },
+      headers: { Authorization: `Bearer ${calendarToken}` },
     });
     createdEvent = response.data;
   } catch (axiosErr) {
@@ -92,7 +96,7 @@ const baseHandler = async (event) => {
     throw axiosErr;
   }
 
-  return success(201, { Item: mapGoogleEventToMeetEvent(createdEvent, meetSpace?.hostKey ?? null) }, ACTION, {});
+  return success(201, { Item: mapGoogleEventToMeetEvent(createdEvent) }, ACTION, {});
 };
 
 export const main = standardMiddleware(baseHandler);
