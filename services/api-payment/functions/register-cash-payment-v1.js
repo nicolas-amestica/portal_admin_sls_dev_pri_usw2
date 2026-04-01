@@ -5,11 +5,17 @@ import * as S3 from '../../../libs/s3-v3.js';
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { success } from '../../../helpers/responses.js';
 import { errorHandlerMiddleware } from '../../../libs/middleware/error-handler.js';
+import { generatePaymentReceipt, PAYMENT_RECEIPT } from '../../../libs/document-builders/index.js';
+import { loadImages } from '../../../libs/pdf-generator/index.js';
+import { sendEmailWithAttachments, generateEmailHTML } from '../../../libs/nodemailer.js';
 
-const { DYNAMODB_PAYMENT_TABLE, DYNAMODB_PROGRAM_TABLE, PROGRAM_TABLE, BUCKET_INFO_GI } = process.env;
+const { STAGE, DYNAMODB_PAYMENT_TABLE, DYNAMODB_PROGRAM_TABLE, PROGRAM_TABLE, BUCKET_INFO_GI } = process.env;
+
+const MESSAGE = STAGE === 'prd' ? PAYMENT_RECEIPT.prd : PAYMENT_RECEIPT.dev;
 
 const ALLOWED_EXTENSIONS = ['pdf', 'jpg', 'jpeg', 'png'];
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
  * Sube el comprobante de pago en efectivo a S3.
@@ -48,14 +54,15 @@ const uploadComprobante = async ({ filename, content, contentType, paymentId }) 
  * 3. Agrega la nueva cuota a assignedInstallments con list_append atómico
  * 4. Sube el comprobante a S3 (comprobantes/efectivo/{uuid}.{ext})
  * 5. Crea el registro de pago con method=CASH y status=AUTHORIZED
+ * 6. Genera un comprobante PDF y lo envía por correo al pagador
  *
  * @example
  * POST /v1/pagos/admin/registrar-pago-efectivo
- * Body (multipart/form-data): { programId, amount, observation, paidAt, file }
+ * Body (multipart/form-data): { programId, amount, observation, paidAt, payerEmail, file }
  */
 const handler = async (event) => {
   const action = 'Registrar pago en efectivo de cuota.';
-  const { programId, amount, observation, paidAt, file } = event.body || {};
+  const { programId, amount, observation, paidAt, payerEmail, file } = event.body || {};
 
   if (!programId) {
     const error = new Error('El programId es requerido.');
@@ -82,6 +89,18 @@ const handler = async (event) => {
     throw error;
   }
 
+  if (!payerEmail?.trim()) {
+    const error = new Error('El email del cliente es requerido.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!EMAIL_REGEX.test(payerEmail.trim())) {
+    const error = new Error('El email del cliente no tiene un formato válido.');
+    error.statusCode = 400;
+    throw error;
+  }
+
   if (!file?.content) {
     const error = new Error('El comprobante de pago es requerido.');
     error.statusCode = 400;
@@ -102,7 +121,7 @@ const handler = async (event) => {
   }
 
   if (program.sii !== false) {
-    const error = new Error('Solo se pueden registrar pagos en efectivo en programas con sii = false.');
+    const error = new Error('Solo se pueden registrar pagos en efectivo en programas que no se declaran al SII.');
     error.statusCode = 409;
     throw error;
   }
@@ -156,6 +175,7 @@ const handler = async (event) => {
       amount: parsedAmount,
       status: 'AUTHORIZED',
       method: 'CASH',
+      payerEmail: payerEmail.trim(),
       observation: observation.trim(),
       paidAt,
       comprobante: {
@@ -168,6 +188,63 @@ const handler = async (event) => {
       gsiOne: `${programId}#INST#${installmentNumber}`,
     },
   });
+
+  // Generar y enviar comprobante PDF por correo (no bloquea la respuesta si falla)
+  try {
+    const { headerImage, footerImage } = await loadImages(
+      BUCKET_INFO_GI,
+      'assets/header.png',
+      'assets/footer.png'
+    );
+
+    const pdfBuffer = await generatePaymentReceipt({
+      paymentId,
+      installmentNumber,
+      amount: parsedAmount,
+      authorizationCode: null,
+      cardNumber: null,
+      transactionDate: paidAt,
+      buyOrder: null,
+      payerEmail: payerEmail.trim(),
+      headerImageBase64: headerImage,
+      footerImageBase64: footerImage,
+    });
+
+    const pdfS3Key = `comprobantes/pagos/${paymentId}.pdf`;
+    await S3.putObject({
+      Bucket: BUCKET_INFO_GI,
+      Key: pdfS3Key,
+      Body: pdfBuffer,
+      ContentType: 'application/pdf',
+    });
+    console.log(`[register-cash-payment] comprobante PDF guardado en S3: ${pdfS3Key}`);
+
+    const bodyHtml = MESSAGE.buildBody({
+      installmentNumber,
+      amount: parsedAmount,
+      authorizationCode: null,
+    });
+
+    const html = generateEmailHTML({
+      recipientName: payerEmail.trim(),
+      bodyHtml,
+    });
+
+    await sendEmailWithAttachments({
+      to: payerEmail.trim(),
+      subject: MESSAGE.buildSubject(installmentNumber),
+      html,
+      attachments: [{
+        filename: `comprobante-cuota-${installmentNumber}.pdf`,
+        content: pdfBuffer,
+        contentType: 'application/pdf',
+      }],
+    });
+
+    console.log(`[register-cash-payment] comprobante enviado a: ${payerEmail.trim()}`);
+  } catch (receiptError) {
+    console.warn('[register-cash-payment] Error al generar/enviar comprobante (pago ya registrado):', receiptError.message);
+  }
 
   return success(200, { paymentId, programId, installmentNumber, amount: parsedAmount }, action);
 };

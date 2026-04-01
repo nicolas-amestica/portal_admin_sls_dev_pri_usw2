@@ -211,6 +211,7 @@ functions:
   register_cash_payment_v1:
     handler: functions/register-cash-payment-v1.main
     description: Registrar un pago en efectivo con comprobante para una cuota de programa sii=false.
+    memorySize: 1024
     timeout: 29
     events:
       - httpApi:
