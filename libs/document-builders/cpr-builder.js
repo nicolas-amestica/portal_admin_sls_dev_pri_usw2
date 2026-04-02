@@ -197,17 +197,19 @@ export const generatePaymentReceipt = async ({
     const qrLabel = validUrl ? "Escanear para verificar" : "Datos del pago";
     const qrLabelWidth = regular.widthOfTextAtSize(qrLabel, 7);
 
-    page.drawText(qrLabel, {
-      x: qrX + (qrSize - qrLabelWidth) / 2,
-      y: contactY + qrSize + 4,
-      size: 7, font: regular, color: gray,
-    });
+    const qrY = contactY - qrSize + 14;
 
     page.drawImage(qrImage, {
       x: qrX,
-      y: contactY - qrSize + 14,
+      y: qrY,
       width: qrSize,
       height: qrSize,
+    });
+
+    page.drawText(qrLabel, {
+      x: qrX + (qrSize - qrLabelWidth) / 2,
+      y: qrY - 10,
+      size: 7, font: regular, color: gray,
     });
   }
 
