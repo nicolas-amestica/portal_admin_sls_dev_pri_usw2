@@ -9,7 +9,9 @@ const {
 } = process.env;
 
 /**
- * Consulta el programa para obtener el monto total con utilidades.
+ * Consulta el programa para obtener el monto total del viaje.
+ * Prioriza el `totalGroup` del contrato (monto acordado con el cliente);
+ * si no existe, usa el `totalWithRecharge` calculado del programa.
  */
 const getProgramTotalWithUtilities = async (sk) => {
   const programs = await dynamoDbLib.query({
@@ -24,7 +26,10 @@ const getProgramTotalWithUtilities = async (sk) => {
       '#sk': 'sk',
     },
   });
-  return programs?.[0]?.content?.[0]?.totalWithUtilities ?? 0;
+  const content = programs?.[0]?.content?.[0];
+  return content?.contract?.payments?.totalGroup
+    ?? content?.totalWithRecharge
+    ?? 0;
 };
 
 /**

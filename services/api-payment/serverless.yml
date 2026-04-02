@@ -222,6 +222,18 @@ functions:
             id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
             type: request
 
+  resend_payment_receipt_v1:
+    handler: functions/resend-payment-receipt-v1.main
+    description: Reenviar el comprobante de un pago autorizado a un email indicado por el administrador.
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/pagos/admin/reenviar-comprobante
+          method: POST
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
   # Verificación pública de comprobante (sin authorizer — accedida desde QR)
   verify_payment_v1:
     handler: functions/verify-payment-v1.main
