@@ -12,6 +12,7 @@ const {
   STAGE,
   DYNAMODB_PAYMENT_TABLE,
   BUCKET_INFO_GI,
+  VERIFY_BASE_URL,
 } = process.env;
 
 const MESSAGE = STAGE === 'prd' ? PAYMENT_RECEIPT.prd : PAYMENT_RECEIPT.dev;
@@ -173,6 +174,8 @@ const handler = async (event) => {
       transactionDate: transbankResponse.transaction_date || null,
       buyOrder: paymentRecord.transbankDetails?.buyOrder || null,
       payerEmail: paymentRecord.payerEmail || null,
+      method: 'WEBPAY',
+      verifyBaseUrl: VERIFY_BASE_URL || null,
       headerImageBase64: headerImage,
       footerImageBase64: footerImage,
     });

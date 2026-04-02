@@ -9,7 +9,7 @@ import { generatePaymentReceipt, PAYMENT_RECEIPT } from '../../../libs/document-
 import { loadImages } from '../../../libs/pdf-generator/index.js';
 import { sendEmailWithAttachments, generateEmailHTML } from '../../../libs/nodemailer.js';
 
-const { STAGE, DYNAMODB_PAYMENT_TABLE, DYNAMODB_PROGRAM_TABLE, PROGRAM_TABLE, BUCKET_INFO_GI } = process.env;
+const { STAGE, DYNAMODB_PAYMENT_TABLE, DYNAMODB_PROGRAM_TABLE, PROGRAM_TABLE, BUCKET_INFO_GI, VERIFY_BASE_URL } = process.env;
 
 const MESSAGE = STAGE === 'prd' ? PAYMENT_RECEIPT.prd : PAYMENT_RECEIPT.dev;
 
@@ -206,6 +206,8 @@ const handler = async (event) => {
       transactionDate: paidAt,
       buyOrder: null,
       payerEmail: payerEmail.trim(),
+      method: 'CASH',
+      verifyBaseUrl: VERIFY_BASE_URL || null,
       headerImageBase64: headerImage,
       footerImageBase64: footerImage,
     });

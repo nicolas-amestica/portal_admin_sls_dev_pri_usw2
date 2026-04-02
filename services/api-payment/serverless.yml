@@ -49,6 +49,7 @@ provider:
     PROFILE: ${self:provider.profile}
     BUCKET_INFO_GI: giras-indomito-${self:custom.stage}-info
     EMAIL_CONFIG_SECRET_KEY: /pa/${self:custom.stage}/email-config
+    VERIFY_BASE_URL: ${cf:portal-admin-infrastructure-${self:custom.stage}.HttpApiUrl}
 
   # Configurar seguimiento mediante aws x-ray para identificar y resolver problemas y errores de rendimiento.
   tracing:
@@ -220,6 +221,16 @@ functions:
           authorizer:
             id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
             type: request
+
+  # Verificación pública de comprobante (sin authorizer — accedida desde QR)
+  verify_payment_v1:
+    handler: functions/verify-payment-v1.main
+    description: Página pública de verificación de comprobante de pago (accedida desde código QR).
+    timeout: 10
+    events:
+      - httpApi:
+          path: /v1/pagos/verificar/{paymentId}
+          method: GET
 
   # Endpoints legacy (mantener por compatibilidad)
   create_transaction_v1:
