@@ -12,6 +12,9 @@ const { DYNAMODB_USER_TABLE } = process.env;
  * - program: sk del programa
  * - createdAt: fecha de inscripción
  * - sii: boolean indicando si el programa tiene SII
+ * - destination: nombre del destino del programa (si existe)
+ * - course: nombre del curso del programa (si existe)
+ * - school: nombre de la escuela del programa (si existe)
  * - hasAssignedInstallment: si sii=false, indica si ya se asignó cuota manual
  *
  * @example
@@ -49,6 +52,9 @@ const handler = async (event) => {
   const activePrograms = activeItems.map((item, index) => {
     const detail = programDetails[index];
     return {
+      destination: detail.content[0]?.destination?.display || '',
+      course: detail.content[0]?.course || '',
+      school: detail.content[0]?.school || '',
       program: item.program,
       createdAt: item.createdAt,
       sii: detail?.sii !== false,
