@@ -55,9 +55,10 @@ async function buscarEventoPorCodigo(calendarId, codigoEvento, accessToken) {
  * @param {string} params.codigoEvento - Código único del evento (tomado de la sesión, no del usuario).
  * @param {string} params.nuevaFecha - Nueva fecha en formato YYYY-MM-DD.
  * @param {string} params.nuevaHora - Nueva hora de inicio en formato HH:MM (America/Santiago).
+ * @param {string} [params.emailCliente] - Email del cliente para enviarle la invitación actualizada.
  * @returns {Promise<{exito: boolean, fecha: string, hora: string, meetLink: string|null, mensaje: string}>}
  */
-export async function editarReunion({ codigoEvento, nuevaFecha, nuevaHora }) {
+export async function editarReunion({ codigoEvento, nuevaFecha, nuevaHora, emailCliente }) {
   const { GOOGLE_CALENDAR_ID = 'primary' } = process.env;
 
   if (!codigoEvento) {
@@ -79,15 +80,23 @@ export async function editarReunion({ codigoEvento, nuevaFecha, nuevaHora }) {
   }
 
   const tz = eventoExistente.start?.timeZone || TIMEZONE;
+
+  // Asegurar que el email del cliente esté en los attendees para que reciba la invitación.
+  const attendees = eventoExistente.attendees || [];
+  if (emailCliente && !attendees.some((a) => a.email === emailCliente)) {
+    attendees.push({ email: emailCliente });
+  }
+
   const updatedBody = {
     ...eventoExistente,
     start: { dateTime: `${nuevaFecha}T${nuevaHora}:00`, timeZone: tz },
     end: { dateTime: buildEndDateTime(nuevaFecha, nuevaHora), timeZone: tz },
+    attendees,
   };
 
   let updatedEvent;
   try {
-    const url = buildCalendarApiUrl(GOOGLE_CALENDAR_ID, eventoExistente.id);
+    const url = buildCalendarApiUrl(GOOGLE_CALENDAR_ID, eventoExistente.id, { sendUpdates: 'all' });
     const response = await axios.put(url, updatedBody, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });

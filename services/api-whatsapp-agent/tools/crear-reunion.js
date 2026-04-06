@@ -73,7 +73,7 @@ export async function crearReunion({ nombreCliente, emailCliente, fechaSugerida,
     },
   };
 
-  const url = buildCalendarApiUrl(GOOGLE_CALENDAR_ID, null, { conferenceDataVersion: '1' });
+  const url = buildCalendarApiUrl(GOOGLE_CALENDAR_ID, null, { conferenceDataVersion: '1', sendUpdates: 'all' });
 
   let createdEvent;
   try {

@@ -12,6 +12,7 @@ import {
   downloadMedia,
 } from '../helpers/whatsapp-api.js';
 import { buildSessionItem, buildTurnItem, toGeminiHistory } from '../mappers/map-conversacion-item.js';
+import { sendEmail, generateEmailHTML } from '../../../libs/nodemailer.js';
 
 const ACTION = 'Ejecutar agente WhatsApp';
 // Cada turno ocupa 2 items en DynamoDB (user + model). +1 por si el item de sesión aparece.
@@ -22,6 +23,51 @@ const MAX_MESSAGE_LENGTH = 800;
 // Rate limiting: máximo de mensajes permitidos por ventana de tiempo.
 const RATE_LIMIT_MAX = 5;
 const RATE_LIMIT_WINDOW_SEC = 60;
+
+/**
+ * @description Envía un email de alerta al equipo cuando el agente no puede responder un mensaje.
+ * @param {string} phoneNumber - Número del cliente.
+ * @param {string} userText - Mensaje original del cliente.
+ * @param {'sin_presupuesto'|'error_gemini'} reason - Motivo por el que no se respondió.
+ * @param {string} [errorDetail] - Detalle del error, solo para reason='error_gemini'.
+ */
+async function sendAlertEmail(phoneNumber, userText, reason, errorDetail) {
+  const reasonLabel = reason === 'sin_presupuesto'
+    ? 'No se encontró presupuesto disponible'
+    : reason === 'sin_respuesta'
+      ? 'Consulta fuera del alcance del agente'
+      : 'Error en el agente de IA (Gemini)';
+
+  const bodyHtml = `
+    <p>El agente de WhatsApp no pudo responder un mensaje y requiere atención manual.</p>
+    <div class="credentials-box">
+      <h3>Detalles del mensaje</h3>
+      <div class="credential-item">
+        <span class="credential-label">Número:</span>
+        <span class="credential-value">${phoneNumber}</span>
+      </div>
+      <div class="credential-item">
+        <span class="credential-label">Mensaje:</span>
+        <span class="credential-value">${userText ?? '(sin texto)'}</span>
+      </div>
+      <div class="credential-item">
+        <span class="credential-label">Motivo:</span>
+        <span class="credential-value">${reasonLabel}</span>
+      </div>
+      ${errorDetail ? `<div class="credential-item">
+        <span class="credential-label">Error:</span>
+        <span class="credential-value">${errorDetail}</span>
+      </div>` : ''}
+    </div>
+    <p>Por favor, responde al cliente directamente desde WhatsApp Business.</p>
+  `;
+
+  await sendEmail({
+    to: process.env.ALERT_EMAIL,
+    subject: `Agente WhatsApp — Mensaje sin responder de ${phoneNumber}`,
+    html: generateEmailHTML({ recipientName: 'Equipo Giras Indómito', bodyHtml }),
+  });
+}
 
 /**
  * @description Calcula el tiempo de espera simulando escritura humana según el largo del texto.
@@ -235,16 +281,23 @@ export const main = async (event) => {
     ({ responseText, toolsExecuted } = await runConversationTurn(history, text, phoneNumber, collectedData));
   } catch (error) {
     console.error(`[${ACTION}] Error en Gemini para ${phoneNumber}:`, error.message, error.stack);
-    // No responder al cliente; el mensaje queda sin leer para que el administrador lo atienda.
+    await sendAlertEmail(phoneNumber, text, 'error_gemini', error.message).catch((e) =>
+      console.error(`[${ACTION}] Error enviando alerta email:`, e.message)
+    );
     return;
   }
 
-  // 3. Si no hay presupuesto disponible, dejar el mensaje sin responder para atención manual.
+  // 3. Si el agente derivó a humano (sin_respuesta) o no encontró presupuesto, no responder al cliente.
+  const derivado = toolsExecuted.some((t) => t.name === 'sin_respuesta');
   const sinPresupuesto = toolsExecuted.some(
     (t) => t.name === 'buscar_presupuestos' && !t.result?.encontrados
   );
-  if (sinPresupuesto) {
-    console.log(`[${ACTION}] Sin presupuesto para ${phoneNumber}. Mensaje dejado sin responder.`);
+  if (derivado || sinPresupuesto) {
+    const reason = sinPresupuesto ? 'sin_presupuesto' : 'sin_respuesta';
+    console.log(`[${ACTION}] Mensaje derivado (${reason}) para ${phoneNumber}. Sin respuesta al cliente.`);
+    await sendAlertEmail(phoneNumber, text, reason).catch((e) =>
+      console.error(`[${ACTION}] Error enviando alerta email:`, e.message)
+    );
     return;
   }
 

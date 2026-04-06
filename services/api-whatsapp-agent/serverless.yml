@@ -49,6 +49,8 @@ provider:
     CONVERSATIONS_TABLE: conversations-${self:custom.stage}-pri-${self:custom.shortRegion}
     BUCKET_INFO_GI: giras-indomito-${self:custom.stage}-info
     AGENT_LAMBDA_NAME: agente-whatsapp-${self:custom.stage}-ejecutar_agente_v1
+    EMAIL_CONFIG_SECRET_KEY: /pa/${self:custom.stage}/email-config
+    ALERT_EMAIL: agente@girasindomito.cl
 
   tracing:
     lambda: true
