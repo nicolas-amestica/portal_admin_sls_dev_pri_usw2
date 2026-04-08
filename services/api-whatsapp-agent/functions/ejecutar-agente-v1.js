@@ -13,6 +13,9 @@ import {
 } from '../helpers/whatsapp-api.js';
 import { buildSessionItem, buildTurnItem, toGeminiHistory } from '../mappers/map-conversacion-item.js';
 import { sendEmail, generateEmailHTML } from '../../../libs/nodemailer.js';
+import { sendMetaTextMessage } from '../helpers/messenger-api.js';
+import { getPresignedUrl } from '../../../libs/s3-v3.js';
+import { shortenUrl } from '../helpers/url-shortener.js';
 
 const ACTION = 'Ejecutar agente WhatsApp';
 // Cada turno ocupa 2 items en DynamoDB (user + model). +1 por si el item de sesión aparece.
@@ -209,34 +212,46 @@ function mergeCollectedData(existingData, toolsExecuted) {
 }
 
 /**
- * @description Descarga los PDFs desde S3, los sube a WhatsApp Media API y los envía al cliente.
- * @param {string} phoneNumber
+ * @description Envía los presupuestos PDF según el canal del cliente.
+ * WhatsApp: sube el archivo y lo envía como documento nativo.
+ * Messenger/Instagram: genera URL prefirmada de S3, la acorta y envía como texto.
+ * @param {string} channel - Canal de origen ('whatsapp', 'messenger', 'instagram').
+ * @param {string} phoneNumber - Número o ID del destinatario.
  * @param {Array<{name: string, args: object, result: object}>} toolsExecuted
  */
-async function sendPresupuestoDocuments(phoneNumber, toolsExecuted) {
+async function sendPresupuestoDocuments(channel, phoneNumber, toolsExecuted) {
   const presupuestoTool = toolsExecuted.find((t) => t.name === 'buscar_presupuestos');
   if (!presupuestoTool?.result?.encontrados) return;
 
   for (const archivo of presupuestoTool.result.archivos) {
-    const buffer = await getObjectBuffer({ Bucket: process.env.BUCKET_INFO_GI, Key: archivo.key });
-    const mediaId = await uploadMedia(buffer, archivo.nombre, 'application/pdf');
-    await sendDocumentById(phoneNumber, mediaId, archivo.nombre, 'Presupuesto Giras Indómito');
+    if (channel === 'whatsapp') {
+      const buffer = await getObjectBuffer({ Bucket: process.env.BUCKET_INFO_GI, Key: archivo.key });
+      const mediaId = await uploadMedia(buffer, archivo.nombre, 'application/pdf');
+      await sendDocumentById(phoneNumber, mediaId, archivo.nombre, 'Presupuesto Giras Indómito');
+    } else {
+      const presignedUrl = await getPresignedUrl(
+        { Bucket: process.env.BUCKET_INFO_GI, Key: archivo.key },
+        3600
+      );
+      const url = await shortenUrl(presignedUrl);
+      await sendMetaTextMessage(phoneNumber, `${archivo.nombre}: ${url}`);
+    }
   }
 }
 
 /**
- * @description Orquestador principal del agente de WhatsApp.
+ * @description Orquestador principal del agente multi-canal.
  * Recibe el evento de la Lambda asíncrona invocada por procesar-mensaje-v1.js,
  * carga el historial, llama a Gemini con function calling, persiste los turnos
- * y envía la respuesta al cliente por WhatsApp.
+ * y envía la respuesta al cliente por el canal correspondiente (WhatsApp, Messenger o Instagram).
  *
  * En caso de error, no envía ninguna respuesta ni marca el mensaje como leído,
  * para que el administrador pueda ver los mensajes sin responder en su bandeja.
  *
- * @param {{ phoneNumber: string, messageId: string, text: string }} event
+ * @param {{ channel: 'whatsapp'|'messenger'|'instagram', phoneNumber: string, messageId: string, text: string }} event
  */
 export const main = async (event) => {
-  const { phoneNumber, messageId, type, mediaId } = event;
+  const { channel = 'whatsapp', phoneNumber, messageId, type, mediaId } = event;
   let { text } = event;
 
   if (!phoneNumber || (!text && !mediaId)) {
@@ -247,13 +262,13 @@ export const main = async (event) => {
   // Verificar rate limit antes de procesar.
   const allowed = await checkRateLimit(phoneNumber);
   if (!allowed) {
-    console.warn(`[${ACTION}] Rate limit excedido para ${phoneNumber}. Mensaje ignorado.`);
+    console.warn(`[${ACTION}] [${channel}] Rate limit excedido para ${phoneNumber}. Mensaje ignorado.`);
     return;
   }
 
-  console.log(`[${ACTION}] Procesando mensaje de ${phoneNumber}`);
+  console.log(`[${ACTION}] [${channel}] Procesando mensaje de ${phoneNumber}`);
 
-  // Si es mensaje de audio, transcribir antes de continuar.
+  // El audio solo está disponible en WhatsApp.
   if (mediaId && type === 'audio') {
     try {
       const audioBuffer = await downloadMedia(mediaId);
@@ -301,20 +316,26 @@ export const main = async (event) => {
     return;
   }
 
-  // 4. Marcar como leído y simular escritura antes de responder.
-  await markAsRead(messageId).catch((err) =>
-    console.warn(`[${ACTION}] No se pudo marcar como leído:`, err.message)
-  );
-  await sendTypingIndicator(phoneNumber).catch(() => {});
+  // 4. Marcar como leído y simular escritura (solo disponible en WhatsApp).
+  if (channel === 'whatsapp') {
+    await markAsRead(messageId).catch((err) =>
+      console.warn(`[${ACTION}] No se pudo marcar como leído:`, err.message)
+    );
+    await sendTypingIndicator(phoneNumber).catch(() => {});
+  }
   await new Promise((resolve) => setTimeout(resolve, calculateTypingDelay(responseText)));
 
-  // 5. Enviar documentos PDF y luego el texto de respuesta.
-  await sendPresupuestoDocuments(phoneNumber, toolsExecuted);
-  await sendTextMessage(phoneNumber, responseText);
+  // 5. Enviar documentos PDF y luego el texto de respuesta según el canal.
+  await sendPresupuestoDocuments(channel, phoneNumber, toolsExecuted);
+  if (channel === 'whatsapp') {
+    await sendTextMessage(phoneNumber, responseText);
+  } else {
+    await sendMetaTextMessage(phoneNumber, responseText);
+  }
 
   // 6. Persistir el turno en DynamoDB.
   const updatedData = mergeCollectedData(collectedData, toolsExecuted);
   await saveConversation(phoneNumber, text, responseText, updatedData);
 
-  console.log(`[${ACTION}] Turno completado para ${phoneNumber}`);
+  console.log(`[${ACTION}] [${channel}] Turno completado para ${phoneNumber}`);
 };

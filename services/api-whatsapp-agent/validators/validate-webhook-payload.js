@@ -44,41 +44,78 @@ export async function validateWebhookSignature(rawBody, signatureHeader) {
 }
 
 /**
- * @description Extrae el primer mensaje de texto o audio entrante del payload de Meta.
+ * @description Extrae el primer mensaje de texto o audio entrante del payload de WhatsApp.
+ * @param {object} body - Payload parseado del webhook.
+ * @returns {object|null}
+ */
+function extractWhatsAppMessage(body) {
+  const entry = body?.entry?.[0];
+  const change = entry?.changes?.[0];
+  const value = change?.value;
+
+  if (change?.field !== 'messages') return null;
+
+  const message = value?.messages?.[0];
+  if (!message) return null;
+
+  // Validar wa_id para evitar phoneNumber = "+undefined".
+  const waId = value.contacts?.[0]?.wa_id;
+  if (!waId || !/^\d+$/.test(waId)) return null;
+  const phoneNumber = `+${waId}`;
+
+  if (message.type === 'text') {
+    const text = message.text?.body;
+    if (!text) return null;
+    return { channel: 'whatsapp', phoneNumber, messageId: message.id, text };
+  }
+
+  if (message.type === 'audio') {
+    const mediaId = message.audio?.id;
+    if (!mediaId) return null;
+    return { channel: 'whatsapp', phoneNumber, messageId: message.id, type: 'audio', mediaId };
+  }
+
+  return null;
+}
+
+/**
+ * @description Extrae el primer mensaje de texto entrante del payload de Messenger o Instagram.
+ * Ambos canales comparten la misma estructura de payload (`entry[0].messaging`).
+ * Ignora eco de mensajes propios (is_echo) y mensajes sin texto.
+ * @param {object} body - Payload parseado del webhook.
+ * @param {'messenger'|'instagram'} channel
+ * @returns {object|null}
+ */
+function extractMetaMessage(body, channel) {
+  const messaging = body?.entry?.[0]?.messaging?.[0];
+  if (!messaging) return null;
+
+  // Ignorar eco de mensajes enviados por la página.
+  if (messaging.message?.is_echo) return null;
+
+  const senderId = messaging.sender?.id;
+  if (!senderId) return null;
+
+  const text = messaging.message?.text;
+  if (!text) return null;
+
+  return { channel, phoneNumber: senderId, messageId: messaging.message.mid, text };
+}
+
+/**
+ * @description Extrae el primer mensaje entrante del payload de Meta detectando el canal automáticamente.
+ * Soporta WhatsApp Business, Messenger y Instagram.
  * Ignora status updates, reactions y otros tipos de notificaciones.
  *
  * @param {object} body - Payload parseado del webhook de Meta.
- * @returns {{ phoneNumber: string, messageId: string, text: string } | { phoneNumber: string, messageId: string, type: 'audio', mediaId: string } | null}
+ * @returns {{ channel: 'whatsapp'|'messenger'|'instagram', phoneNumber: string, messageId: string, text: string, type?: string, mediaId?: string } | null}
  */
 export function extractIncomingMessage(body) {
   try {
-    const entry = body?.entry?.[0];
-    const change = entry?.changes?.[0];
-    const value = change?.value;
-
-    if (change?.field !== 'messages') return null;
-
-    const message = value?.messages?.[0];
-    if (!message) return null;
-
-    // Validar wa_id para evitar phoneNumber = "+undefined".
-    const waId = value.contacts?.[0]?.wa_id;
-    if (!waId || !/^\d+$/.test(waId)) return null;
-    const phoneNumber = `+${waId}`;
-
-    if (message.type === 'text') {
-      const text = message.text?.body;
-      if (!text) return null;
-      return { phoneNumber, messageId: message.id, text };
-    }
-
-    if (message.type === 'audio') {
-      const mediaId = message.audio?.id;
-      if (!mediaId) return null;
-      return { phoneNumber, messageId: message.id, type: 'audio', mediaId };
-    }
-
-    // Ignorar explícitamente tipos no soportados (imagen, video, sticker, etc.).
+    const object = body?.object;
+    if (object === 'whatsapp_business_account') return extractWhatsAppMessage(body);
+    if (object === 'page') return extractMetaMessage(body, 'messenger');
+    if (object === 'instagram') return extractMetaMessage(body, 'instagram');
     return null;
   } catch {
     return null;
