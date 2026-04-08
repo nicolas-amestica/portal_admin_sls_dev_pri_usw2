@@ -18,7 +18,7 @@ const baseHandler = async (event) => {
   const { GOOGLE_CALENDAR_ID = 'primary' } = process.env;
 
   const accessToken = await getCalendarAccessToken();
-  const url = buildCalendarApiUrl(GOOGLE_CALENDAR_ID, eventId);
+  const url = buildCalendarApiUrl(GOOGLE_CALENDAR_ID, eventId, { sendUpdates: 'all' });
 
   await axios.delete(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
