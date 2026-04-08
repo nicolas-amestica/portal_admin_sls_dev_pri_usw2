@@ -12,15 +12,15 @@ const NOTIFICATIONS = [
 ];
 
 /**
- * Suma una hora a la combinación de fecha y hora dadas.
+ * Suma tres horas a la combinación de fecha y hora dadas.
  */
 function buildEndDateTime(date, time) {
   const [h, m] = time.split(':').map(Number);
-  let newH = h + 1;
+  let newH = h + 3;
   let newDate = date;
 
   if (newH >= 24) {
-    newH = 0;
+    newH = newH - 24;
     const d = new Date(`${date}T00:00:00`);
     d.setDate(d.getDate() + 1);
     newDate = d.toISOString().slice(0, 10);
