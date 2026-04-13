@@ -1,7 +1,7 @@
 import { success } from "../../../helpers/responses.js";
+import { getProgramsByPeriod } from '../helpers/fn-query-programs.js';
 import { standardMiddleware } from "../../../libs/middleware/index.js";
 import { CachedDynamoDB, CacheKeys } from '../../../libs/cache/index.js';
-import { getProgramsByPeriod, getAuthorizedPaymentsByProgram } from '../helpers/fn-query-programs.js';
 
 const {
   DYNAMODB_MAINTAINER_TABLE,
@@ -44,44 +44,12 @@ const countProgramsByStatus = (programs) => {
 };
 
 /**
- * Formatea un número como moneda CLP sin decimales.
- */
-const formatCLP = (value) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(value);
-
-/**
  * Construye los KPIs del dashboard.
- * - Programas activos: programas que no están rechazados ni cancelados.
- * - Ingresos estimados: suma de contract.payments.totalGroup de programas approved/completed,
- *   más los montos pagados (pagos AUTHORIZED) de programas en estado canceled.
- * - Ingresos recibidos: suma de amounts de pagos AUTHORIZED de todos los programas.
- * - Pasajeros: fijados en 0 hasta que esa funcionalidad esté implementada.
- *
- * @param {Array} programs - Lista de programas del periodo.
- * @param {number} collectedRevenue - Total de pagos AUTHORIZED de todos los programas.
- * @param {Array<Array>} paymentResults - Pagos AUTHORIZED por programa (mismo orden que programs).
  */
 const buildKpis = (programs) => {
-// const buildKpis = (programs, collectedRevenue, paymentResults) => {
   const active = programs.filter((p) => p.status !== 'rejected' && p.status !== 'canceled');
-
-  // const revenueFromContracts = programs
-  //   .filter((p) => p.status === 'approved' || p.status === 'completed')
-  //   .reduce((sum, p) => sum + (parseFloat(p.content?.[0]?.contract?.payments?.totalGroup) || 0), 0);
-
-  // const canceledPaidRevenue = programs
-  //   .filter((p) => p.status === 'canceled')
-  //   .reduce((sum, p) => {
-  //     const idx = programs.indexOf(p);
-  //     const payments = paymentResults[idx] ?? [];
-  //     return sum + payments.reduce((s, pay) => s + (pay.amount ?? 0), 0);
-  //   }, 0);
-
-  // const estimatedRevenue = revenueFromContracts + canceledPaidRevenue;
-
   return [
     { title: 'Programas Activos', value: String(active.length), icon: 'pi pi-briefcase', change: 0, changeType: 'neutral' },
-    // { title: 'Ingresos Estimados', value: formatCLP(estimatedRevenue), icon: 'pi pi-dollar', change: 0, changeType: 'neutral' },
-    // { title: 'Ingresos Recibidos', value: formatCLP(collectedRevenue), icon: 'pi pi-credit-card', change: 0, changeType: 'neutral' },
     { title: 'Pasajeros Totales', value: '0', icon: 'pi pi-users', change: 0, changeType: 'neutral' },
   ];
 };
@@ -122,8 +90,6 @@ const buildRecentActivity = (programs) =>
 
 /**
  * Handler principal del dashboard.
- * Retorna en una sola llamada: counts, KPIs (con ingresos reales desde payments),
- * próximos viajes, actividad reciente y cuentas bancarias.
  */
 const handler = async (event) => {
   const action = 'Obtener datos del panel de control.';
@@ -145,14 +111,7 @@ const handler = async (event) => {
   const programs = programsRaw ?? [];
   const banks = banksRaw?.map(({ pk, sk, ...rest }) => rest) ?? [];
 
-  // Consultar pagos de cada programa en paralelo usando sk-index
-  // const paymentResults = await Promise.all(programs.map((p) => getAuthorizedPaymentsByProgram(p.sk)));
-  // const collectedRevenue = paymentResults
-  //   .flatMap((result) => result ?? [])
-  //   .reduce((sum, payment) => sum + (payment.amount ?? 0), 0);
-
   const counts = countProgramsByStatus(programs);
-  // const kpis = buildKpis(programs, collectedRevenue, paymentResults);
   const kpis = buildKpis(programs);
   const upcomingTrips = buildUpcomingTrips(programs, today);
   const recentActivities = buildRecentActivity(programs);
