@@ -1,6 +1,6 @@
 import { success } from "../../../helpers/responses.js";
-import { CachedDynamoDB, CacheKeys } from '../../../libs/cache/index.js';
 import { standardMiddleware } from "../../../libs/middleware/index.js";
+import { CachedDynamoDB, CacheKeys } from '../../../libs/cache/index.js';
 import { getProgramsByPeriod, getAuthorizedPaymentsByProgram } from '../helpers/fn-query-programs.js';
 
 const {
@@ -46,8 +46,7 @@ const countProgramsByStatus = (programs) => {
 /**
  * Formatea un número como moneda CLP sin decimales.
  */
-const formatCLP = (value) =>
-  new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(value);
+const formatCLP = (value) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(value);
 
 /**
  * Construye los KPIs del dashboard.
@@ -61,27 +60,28 @@ const formatCLP = (value) =>
  * @param {number} collectedRevenue - Total de pagos AUTHORIZED de todos los programas.
  * @param {Array<Array>} paymentResults - Pagos AUTHORIZED por programa (mismo orden que programs).
  */
-const buildKpis = (programs, collectedRevenue, paymentResults) => {
+const buildKpis = (programs) => {
+// const buildKpis = (programs, collectedRevenue, paymentResults) => {
   const active = programs.filter((p) => p.status !== 'rejected' && p.status !== 'canceled');
 
-  const revenueFromContracts = programs
-    .filter((p) => p.status === 'approved' || p.status === 'completed')
-    .reduce((sum, p) => sum + (parseFloat(p.content?.[0]?.contract?.payments?.totalGroup) || 0), 0);
+  // const revenueFromContracts = programs
+  //   .filter((p) => p.status === 'approved' || p.status === 'completed')
+  //   .reduce((sum, p) => sum + (parseFloat(p.content?.[0]?.contract?.payments?.totalGroup) || 0), 0);
 
-  const canceledPaidRevenue = programs
-    .filter((p) => p.status === 'canceled')
-    .reduce((sum, p) => {
-      const idx = programs.indexOf(p);
-      const payments = paymentResults[idx] ?? [];
-      return sum + payments.reduce((s, pay) => s + (pay.amount ?? 0), 0);
-    }, 0);
+  // const canceledPaidRevenue = programs
+  //   .filter((p) => p.status === 'canceled')
+  //   .reduce((sum, p) => {
+  //     const idx = programs.indexOf(p);
+  //     const payments = paymentResults[idx] ?? [];
+  //     return sum + payments.reduce((s, pay) => s + (pay.amount ?? 0), 0);
+  //   }, 0);
 
-  const estimatedRevenue = revenueFromContracts + canceledPaidRevenue;
+  // const estimatedRevenue = revenueFromContracts + canceledPaidRevenue;
 
   return [
     { title: 'Programas Activos', value: String(active.length), icon: 'pi pi-briefcase', change: 0, changeType: 'neutral' },
-    { title: 'Ingresos Estimados', value: formatCLP(estimatedRevenue), icon: 'pi pi-dollar', change: 0, changeType: 'neutral' },
-    { title: 'Ingresos Recibidos', value: formatCLP(collectedRevenue), icon: 'pi pi-credit-card', change: 0, changeType: 'neutral' },
+    // { title: 'Ingresos Estimados', value: formatCLP(estimatedRevenue), icon: 'pi pi-dollar', change: 0, changeType: 'neutral' },
+    // { title: 'Ingresos Recibidos', value: formatCLP(collectedRevenue), icon: 'pi pi-credit-card', change: 0, changeType: 'neutral' },
     { title: 'Pasajeros Totales', value: '0', icon: 'pi pi-users', change: 0, changeType: 'neutral' },
   ];
 };
@@ -146,13 +146,14 @@ const handler = async (event) => {
   const banks = banksRaw?.map(({ pk, sk, ...rest }) => rest) ?? [];
 
   // Consultar pagos de cada programa en paralelo usando sk-index
-  const paymentResults = await Promise.all(programs.map((p) => getAuthorizedPaymentsByProgram(p.sk)));
-  const collectedRevenue = paymentResults
-    .flatMap((result) => result ?? [])
-    .reduce((sum, payment) => sum + (payment.amount ?? 0), 0);
+  // const paymentResults = await Promise.all(programs.map((p) => getAuthorizedPaymentsByProgram(p.sk)));
+  // const collectedRevenue = paymentResults
+  //   .flatMap((result) => result ?? [])
+  //   .reduce((sum, payment) => sum + (payment.amount ?? 0), 0);
 
   const counts = countProgramsByStatus(programs);
-  const kpis = buildKpis(programs, collectedRevenue, paymentResults);
+  // const kpis = buildKpis(programs, collectedRevenue, paymentResults);
+  const kpis = buildKpis(programs);
   const upcomingTrips = buildUpcomingTrips(programs, today);
   const recentActivities = buildRecentActivity(programs);
 
