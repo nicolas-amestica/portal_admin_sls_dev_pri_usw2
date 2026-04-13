@@ -18,10 +18,11 @@ const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
- * Sube el comprobante de pago en efectivo a S3.
+ * Sube el comprobante de pago a S3.
  * Valida la extensión del archivo antes de subir.
+ * La ruta en S3 incluye el método de pago: comprobantes/{paymentMethod}/{paymentId}.{ext}
  */
-const uploadComprobante = async ({ filename, content, contentType, paymentId }) => {
+const uploadComprobante = async ({ filename, content, contentType, paymentId, paymentMethod }) => {
   const extension = filename?.split('.').pop()?.toLowerCase();
 
   if (!ALLOWED_EXTENSIONS.includes(extension)) {
@@ -30,7 +31,7 @@ const uploadComprobante = async ({ filename, content, contentType, paymentId }) 
     throw error;
   }
 
-  const key = `comprobantes/efectivo/${paymentId}.${extension}`;
+  const key = `comprobantes/${paymentMethod}/${paymentId}.${extension}`;
 
   await S3.putObject({
     Bucket: BUCKET_INFO_GI,
@@ -60,9 +61,12 @@ const uploadComprobante = async ({ filename, content, contentType, paymentId }) 
  * POST /v1/pagos/admin/registrar-pago-efectivo
  * Body (multipart/form-data): { programId, amount, observation, paidAt, payerEmail, file }
  */
+const VALID_PAYMENT_METHODS = ['efectivo', 'transferencia'];
+const METHOD_MAP = { efectivo: 'CASH', transferencia: 'TRANSFER' };
+
 const handler = async (event) => {
-  const action = 'Registrar pago en efectivo de cuota.';
-  const { programId, amount, observation, paidAt, payerEmail, file } = event.body || {};
+  const action = 'Registrar pago manual de cuota.';
+  const { programId, amount, observation, paidAt, payerEmail, paymentMethod, surchargeRate, sii, file } = event.body || {};
 
   if (!programId) {
     const error = new Error('El programId es requerido.');
@@ -101,11 +105,22 @@ const handler = async (event) => {
     throw error;
   }
 
-  if (!file?.content) {
-    const error = new Error('El comprobante de pago es requerido.');
+  if (!paymentMethod || !VALID_PAYMENT_METHODS.includes(paymentMethod)) {
+    const error = new Error('El método de pago es requerido y debe ser "efectivo" o "transferencia".');
     error.statusCode = 400;
     throw error;
   }
+
+  if (paymentMethod === 'transferencia' && !file?.content) {
+    const error = new Error('El comprobante de pago es requerido para transferencias.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const parsedSurchargeRate = paymentMethod === 'transferencia' ? (Number(surchargeRate) || 0) : 0;
+  const surchargedAmount = Math.round(parsedAmount * (1 + parsedSurchargeRate));
+  const parsedSii = sii === 'true' || sii === true;
+  const method = METHOD_MAP[paymentMethod];
 
   // Lectura fuertemente consistente para obtener el estado real de assignedInstallments
   const program = await dynamoDbLib.getOne({
@@ -133,11 +148,10 @@ const handler = async (event) => {
   const installmentNumber = currentInstallments.length + 1;
   const now = new Date().toISOString();
 
-  // Para pagos en efectivo el admin ingresa directamente el monto cobrado
   const newInstallment = {
     installmentNumber,
     amount: parsedAmount,
-    surchargedAmount: parsedAmount,
+    surchargedAmount,
     assignedAt: now,
   };
 
@@ -157,12 +171,17 @@ const handler = async (event) => {
 
   const paymentId = uuidv7();
 
-  const { key: s3Key, extension } = await uploadComprobante({
-    filename: file.filename,
-    content: file.content,
-    contentType: file.contentType || file.mimetype,
-    paymentId,
-  });
+  let comprobanteData = null;
+  if (file?.content) {
+    const { key, extension } = await uploadComprobante({
+      filename: file.filename,
+      content: file.content,
+      contentType: file.contentType || file.mimetype,
+      paymentId,
+      paymentMethod,
+    });
+    comprobanteData = { bucket: BUCKET_INFO_GI, key, extension };
+  }
 
   await dynamoDbLib.put({
     TableName: DYNAMODB_PAYMENT_TABLE,
@@ -173,16 +192,16 @@ const handler = async (event) => {
       programId,
       installmentNumber,
       amount: parsedAmount,
+      surchargedAmount,
+      surchargeRate: parsedSurchargeRate,
       status: 'AUTHORIZED',
-      method: 'CASH',
+      method,
+      paymentMethod,
+      sii: parsedSii,
       payerEmail: payerEmail.trim(),
       observation: observation.trim(),
       paidAt,
-      comprobante: {
-        bucket: BUCKET_INFO_GI,
-        key: s3Key,
-        extension,
-      },
+      ...(comprobanteData && { comprobante: comprobanteData }),
       createdAt: now,
       updatedAt: now,
       gsiOne: `${programId}#INST#${installmentNumber}`,
@@ -206,7 +225,7 @@ const handler = async (event) => {
       transactionDate: paidAt,
       buyOrder: null,
       payerEmail: payerEmail.trim(),
-      method: 'CASH',
+      method,
       verifyBaseUrl: VERIFY_BASE_URL || null,
       headerImageBase64: headerImage,
       footerImageBase64: footerImage,

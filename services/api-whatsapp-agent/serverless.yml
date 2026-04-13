@@ -45,7 +45,7 @@ provider:
     WHATSAPP_SECRET_KEY: /pa/${self:custom.stage}/whatsapp-config
     GEMINI_SECRET_KEY: /pa/${self:custom.stage}/gemini-api-key
     GOOGLE_CALENDAR_OAUTH_SECRET_KEY: /pa/${self:custom.stage}/google-calendar-oauth
-    GOOGLE_CALENDAR_ID: 759a4c079308a364e5d183f7e279763550f1a25f677aa3b6967722a56d4a4eeb@group.calendar.google.com
+    GOOGLE_CALENDAR_ID: c_22d82dc32bd2255c8e0a5de671df98c7338ca03b8528c26c9e091ea79bf4118c@group.calendar.google.com
     CONVERSATIONS_TABLE: conversations-${self:custom.stage}-pri-${self:custom.shortRegion}
     BUCKET_INFO_GI: giras-indomito-${self:custom.stage}-info
     AGENT_LAMBDA_NAME: agente-whatsapp-${self:custom.stage}-ejecutar_agente_v1
