@@ -227,8 +227,8 @@ export const main = async (event) => {
   // El audio solo está disponible en WhatsApp.
   if (mediaId && type === 'audio') {
     try {
-      const audioBuffer = await downloadMedia(mediaId);
-      text = await transcribeAudio(audioBuffer);
+      const { buffer: audioBuffer, mimeType: audioMimeType } = await downloadMedia(mediaId);
+      text = await transcribeAudio(audioBuffer, audioMimeType);
     } catch (err) {
       console.error(`[${ACTION}] Error transcribiendo audio de ${phoneNumber}:`, err.message);
       return;
