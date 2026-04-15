@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -66,9 +67,11 @@ func NewSendEmail(getConfig GetEmailConfigFunc, stage string, log *zap.Logger) S
 		fromAddr, fromName := buildFromAddress(stage)
 		html := buildEmailHTML(recipientName, content.BodyHTML, stage)
 
+		recipients := parseEmails(to)
+
 		m := gomail.NewMessage()
 		m.SetAddressHeader("From", fromAddr, fromName)
-		m.SetHeader("To", to)
+		m.SetHeader("To", recipients...)
 		m.SetHeader("Subject", content.Subject)
 		m.SetBody("text/html", html)
 
@@ -100,6 +103,18 @@ func NewSendEmail(getConfig GetEmailConfigFunc, stage string, log *zap.Logger) S
 		)
 		return nil
 	}
+}
+
+// parseEmails divide un string de emails separados por coma y retorna un slice limpio.
+func parseEmails(raw string) []string {
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if addr := strings.TrimSpace(p); addr != "" {
+			out = append(out, addr)
+		}
+	}
+	return out
 }
 
 // buildFromAddress retorna la dirección email y el nombre del remitente según el stage.

@@ -57,6 +57,7 @@ PARAM_TRANSBANK="/pa/${STAGE}/transbank-api-key"
 PARAM_WHATSAPP="/pa/${STAGE}/whatsapp-config"
 PARAM_GEMINI="/pa/${STAGE}/gemini-api-key"
 PARAM_GOOGLE_CALENDAR="/pa/${STAGE}/google-calendar-oauth"
+PARAM_GOOGLE_CALENDAR_SA="/pa/${STAGE}/google-calendar-sa"
 
 # ─── Colores ──────────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
@@ -222,6 +223,11 @@ create_parameter \
   "Credenciales OAuth2 de Google Calendar" \
   '{"client_id":"PLACEHOLDER","client_secret":"PLACEHOLDER","refresh_token":"PLACEHOLDER"}'
 
+create_parameter \
+  "$PARAM_GOOGLE_CALENDAR_SA" \
+  "Service Account de Google Calendar (bot)" \
+  '{"type":"service_account","project_id":"PLACEHOLDER","private_key_id":"PLACEHOLDER","private_key":"PLACEHOLDER","client_email":"PLACEHOLDER","client_id":"PLACEHOLDER"}'
+
 # =============================================================================
 # PASO 3 — TABLAS DYNAMODB
 # =============================================================================
@@ -298,8 +304,9 @@ log_ok "PITR habilitado en ${TABLE_PROGRAMS}"
 # ── 3.2 Tabla: users ─────────────────────────────────────────────────────────
 log_info "Creando tabla: ${TABLE_USERS}"
 log_info "  PK: pk (S) | SK: sk (S)"
-log_info "  GSI: gsiOne-index    → PK: gsiOne (S)      [RUT/username]"
+log_info "  GSI: gsiOne-index     → PK: gsiOne (S)      [RUT/username]"
 log_info "  GSI: resetToken-index → PK: resetToken (S)  [recuperación de contraseña]"
+log_info "  GSI: email-index      → PK: email (S)       [login con Google]"
 
 if aws dynamodb describe-table \
     --table-name "$TABLE_USERS" \
@@ -316,6 +323,7 @@ else
       AttributeName=sk,AttributeType=S \
       AttributeName=gsiOne,AttributeType=S \
       AttributeName=resetToken,AttributeType=S \
+      AttributeName=email,AttributeType=S \
     --key-schema \
       AttributeName=pk,KeyType=HASH \
       AttributeName=sk,KeyType=RANGE \
@@ -331,6 +339,13 @@ else
         "IndexName": "resetToken-index",
         "KeySchema": [
           {"AttributeName": "resetToken", "KeyType": "HASH"}
+        ],
+        "Projection": {"ProjectionType": "ALL"}
+      },
+      {
+        "IndexName": "email-index",
+        "KeySchema": [
+          {"AttributeName": "email", "KeyType": "HASH"}
         ],
         "Projection": {"ProjectionType": "ALL"}
       }
@@ -509,23 +524,31 @@ echo "  S3 Buckets:"
 echo "    • ${BUCKET_DEPLOY}"
 echo "    • ${BUCKET_INFO}"
 echo ""
-echo "  Secrets Manager:"
-echo "    • ${SECRET_JWT}"
-echo "    • ${SECRET_EMAIL}"
-echo "    • ${SECRET_TRANSBANK}"
+echo "  SSM Parameter Store (SecureString):"
+echo "    • ${PARAM_JWT}"
+echo "    • ${PARAM_EMAIL}"
+echo "    • ${PARAM_TRANSBANK}"
+echo "    • ${PARAM_WHATSAPP}"
+echo "    • ${PARAM_GEMINI}"
+echo "    • ${PARAM_GOOGLE_CALENDAR}"
+echo "    • ${PARAM_GOOGLE_CALENDAR_SA}"
 echo ""
 echo "  DynamoDB Tables:"
 echo "    • ${TABLE_PROGRAMS}  (GSI: gsiOne-index, gsiStartDate-index)"
-echo "    • ${TABLE_USERS}     (GSI: gsiOne-index, resetToken-index)"
+echo "    • ${TABLE_USERS}     (GSI: gsiOne-index, resetToken-index, email-index)"
 echo "    • ${TABLE_CONFIG}"
 echo "    • ${TABLE_PAYMENTS}  (GSI: sk-index, gsiOne-index, gsiTwo-index, gsiThree-index)"
 echo "    • ${TABLE_MAINTAINER}"
 echo ""
 echo -e "${YELLOW}⚠  Próximos pasos:${NC}"
-echo "  1. Actualiza los Secrets con valores reales:"
-echo "     aws secretsmanager update-secret --secret-id ${SECRET_JWT} --secret-string '{\"jwtSecret\":\"TU_CLAVE\"}' --profile ${PROFILE} --region ${REGION}"
-echo "     aws secretsmanager update-secret --secret-id ${SECRET_EMAIL} --secret-string '{...}' --profile ${PROFILE} --region ${REGION}"
-echo "     aws secretsmanager update-secret --secret-id ${SECRET_TRANSBANK} --secret-string '{...}' --profile ${PROFILE} --region ${REGION}"
+echo "  1. Actualiza los parámetros SSM con valores reales:"
+echo "     aws ssm put-parameter --name ${PARAM_JWT} --value 'TU_CLAVE_JWT' --type SecureString --overwrite --profile ${PROFILE} --region ${REGION}"
+echo "     aws ssm put-parameter --name ${PARAM_EMAIL} --value '{...}' --type SecureString --overwrite --profile ${PROFILE} --region ${REGION}"
+echo "     aws ssm put-parameter --name ${PARAM_TRANSBANK} --value '{...}' --type SecureString --overwrite --profile ${PROFILE} --region ${REGION}"
+echo "     aws ssm put-parameter --name ${PARAM_WHATSAPP} --value '{...}' --type SecureString --overwrite --profile ${PROFILE} --region ${REGION}"
+echo "     aws ssm put-parameter --name ${PARAM_GEMINI} --value '{...}' --type SecureString --overwrite --profile ${PROFILE} --region ${REGION}"
+echo "     aws ssm put-parameter --name ${PARAM_GOOGLE_CALENDAR} --value '{...}' --type SecureString --overwrite --profile ${PROFILE} --region ${REGION}"
+echo "     aws ssm put-parameter --name ${PARAM_GOOGLE_CALENDAR_SA} --value '{...}' --type SecureString --overwrite --profile ${PROFILE} --region ${REGION}"
 echo ""
 echo "  2. Despliega la infraestructura compartida (API Gateway):"
 echo "     cd infrastructure && sls deploy --stage ${STAGE} --region ${REGION}"
@@ -534,13 +557,18 @@ echo "  3. Despliega el autorizador:"
 echo "     cd services/job-authorizer && sls deploy --stage ${STAGE} --region ${REGION}"
 echo ""
 echo "  4. Despliega los servicios en cualquier orden:"
-echo "     cd services/api-entity      && sls deploy --stage ${STAGE} --region ${REGION}"
-echo "     cd services/api-program     && sls deploy --stage ${STAGE} --region ${REGION}"
-echo "     cd services/api-balance     && sls deploy --stage ${STAGE} --region ${REGION}"
-echo "     cd services/api-contract    && sls deploy --stage ${STAGE} --region ${REGION}"
-echo "     cd services/api-extraction  && sls deploy --stage ${STAGE} --region ${REGION}"
-echo "     cd services/api-maintainer  && sls deploy --stage ${STAGE} --region ${REGION}"
-echo "     cd services/api-notification && sls deploy --stage ${STAGE} --region ${REGION}"
-echo "     cd services/api-payment     && sls deploy --stage ${STAGE} --region ${REGION}"
-echo "     cd services/api-configuration && sls deploy --stage ${STAGE} --region ${REGION}"
+echo "     cd services/api-entity         && sls deploy --stage ${STAGE} --region ${REGION}"
+echo "     cd services/api-program        && sls deploy --stage ${STAGE} --region ${REGION}"
+echo "     cd services/api-balance        && sls deploy --stage ${STAGE} --region ${REGION}"
+echo "     cd services/api-contract       && sls deploy --stage ${STAGE} --region ${REGION}"
+echo "     cd services/api-extraction     && sls deploy --stage ${STAGE} --region ${REGION}"
+echo "     cd services/api-maintainer     && sls deploy --stage ${STAGE} --region ${REGION}"
+echo "     cd services/api-payment        && sls deploy --stage ${STAGE} --region ${REGION}"
+echo "     cd services/api-favorites      && sls deploy --stage ${STAGE} --region ${REGION}"
+echo "     cd services/api-meet           && sls deploy --stage ${STAGE} --region ${REGION}"
+echo "     cd services/api-whatsapp-agent && sls deploy --stage ${STAGE} --region ${REGION}"
+echo "     cd services/job-trigger        && sls deploy --stage ${STAGE} --region ${REGION}"
+echo "     # Servicios Go (requieren compilación previa):"
+echo "     cd services/api-notification   && make build && sls deploy --stage ${STAGE} --region ${REGION}"
+echo "     cd services/api-configuration  && make build && sls deploy --stage ${STAGE} --region ${REGION}"
 echo ""
