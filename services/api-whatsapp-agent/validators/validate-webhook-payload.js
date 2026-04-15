@@ -1,13 +1,18 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 import { getParameterValue } from '../../../libs/parameter-store.js';
 
-/** Cache del app_secret con TTL de 1 hora para permitir rotación de secretos. */
-let _cachedAppSecret = null;
-let _appSecretExpiry = 0;
 const SECRET_CACHE_TTL = 3600;
 
+/** Cache del app_secret de WhatsApp con TTL de 1 hora. */
+let _cachedAppSecret = null;
+let _appSecretExpiry = 0;
+
+/** Cache del app_secret de Meta (Instagram/Messenger) con TTL de 1 hora. */
+let _cachedMetaAppSecret = null;
+let _metaAppSecretExpiry = 0;
+
 /**
- * @description Obtiene el app_secret desde Parameter Store con caché en memoria.
+ * @description Obtiene el app_secret de WhatsApp desde Parameter Store con caché en memoria.
  * @returns {Promise<string>}
  */
 async function getAppSecret() {
@@ -17,6 +22,24 @@ async function getAppSecret() {
   _cachedAppSecret = JSON.parse(secretJson).app_secret;
   _appSecretExpiry = now + SECRET_CACHE_TTL;
   return _cachedAppSecret;
+}
+
+/**
+ * @description Obtiene el app_secret de Meta (Instagram/Messenger) desde Parameter Store.
+ * Retorna null si el parámetro no está configurado.
+ * @returns {Promise<string|null>}
+ */
+async function getMetaAppSecret() {
+  const now = Math.floor(Date.now() / 1000);
+  if (_cachedMetaAppSecret && _metaAppSecretExpiry > now) return _cachedMetaAppSecret;
+  try {
+    const secretJson = await getParameterValue(process.env.META_PAGE_SECRET_KEY);
+    _cachedMetaAppSecret = JSON.parse(secretJson).app_secret || null;
+    _metaAppSecretExpiry = now + SECRET_CACHE_TTL;
+    return _cachedMetaAppSecret;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -31,16 +54,25 @@ async function getAppSecret() {
 export async function validateWebhookSignature(rawBody, signatureHeader) {
   if (!signatureHeader || !signatureHeader.startsWith('sha256=')) return false;
 
-  const appSecret = await getAppSecret();
   const expectedSignature = signatureHeader.slice('sha256='.length);
 
-  const computed = createHmac('sha256', appSecret).update(rawBody, 'utf8').digest('hex');
+  const checkSecret = (secret) => {
+    if (!secret) return false;
+    const computed = createHmac('sha256', secret).update(rawBody, 'utf8').digest('hex');
+    try {
+      return timingSafeEqual(Buffer.from(computed, 'hex'), Buffer.from(expectedSignature, 'hex'));
+    } catch {
+      return false;
+    }
+  };
 
-  try {
-    return timingSafeEqual(Buffer.from(computed, 'hex'), Buffer.from(expectedSignature, 'hex'));
-  } catch {
-    return false;
-  }
+  // Intentar primero con el app_secret de WhatsApp.
+  const whatsappSecret = await getAppSecret();
+  if (checkSecret(whatsappSecret)) return true;
+
+  // Fallback: intentar con el app_secret de Meta (Instagram/Messenger).
+  const metaSecret = await getMetaAppSecret();
+  return checkSecret(metaSecret);
 }
 
 /**

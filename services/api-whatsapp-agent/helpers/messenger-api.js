@@ -29,9 +29,15 @@ async function getPageAccessToken() {
  */
 export async function sendMetaTextMessage(recipientId, text) {
   const token = await getPageAccessToken();
-  await httpClient.post(
-    MESSAGES_URL,
-    { recipient: { id: recipientId }, message: { text } },
-    { params: { access_token: token } }
-  );
+  try {
+    await httpClient.post(
+      MESSAGES_URL,
+      { recipient: { id: recipientId }, message: { text } },
+      { params: { access_token: token } }
+    );
+  } catch (err) {
+    const metaError = err.response?.data;
+    console.error('[MESSENGER-API] Error al enviar mensaje:', JSON.stringify(metaError ?? err.message));
+    throw err;
+  }
 }

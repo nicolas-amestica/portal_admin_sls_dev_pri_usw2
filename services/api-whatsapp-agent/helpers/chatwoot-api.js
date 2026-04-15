@@ -58,13 +58,15 @@ async function chatwootFetch(path, options = {}) {
 }
 
 /**
- * @description Busca un contacto por número de teléfono en Chatwoot.
- * Si no existe, lo crea. Retorna el ID del contacto.
- * @param {string} phoneNumber - Número en formato E.164 (ej. +56912345678).
+ * @description Busca o crea un contacto en Chatwoot según el canal de origen.
+ * WhatsApp usa phone_number (E.164). Instagram y Messenger usan identifier (PSID numérico).
+ * @param {string} phoneNumber - Número E.164 (WhatsApp) o PSID (Instagram/Messenger).
  * @param {string} accountId - ID de la cuenta Chatwoot.
+ * @param {string} channel - Canal de origen ('whatsapp', 'messenger', 'instagram').
  * @returns {Promise<number>} ID del contacto.
  */
-async function findOrCreateContact(phoneNumber, accountId) {
+async function findOrCreateContact(phoneNumber, accountId, channel) {
+  const isWhatsApp = channel === 'whatsapp';
   const searchResult = await chatwootFetch(
     `/api/v1/accounts/${accountId}/contacts/search?q=${encodeURIComponent(phoneNumber)}&page=1`
   );
@@ -74,20 +76,28 @@ async function findOrCreateContact(phoneNumber, accountId) {
     ? searchResult.payload
     : (searchResult.payload?.contacts ?? []);
 
-  const existing = contacts.find((c) => c.phone_number === phoneNumber);
+  const existing = isWhatsApp
+    ? contacts.find((c) => c.phone_number === phoneNumber)
+    : contacts.find((c) => c.identifier === phoneNumber);
   if (existing) return existing.id;
+
+  const channelLabel = CHANNEL_LABELS[channel] ?? channel;
+  const contactPayload = isWhatsApp
+    ? { phone_number: phoneNumber, name: phoneNumber }
+    : { identifier: phoneNumber, name: `${channelLabel}: ${phoneNumber}` };
 
   try {
     const contact = await chatwootFetch(`/api/v1/accounts/${accountId}/contacts`, {
       method: 'POST',
-      body: JSON.stringify({ phone_number: phoneNumber, name: phoneNumber }),
+      body: JSON.stringify(contactPayload),
     });
     return contact.id;
   } catch (err) {
-    // Si el teléfono ya existe con otro formato, buscarlo por texto libre y reutilizarlo.
+    // Si el contacto ya existe con otro formato, buscarlo por texto libre y reutilizarlo.
     if (err.status === 422) {
+      const query = isWhatsApp ? phoneNumber.replace('+', '') : phoneNumber;
       const retry = await chatwootFetch(
-        `/api/v1/accounts/${accountId}/contacts/search?q=${encodeURIComponent(phoneNumber.replace('+', ''))}&page=1`
+        `/api/v1/accounts/${accountId}/contacts/search?q=${encodeURIComponent(query)}&page=1`
       );
       const retryContacts = Array.isArray(retry.payload) ? retry.payload : (retry.payload?.contacts ?? []);
       if (retryContacts.length > 0) return retryContacts[0].id;
@@ -110,7 +120,7 @@ async function findOrCreateContact(phoneNumber, accountId) {
 export async function derivarAHumano(phoneNumber, userText, reason, channel, collectedData = {}) {
   const { CHATWOOT_ACCOUNT_ID, CHATWOOT_INBOX_ID } = process.env;
 
-  const contactId = await findOrCreateContact(phoneNumber, CHATWOOT_ACCOUNT_ID);
+  const contactId = await findOrCreateContact(phoneNumber, CHATWOOT_ACCOUNT_ID, channel);
 
   const conversation = await chatwootFetch(`/api/v1/accounts/${CHATWOOT_ACCOUNT_ID}/conversations`, {
     method: 'POST',
