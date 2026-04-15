@@ -28,22 +28,55 @@ async function listKeys(bucket, prefix) {
 }
 
 /**
+ * @description Normaliza un nombre de ciudad para comparar con el nombre de carpeta en S3.
+ * Convierte a minúsculas, elimina tildes y reemplaza espacios por guión bajo.
+ * @param {string} ciudad - Nombre de la ciudad (ej: "Salamanca", "Puerto Montt").
+ * @returns {string}
+ */
+function normalizarCiudad(ciudad) {
+  return ciudad
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, '_');
+}
+
+/**
  * @description Busca los PDFs de presupuesto en S3 para un destino y región del cliente.
- * Los archivos siguen la estructura: presupuestos/{region}/{destinos}-{numero}.pdf
- * Un archivo puede incluir varios destinos en su nombre (ej: pucon-bariloche-valdivia-1.pdf).
- * Se retornan todos los archivos de la región cuyo nombre contenga el destino solicitado.
+ * Si se proporciona una ciudad, primero busca en presupuestos/excepciones/{ciudad}/.
+ * Si hay archivos en la excepción, los retorna directamente (precio especial para esa ciudad).
+ * Si no hay excepción, cae en la carpeta regional presupuestos/{region}/.
+ *
+ * Estructura S3:
+ * - presupuestos/{region}/{destinos}-{numero}.pdf  (precio general por región)
+ * - presupuestos/excepciones/{ciudad}/{destinos}-{numero}.pdf  (precio especial por ciudad)
  *
  * @param {object} params
  * @param {string} params.destino - Destino del viaje (ej: 'bariloche', 'pucon', 'puerto_varas').
  * @param {string} params.codigoRegion - Código de región de Chile (ej: 'rm', 'ix', 'x').
+ * @param {string} [params.ciudad] - Ciudad o comuna del colegio (ej: 'Salamanca'). Opcional.
  * @returns {Promise<{encontrados: boolean, archivos: Array<{nombre: string, key: string}>}>}
  */
-export async function buscarPresupuestos({ destino, codigoRegion }) {
+export async function buscarPresupuestos({ destino, codigoRegion, ciudad }) {
   const bucket = process.env.BUCKET_INFO_GI;
   // Los espacios se normalizan a guión bajo para coincidir con la convención del nombre de archivo.
   const destinoNorm = destino.toLowerCase().replace(/\s+/g, '_');
-  const regionNorm = codigoRegion.toLowerCase();
 
+  // Verificar si la ciudad tiene presupuesto de excepción antes de usar el regional.
+  if (ciudad) {
+    const ciudadNorm = normalizarCiudad(ciudad);
+    const prefijoExcepcion = `presupuestos/excepciones/${ciudadNorm}/`;
+    const keysExcepcion = await listKeys(bucket, prefijoExcepcion);
+    const keysFiltradosExcepcion = keysExcepcion.filter((key) => archivoContieneDestino(key.split('/').pop(), destinoNorm));
+
+    if (keysFiltradosExcepcion.length > 0) {
+      const archivos = keysFiltradosExcepcion.map((key) => ({ nombre: key.split('/').pop(), key }));
+      return { encontrados: true, archivos };
+    }
+  }
+
+  // Sin excepción: usar la carpeta regional.
+  const regionNorm = codigoRegion.toLowerCase();
   const prefijo = `presupuestos/${regionNorm}/`;
   const keys = await listKeys(bucket, prefijo);
 

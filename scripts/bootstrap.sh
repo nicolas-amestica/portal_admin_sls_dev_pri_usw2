@@ -58,6 +58,7 @@ PARAM_WHATSAPP="/pa/${STAGE}/whatsapp-config"
 PARAM_GEMINI="/pa/${STAGE}/gemini-api-key"
 PARAM_GOOGLE_CALENDAR="/pa/${STAGE}/google-calendar-oauth"
 PARAM_GOOGLE_CALENDAR_SA="/pa/${STAGE}/google-calendar-sa"
+PARAM_WHATSAPP_AGENT_EMAIL="/pa/${STAGE}/whatsapp-agent-email-config"
 
 # ─── Colores ──────────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
@@ -227,6 +228,11 @@ create_parameter \
   "$PARAM_GOOGLE_CALENDAR_SA" \
   "Service Account de Google Calendar (bot) — Portal Admin ${STAGE}" \
   '{"type":"service_account","project_id":"PLACEHOLDER","private_key_id":"PLACEHOLDER","private_key":"PLACEHOLDER","client_email":"PLACEHOLDER","client_id":"PLACEHOLDER"}'
+
+create_parameter \
+  "$PARAM_WHATSAPP_AGENT_EMAIL" \
+  "Configuración SMTP Google Workspace para alertas del agente WhatsApp — Portal Admin ${STAGE}" \
+  '{"host":"smtp.gmail.com","port":465,"secure":true,"user":"agente@work.girasindomito.cl","password":"PLACEHOLDER"}'
 
 # =============================================================================
 # PASO 3 — TABLAS DYNAMODB
@@ -532,6 +538,7 @@ echo "    • ${PARAM_WHATSAPP}"
 echo "    • ${PARAM_GEMINI}"
 echo "    • ${PARAM_GOOGLE_CALENDAR}"
 echo "    • ${PARAM_GOOGLE_CALENDAR_SA}"
+echo "    • ${PARAM_WHATSAPP_AGENT_EMAIL}"
 echo ""
 echo "  DynamoDB Tables:"
 echo "    • ${TABLE_PROGRAMS}  (GSI: gsiOne-index, gsiStartDate-index)"
@@ -549,6 +556,7 @@ echo "     aws ssm put-parameter --name ${PARAM_WHATSAPP} --value '{...}' --type
 echo "     aws ssm put-parameter --name ${PARAM_GEMINI} --value '{...}' --type SecureString --overwrite --profile ${PROFILE} --region ${REGION}"
 echo "     aws ssm put-parameter --name ${PARAM_GOOGLE_CALENDAR} --value '{...}' --type SecureString --overwrite --profile ${PROFILE} --region ${REGION}"
 echo "     aws ssm put-parameter --name ${PARAM_GOOGLE_CALENDAR_SA} --value '{...}' --type SecureString --overwrite --profile ${PROFILE} --region ${REGION}"
+echo "     aws ssm put-parameter --name ${PARAM_WHATSAPP_AGENT_EMAIL} --value '{...}' --type SecureString --overwrite --profile ${PROFILE} --region ${REGION}"
 echo ""
 echo "  2. Despliega la infraestructura compartida (API Gateway):"
 echo "     cd infrastructure && sls deploy --stage ${STAGE} --region ${REGION}"

@@ -50,10 +50,11 @@ provider:
     BUCKET_INFO_GI: giras-indomito-${self:custom.stage}-info
     AGENT_LAMBDA_NAME: agente-whatsapp-${self:custom.stage}-ejecutar_agente_v1
     EMAIL_CONFIG_SECRET_KEY: /pa/${self:custom.stage}/email-config
+    WHATSAPP_AGENT_EMAIL_CONFIG_SECRET_KEY: /pa/${self:custom.stage}/whatsapp-agent-email-config
     META_PAGE_SECRET_KEY: /pa/${self:custom.stage}/meta-page-config
     # Cambiar a 'true' para habilitar respuestas en Messenger e Instagram
-    ENABLE_META_CHANNELS: 'false'
-    ALERT_EMAIL: agente@girasindomito.cl
+    ENABLE_META_CHANNELS: 'true'
+    ALERT_EMAIL: agente-whatsapp@work.girasindomito.cl
 
   tracing:
     lambda: true

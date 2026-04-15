@@ -28,20 +28,25 @@ const TOOLS = [
       {
         name: 'buscar_presupuestos',
         description:
-          'Busca los PDFs de presupuesto disponibles en S3 para un destino y región del cliente. Un archivo puede incluir varios destinos en su nombre (ej: pucon-bariloche-valdivia-1.pdf). Llamar solo cuando se tengan destino y codigoRegion confirmados.',
+          'Busca los PDFs de presupuesto disponibles en S3 para un destino y región del cliente. Un archivo puede incluir varios destinos en su nombre (ej: pucon-bariloche-valdivia-1.pdf). Llamar cuando se tengan destino y codigoRegion confirmados. Si el cliente mencionó su ciudad o comuna específica, incluirla también.',
         parameters: {
           type: 'OBJECT',
           properties: {
             destino: {
               type: 'STRING',
               description:
-                "Destino principal del viaje en minúsculas. Los destinos con más de una palabra usan guión bajo. Valores válidos: 'bariloche', 'pucon', 'valdivia', 'puerto_varas', 'chiloe'.",
-              enum: ['bariloche', 'pucon', 'valdivia', 'puerto_varas', 'chiloe'],
+                "Destino principal del viaje en minúsculas. Único valor válido actualmente: 'bariloche'.",
+              enum: ['bariloche'],
             },
             codigoRegion: {
               type: 'STRING',
               description:
                 "Código de región de Chile en minúsculas. Valores válidos: 'xv' (Arica y Parinacota), 'i' (Tarapacá), 'ii' (Antofagasta), 'iii' (Atacama), 'iv' (Coquimbo), 'v' (Valparaíso), 'rm' (Metropolitana), 'vi' (O'Higgins), 'vii' (Maule), 'xvi' (Ñuble), 'viii' (Biobío), 'ix' (Araucanía), 'xiv' (Los Ríos), 'x' (Los Lagos), 'xi' (Aysén), 'xii' (Magallanes).",
+            },
+            ciudad: {
+              type: 'STRING',
+              description:
+                'Ciudad o comuna del colegio, solo si el cliente la mencionó explícitamente (ej: "Salamanca", "Viña del Mar"). No preguntar si no fue mencionada.',
             },
           },
           required: ['destino', 'codigoRegion'],
@@ -145,9 +150,10 @@ const TOOLS = [
  * @description System prompt del agente de Giras Indómito.
  * @param {string} phoneNumber
  * @param {object} collectedData - Datos recopilados en la sesión del cliente.
+ * @param {string} channel - Canal de origen ('whatsapp', 'messenger', 'instagram').
  * @returns {string}
  */
-function buildSystemPrompt(phoneNumber, collectedData) {
+function buildSystemPrompt(phoneNumber, collectedData, channel) {
   const now = new Date();
 
   const today = now.toLocaleDateString('es-CL', {
@@ -186,22 +192,18 @@ Si el cliente pregunta algo fuera de estas dos funciones, llama INMEDIATAMENTE a
 Amigable, profesional y conciso. Español chileno formal pero cercano. Sin emojis.
 
 ## Destinos disponibles
-- Gira Personalizada (para clientes que no mencionen un destino específico o quieran combinar varios)
 - Bariloche
-- Pucon
-- Pucon + Valdivia
-- Pucon + Bariloche + Valdivia
-- Puerto Varas
-- Chiloe
-- Pucon + Puerto Varas + Chiloe
 
 Nota: un presupuesto puede incluir varios destinos en un mismo tour. Cuando el cliente mencione un destino, busca todos los presupuestos que lo incluyan (sin importar si el tour pasa por otros lugares).
 
 ## Flujo para entregar presupuestos
-1. Identifica el destino de interés.
-2. Pregunta desde qué región del país salen.
-3. Con destino y región confirmados, llama a buscar_presupuestos. Los archivos se envían automáticamente al cliente.
-4. Tras enviar los presupuestos, consulta si desea agendar una reunión informativa por Google Meet.
+${channel === 'messenger' || channel === 'instagram'
+  ? `IMPORTANTE: Esta conversación llega por ${channel === 'messenger' ? 'Messenger' : 'Instagram'}. NO uses buscar_presupuestos. Cuando el cliente pida presupuestos o información de viajes, responde exactamente: "Para recibir toda la información y presupuestos de nuestras giras, te invitamos a contactarnos por WhatsApp al +56 9 8609 8787, donde te atenderemos con todos los detalles."  No ofrezcas alternativas ni sigas el flujo de presupuestos.`
+  : `1. Identifica el destino de interés.
+2. Pregunta desde qué región del país salen. Si en el mismo mensaje el cliente también menciona su ciudad o comuna, captúrala.
+3. Con destino y región confirmados, llama a buscar_presupuestos. Si el cliente mencionó su ciudad, inclúyela en la llamada. Los archivos se envían automáticamente al cliente.
+4. Tras enviar los presupuestos, consulta si desea agendar una reunión informativa por Google Meet.`
+}
 
 ## Flujo para gestionar reuniones
 - Crear: antes de llamar a crear_reunion, asegúrate de tener el correo electrónico del cliente. Si no lo tienes en el historial, pídelo. Llama a crear_reunion solo con confirmación explícita del cliente. Al finalizar, comunica el código del evento (ej: AB3X7F9K), el link de Meet y pide explícitamente al cliente que guarde esos datos, ya que son necesarios para gestionar la reunión y no estarán disponibles indefinidamente.
@@ -214,6 +216,7 @@ Nota: un presupuesto puede incluir varios destinos en un mismo tour. Cuando el c
 ## Reglas estrictas
 - SOLO presupuestos y reuniones. Cualquier otra consulta, llama a "sin_respuesta" sin decir nada al cliente.
 - No inventes precios ni condiciones. Si no hay presupuesto disponible, llama a "sin_respuesta" sin decir nada al cliente.
+- Si el cliente solicita un destino que NO está en la lista de destinos disponibles, llama INMEDIATAMENTE a "sin_respuesta" sin decir nada al cliente. Nunca respondas que el destino no existe.
 - No llames buscar_presupuestos si te falta destino o región.
 - No uses crear_reunion sin confirmación explícita del cliente.
 - Si el cliente ya entregó datos anteriormente, no los pidas de nuevo.
@@ -297,17 +300,18 @@ async function executeTool(name, args, collectedData) {
  * @param {string} newMessage - Nuevo mensaje del usuario.
  * @param {string} phoneNumber - Número de teléfono del cliente.
  * @param {object} collectedData - Datos de sesión del cliente (codigoEvento, destino, etc.).
+ * @param {string} [channel='whatsapp'] - Canal de origen ('whatsapp', 'messenger', 'instagram').
  * @returns {Promise<{
  *   responseText: string,
  *   toolsExecuted: Array<{name: string, args: object, result: object}>
  * }>}
  */
-export async function runConversationTurn(history, newMessage, phoneNumber, collectedData = {}) {
+export async function runConversationTurn(history, newMessage, phoneNumber, collectedData = {}, channel = 'whatsapp') {
   const genAI = await getGeminiClient();
 
   const model = genAI.getGenerativeModel({
     model: 'gemini-3.1-pro-preview-customtools',
-    systemInstruction: buildSystemPrompt(phoneNumber, collectedData),
+    systemInstruction: buildSystemPrompt(phoneNumber, collectedData, channel),
     tools: TOOLS,
   });
 
