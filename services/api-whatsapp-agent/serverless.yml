@@ -55,6 +55,10 @@ provider:
     # Cambiar a 'true' para habilitar respuestas en Messenger e Instagram
     ENABLE_META_CHANNELS: 'true'
     ALERT_EMAIL: agente-whatsapp@work.girasindomito.cl
+    CHATWOOT_BASE_URL: https://app.chatwoot.com
+    CHATWOOT_ACCOUNT_ID: '159539'
+    CHATWOOT_INBOX_ID: '105362'
+    CHATWOOT_API_TOKEN_KEY: /pa/${self:custom.stage}/chatwoot-api-token
 
   tracing:
     lambda: true
@@ -109,6 +113,16 @@ functions:
     description: Orquesta la conversación con Gemini, ejecuta tools y envía la respuesta por WhatsApp.
     timeout: 60
     memorySize: 512
+
+  responder_chatwoot_v1:
+    handler: functions/responder-chatwoot-v1.main
+    description: Recibe webhooks de Chatwoot y reenvía las respuestas del equipo al cliente por WhatsApp.
+    timeout: 15
+    memorySize: 256
+    events:
+      - httpApi:
+          path: /v1/chatwoot/webhook
+          method: POST
 
 resources:
   Resources:

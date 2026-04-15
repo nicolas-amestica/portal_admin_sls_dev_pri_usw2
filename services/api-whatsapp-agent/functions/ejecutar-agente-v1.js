@@ -13,6 +13,7 @@ import {
 } from '../helpers/whatsapp-api.js';
 import { buildSessionItem, buildTurnItem, toGeminiHistory } from '../mappers/map-conversacion-item.js';
 import { sendAlertEmail } from '../helpers/alert-email.js';
+import { derivarAHumano } from '../helpers/chatwoot-api.js';
 import { sendMetaTextMessage } from '../helpers/messenger-api.js';
 import { getPresignedUrl } from '../../../libs/s3-v3.js';
 import { shortenUrl } from '../helpers/url-shortener.js';
@@ -251,9 +252,14 @@ export const main = async (event) => {
     ({ responseText, toolsExecuted } = await runConversationTurn(history, text, phoneNumber, collectedData, channel));
   } catch (error) {
     console.error(`[${ACTION}] Error en Gemini para ${phoneNumber}:`, error.message, error.stack);
-    await sendAlertEmail(phoneNumber, text, 'error_gemini', channel, error.message).catch((e) =>
-      console.error(`[${ACTION}] Error enviando alerta email:`, e.message)
-    );
+    await Promise.all([
+      sendAlertEmail(phoneNumber, text, 'error_gemini', channel, error.message).catch((e) =>
+        console.error(`[${ACTION}] Error enviando alerta email:`, e.message)
+      ),
+      derivarAHumano(phoneNumber, text, 'error_gemini', channel, collectedData).catch((e) =>
+        console.error(`[${ACTION}] Error creando conversación en Chatwoot:`, e.message)
+      ),
+    ]);
     return;
   }
 
@@ -265,9 +271,14 @@ export const main = async (event) => {
   if (derivado || sinPresupuesto) {
     const reason = sinPresupuesto ? 'sin_presupuesto' : 'sin_respuesta';
     console.log(`[${ACTION}] Mensaje derivado (${reason}) para ${phoneNumber}. Sin respuesta al cliente.`);
-    await sendAlertEmail(phoneNumber, text, reason, channel).catch((e) =>
-      console.error(`[${ACTION}] Error enviando alerta email:`, e.message)
-    );
+    await Promise.all([
+      sendAlertEmail(phoneNumber, text, reason, channel).catch((e) =>
+        console.error(`[${ACTION}] Error enviando alerta email:`, e.message)
+      ),
+      derivarAHumano(phoneNumber, text, reason, channel, collectedData).catch((e) =>
+        console.error(`[${ACTION}] Error creando conversación en Chatwoot:`, e.message)
+      ),
+    ]);
     return;
   }
 
