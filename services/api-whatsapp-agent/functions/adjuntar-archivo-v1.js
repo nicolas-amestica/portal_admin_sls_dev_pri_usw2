@@ -1,6 +1,6 @@
 import { parseEventBody } from '../../../helpers/event-parser.js';
 import { success, unsuccessful } from '../../../helpers/responses.js';
-import { obtenerConversacion } from '../helpers/chatwoot-api.js';
+import { obtenerConversacion, enviarAdjuntoChatwoot } from '../helpers/chatwoot-api.js';
 import { uploadMedia, sendDocumentById, sendImageById } from '../helpers/whatsapp-api.js';
 
 const ACTION = 'Adjuntar archivo a conversación';
@@ -49,6 +49,16 @@ export const main = async (event) => {
       await sendImageById(phoneNumber, mediaId, caption);
     } else {
       await sendDocumentById(phoneNumber, mediaId, fileName, caption);
+    }
+
+    // Registrar el adjunto en Chatwoot para que aparezca en el historial de la bandeja.
+    // Se omite el caption intencionalmente: ya viajó como leyenda del archivo en WhatsApp.
+    // Pasar content a Chatwoot provocaría un segundo mensaje de texto al cliente.
+    try {
+      await enviarAdjuntoChatwoot(chatwootId, buffer, fileName, mimeType);
+    } catch (chatwootErr) {
+      // No fallamos el request completo si Chatwoot falla — el archivo ya fue entregado.
+      console.warn(`[${ACTION}] Archivo enviado a WhatsApp pero no pudo registrarse en Chatwoot: ${chatwootErr.message}`);
     }
 
     console.log(`[${ACTION}] "${fileName}" (${mimeType}, ${fileSizeMB.toFixed(2)} MB) enviado a ${phoneNumber} en conversación ${chatwootId}`);

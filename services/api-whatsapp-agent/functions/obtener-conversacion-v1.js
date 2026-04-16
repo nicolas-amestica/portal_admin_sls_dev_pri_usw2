@@ -103,13 +103,19 @@ async function resolveContactIdentifier(sender) {
  */
 function mergeMessages(chatwootMsgs, dynamoMsgs) {
   const filtered = chatwootMsgs
-    .filter((m) => !m.private && m.content && m.message_type !== 2)
+    .filter((m) => !m.private && m.message_type !== 2 && (m.content || m.attachments?.length))
     .map((m) => {
       const tipo = (m.message_type === 1 || m.message_type === 'outgoing') ? 'equipo' : 'cliente';
+      const adjuntos = (m.attachments ?? []).map((a) => ({
+        url: a.data_url ?? a.download_url ?? '',
+        fileName: a.file_name ?? 'archivo',
+        mimeType: a.file_type === 'image' ? 'image/jpeg' : (a.content_type ?? 'application/octet-stream'),
+      })).filter((a) => a.url);
       return {
-        contenido: m.content,
+        contenido: m.content ?? '',
         timestamp: new Date(m.created_at * 1000).toISOString(),
         tipo,
+        ...(adjuntos.length ? { adjuntos } : {}),
       };
     });
 

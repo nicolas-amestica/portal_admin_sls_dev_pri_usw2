@@ -153,6 +153,42 @@ export async function obtenerMensajes(conversacionId) {
 }
 
 /**
+ * @description Registra un archivo adjunto como mensaje saliente en Chatwoot usando multipart/form-data.
+ * Esto NO envía el archivo al cliente (eso se hace vía WhatsApp API directamente).
+ * Solo persiste el registro en el historial de Chatwoot para que aparezca en la bandeja.
+ * @param {number} conversacionId - ID de la conversación en Chatwoot.
+ * @param {Buffer} buffer - Contenido binario del archivo.
+ * @param {string} fileName - Nombre del archivo.
+ * @param {string} mimeType - Tipo MIME del archivo.
+ * @param {string} [caption=''] - Leyenda opcional del archivo.
+ * @returns {Promise<object>} Objeto del mensaje creado.
+ */
+export async function enviarAdjuntoChatwoot(conversacionId, buffer, fileName, mimeType, caption = '') {
+  const { CHATWOOT_ACCOUNT_ID, CHATWOOT_BASE_URL } = process.env;
+  const token = await getApiToken();
+
+  const formData = new FormData();
+  if (caption) formData.append('content', caption);
+  formData.append('message_type', 'outgoing');
+  formData.append('private', 'false');
+  formData.append('attachments[]', new Blob([buffer], { type: mimeType }), fileName);
+
+  const response = await fetch(
+    `${CHATWOOT_BASE_URL}/api/v1/accounts/${CHATWOOT_ACCOUNT_ID}/conversations/${conversacionId}/messages`,
+    { method: 'POST', headers: { api_access_token: token }, body: formData }
+  );
+
+  if (!response.ok) {
+    const body = await response.text();
+    const err = new Error(`Chatwoot adjunto ${response.status}: ${body}`);
+    err.status = response.status;
+    throw err;
+  }
+
+  return response.json();
+}
+
+/**
  * @description Envía un mensaje saliente en una conversación de Chatwoot.
  * @param {number} conversacionId - ID de la conversación en Chatwoot.
  * @param {string} content - Texto del mensaje a enviar.
