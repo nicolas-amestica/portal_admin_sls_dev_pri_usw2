@@ -124,6 +124,36 @@ functions:
           path: /v1/chatwoot/webhook
           method: POST
 
+  listar_conversaciones_v1:
+    handler: functions/listar-conversaciones-v1.main
+    description: Lista las conversaciones abiertas derivadas al equipo humano en la bandeja de entrada.
+    timeout: 15
+    memorySize: 256
+    events:
+      - httpApi:
+          path: /v1/inbox/conversaciones
+          method: GET
+
+  obtener_conversacion_v1:
+    handler: functions/obtener-conversacion-v1.main
+    description: Retorna el detalle de una conversación con el historial completo (Chatwoot + DynamoDB).
+    timeout: 20
+    memorySize: 256
+    events:
+      - httpApi:
+          path: /v1/inbox/conversaciones/{chatwootId}
+          method: GET
+
+  responder_conversacion_v1:
+    handler: functions/responder-conversacion-v1.main
+    description: Envía una respuesta del equipo a través de Chatwoot hacia el cliente.
+    timeout: 15
+    memorySize: 256
+    events:
+      - httpApi:
+          path: /v1/inbox/conversaciones/{chatwootId}/responder
+          method: POST
+
 resources:
   Resources:
     ConversationsTable:

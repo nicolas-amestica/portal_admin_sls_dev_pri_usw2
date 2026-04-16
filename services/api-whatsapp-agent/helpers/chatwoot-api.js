@@ -107,6 +107,69 @@ async function findOrCreateContact(phoneNumber, accountId, channel) {
 }
 
 /**
+ * @description Obtiene el detalle de un contacto de Chatwoot por su ID.
+ * @param {number} contactId - ID del contacto en Chatwoot.
+ * @returns {Promise<object>} Objeto con los datos del contacto (phone_number, identifier, name, etc.).
+ */
+export async function obtenerContacto(contactId) {
+  const { CHATWOOT_ACCOUNT_ID } = process.env;
+  return chatwootFetch(`/api/v1/accounts/${CHATWOOT_ACCOUNT_ID}/contacts/${contactId}`);
+}
+
+/**
+ * @description Lista las conversaciones abiertas en la bandeja de Chatwoot.
+ * @param {number} [page=1] - Número de página para paginación.
+ * @returns {Promise<object[]>} Array de conversaciones abiertas.
+ */
+export async function listarConversaciones(page = 1) {
+  const { CHATWOOT_ACCOUNT_ID } = process.env;
+  const result = await chatwootFetch(
+    `/api/v1/accounts/${CHATWOOT_ACCOUNT_ID}/conversations?status=open&page=${page}`
+  );
+  return result?.data?.payload ?? [];
+}
+
+/**
+ * @description Obtiene el detalle de una conversación por su ID.
+ * @param {number} conversacionId - ID de la conversación en Chatwoot.
+ * @returns {Promise<object>} Objeto con los datos de la conversación.
+ */
+export async function obtenerConversacion(conversacionId) {
+  const { CHATWOOT_ACCOUNT_ID } = process.env;
+  return chatwootFetch(`/api/v1/accounts/${CHATWOOT_ACCOUNT_ID}/conversations/${conversacionId}`);
+}
+
+/**
+ * @description Obtiene los mensajes de una conversación de Chatwoot.
+ * @param {number} conversacionId - ID de la conversación en Chatwoot.
+ * @returns {Promise<object[]>} Array de mensajes de la conversación.
+ */
+export async function obtenerMensajes(conversacionId) {
+  const { CHATWOOT_ACCOUNT_ID } = process.env;
+  const result = await chatwootFetch(
+    `/api/v1/accounts/${CHATWOOT_ACCOUNT_ID}/conversations/${conversacionId}/messages`
+  );
+  return result?.payload ?? [];
+}
+
+/**
+ * @description Envía un mensaje saliente en una conversación de Chatwoot.
+ * @param {number} conversacionId - ID de la conversación en Chatwoot.
+ * @param {string} content - Texto del mensaje a enviar.
+ * @returns {Promise<object>} Objeto del mensaje creado.
+ */
+export async function enviarMensaje(conversacionId, content) {
+  const { CHATWOOT_ACCOUNT_ID } = process.env;
+  return chatwootFetch(
+    `/api/v1/accounts/${CHATWOOT_ACCOUNT_ID}/conversations/${conversacionId}/messages`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ content, message_type: 'outgoing' }),
+    }
+  );
+}
+
+/**
  * @description Crea una conversación en Chatwoot cuando el agente no puede responder.
  * Incluye el mensaje del cliente como mensaje entrante y una nota privada con el contexto
  * de la derivación (canal, motivo y datos recopilados).
