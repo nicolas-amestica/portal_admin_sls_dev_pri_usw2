@@ -111,6 +111,27 @@ export async function sendDocumentById(to, mediaId, filename, caption = '') {
 }
 
 /**
+ * @description Envía una imagen por WhatsApp usando su media_id (subido previamente).
+ * @param {string} to - Número del destinatario.
+ * @param {string} mediaId - ID del media ya subido a Meta.
+ * @param {string} [caption=''] - Texto opcional que acompaña la imagen.
+ */
+export async function sendImageById(to, mediaId, caption = '') {
+  const { accessToken, phoneNumberId } = await getCredentials();
+  await httpClient.post(
+    buildMessagesUrl(phoneNumberId),
+    {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to,
+      type: 'image',
+      image: { id: mediaId, caption },
+    },
+    { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' } }
+  );
+}
+
+/**
  * @description Descarga un archivo multimedia desde los servidores de Meta.
  * Primero obtiene la URL del archivo usando el media_id, luego descarga el binario.
  * @param {string} mediaId - ID del media devuelto por Meta en el webhook.

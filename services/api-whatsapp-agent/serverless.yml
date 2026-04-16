@@ -154,6 +154,16 @@ functions:
           path: /v1/inbox/conversaciones/{chatwootId}/responder
           method: POST
 
+  adjuntar_archivo_v1:
+    handler: functions/adjuntar-archivo-v1.main
+    description: Sube un PDF o imagen a WhatsApp Media API y lo envía al cliente.
+    timeout: 30
+    memorySize: 512
+    events:
+      - httpApi:
+          path: /v1/inbox/conversaciones/{chatwootId}/adjuntar
+          method: POST
+
 resources:
   Resources:
     ConversationsTable:
