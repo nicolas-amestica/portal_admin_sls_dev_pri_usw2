@@ -75,16 +75,31 @@ export function buildTurnItem(phoneNumber, sk, role, text, attachments = []) {
 /**
  * @description Convierte los items de turno de DynamoDB al formato de historial de Gemini.
  * Garantiza que el historial siempre empiece con un turno 'user' (requisito de la API).
+ * Excluye mensajes del equipo (role='team') que no son parte del diálogo cliente-agente.
+ * Fusiona turnos consecutivos del mismo rol — Gemini rechaza secuencias no alternadas.
  * @param {object[]} items - Items de DynamoDB con campos role y parts.
  * @returns {Array<{role: string, parts: Array<{text: string}>}>}
  */
 export function toGeminiHistory(items) {
   const turns = items
-    .filter((item) => item.sk.startsWith('MSG#'))
-    .map((item) => ({ role: item.role, parts: item.parts }));
+    .filter((item) => item.sk.startsWith('MSG#') && item.role !== 'team')
+    .map((item) => ({
+      role: item.role === 'user' ? 'user' : 'model',
+      parts: item.parts,
+    }));
 
   // Gemini rechaza historiales que comiencen con 'model'. Descartamos los turnos
   // iniciales huérfanos si el corte de historial dejó un 'model' al inicio.
   const firstUserIdx = turns.findIndex((t) => t.role === 'user');
-  return firstUserIdx > 0 ? turns.slice(firstUserIdx) : turns;
+  const trimmed = firstUserIdx > 0 ? turns.slice(firstUserIdx) : turns;
+
+  // Fusionar turnos consecutivos del mismo rol para cumplir el requisito de alternancia.
+  return trimmed.reduce((acc, turn) => {
+    if (acc.length === 0) return [turn];
+    const last = acc[acc.length - 1];
+    if (last.role === turn.role) {
+      return [...acc.slice(0, -1), { role: last.role, parts: [...last.parts, ...turn.parts] }];
+    }
+    return [...acc, turn];
+  }, []);
 }

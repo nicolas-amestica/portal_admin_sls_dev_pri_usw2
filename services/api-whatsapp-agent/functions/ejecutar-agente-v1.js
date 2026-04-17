@@ -11,7 +11,7 @@ import {
   sendTextMessage,
   downloadMedia,
 } from '../helpers/whatsapp-api.js';
-import { buildSessionItem, buildTurnItem, toGeminiHistory } from '../mappers/map-conversacion-item.js';
+import { buildSessionItem, buildTurnItem, toGeminiHistory, normalizePhone } from '../mappers/map-conversacion-item.js';
 import { derivarAHumano } from '../helpers/chatwoot-api.js';
 import { sendMetaTextMessage } from '../helpers/messenger-api.js';
 import { getPresignedUrl } from '../../../libs/s3-v3.js';
@@ -93,7 +93,7 @@ function sanitizeForHistory(text) {
  */
 async function loadConversation(phoneNumber) {
   const { CONVERSATIONS_TABLE } = process.env;
-  const pk = `CONV#${phoneNumber}`;
+  const pk = `CONV#${normalizePhone(phoneNumber)}`;
 
   const items = await dynamoDbLib.query({
     TableName: CONVERSATIONS_TABLE,
