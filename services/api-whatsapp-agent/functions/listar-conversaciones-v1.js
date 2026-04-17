@@ -13,7 +13,7 @@ export const main = async (event) => {
   try {
     const rawConversaciones = await listarConversaciones();
 
-    const conversaciones = rawConversaciones.map((conv) => {
+    const mapped = rawConversaciones.map((conv) => {
       const sender = conv.meta?.sender ?? {};
       return {
         id: conv.id,
@@ -26,6 +26,20 @@ export const main = async (event) => {
         status: conv.status ?? 'open',
       };
     });
+
+    // Deduplicar por número de teléfono: mantener solo la conversación más reciente (mayor id).
+    // Los duplicados surgieron antes del fix de derivarAHumano; el fix reutiliza conversaciones
+    // abiertas, por lo que nuevos mensajes del cliente se añaden a la más reciente.
+    const byPhone = new Map();
+    for (const conv of mapped) {
+      const key = conv.phoneNumber || conv.contactName;
+      const existing = byPhone.get(key);
+      if (!existing || conv.id > existing.id) {
+        byPhone.set(key, conv);
+      }
+    }
+    const conversaciones = Array.from(byPhone.values())
+      .sort((a, b) => new Date(b.lastMessageAt) - new Date(a.lastMessageAt));
 
     return success(200, conversaciones, ACTION);
   } catch (error) {
