@@ -16,6 +16,16 @@ function ttlSession() {
 }
 
 /**
+ * @description Normaliza el número de teléfono eliminando el prefijo '+' si lo tiene.
+ * Garantiza que todas las claves DynamoDB usen el mismo formato (sin '+').
+ * @param {string} phoneNumber
+ * @returns {string}
+ */
+export function normalizePhone(phoneNumber) {
+  return phoneNumber?.startsWith('+') ? phoneNumber.slice(1) : (phoneNumber ?? '');
+}
+
+/**
  * @description Construye el item de sesión de DynamoDB para una conversación.
  * Almacena el estado actual y los datos recopilados por el agente (destino, región, comuna).
  *
@@ -24,11 +34,12 @@ function ttlSession() {
  * @returns {object} Item listo para PutCommand de DynamoDB.
  */
 export function buildSessionItem(phoneNumber, collectedData = {}) {
+  const normalized = normalizePhone(phoneNumber);
   const now = new Date().toISOString();
   return {
-    pk: `CONV#${phoneNumber}`,
-    sk: `CONV#${phoneNumber}`,
-    phoneNumber,
+    pk: `CONV#${normalized}`,
+    sk: `CONV#${normalized}`,
+    phoneNumber: normalized,
     collectedData,
     lastMessageAt: now,
     createdAt: now,
@@ -48,8 +59,9 @@ export function buildSessionItem(phoneNumber, collectedData = {}) {
  * @returns {object} Item listo para PutCommand de DynamoDB.
  */
 export function buildTurnItem(phoneNumber, sk, role, text) {
+  const normalized = normalizePhone(phoneNumber);
   return {
-    pk: `CONV#${phoneNumber}`,
+    pk: `CONV#${normalized}`,
     sk,
     role,
     parts: [{ text }],

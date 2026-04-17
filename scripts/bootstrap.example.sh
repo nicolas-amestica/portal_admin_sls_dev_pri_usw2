@@ -59,6 +59,7 @@ PARAM_GEMINI="/pa/${STAGE}/gemini-api-key"
 PARAM_GOOGLE_CALENDAR="/pa/${STAGE}/google-calendar-oauth"
 PARAM_GOOGLE_CALENDAR_SA="/pa/${STAGE}/google-calendar-sa"
 PARAM_WHATSAPP_AGENT_EMAIL="/pa/${STAGE}/whatsapp-agent-email-config"
+PARAM_CHATWOOT_TOKEN="/pa/${STAGE}/chatwoot-api-token"
 
 # ─── Colores ──────────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
@@ -151,7 +152,7 @@ create_bucket "$BUCKET_DEPLOY" "Artefactos de despliegue Serverless"
 create_bucket "$BUCKET_INFO"   "Documentos e información de programas (PDFs, comprobantes)"
 
 # Crear carpetas lógicas en el bucket de info
-for prefix in contratos programas comprobantes; do
+for prefix in contratos programas comprobantes inbox-adjuntos; do
   aws s3api put-object \
     --bucket "$BUCKET_INFO" \
     --profile "$PROFILE" \
@@ -159,6 +160,23 @@ for prefix in contratos programas comprobantes; do
     --output text &>/dev/null || true
   log_ok "Carpeta '${prefix}/' creada en ${BUCKET_INFO}"
 done
+
+# Configurar CORS en el bucket de info para permitir PUT directo desde el browser.
+# Requerido por el módulo Comunicaciones: el frontend sube adjuntos directamente a S3
+# usando una URL prefirmada (presign-adjunto-v1), evitando el límite de 10 MB de API Gateway.
+log_info "Configurando CORS en ${BUCKET_INFO} (requerido para upload de adjuntos desde browser)"
+aws s3api put-bucket-cors \
+  --bucket "$BUCKET_INFO" \
+  --profile "$PROFILE" \
+  --cors-configuration '{
+    "CORSRules": [{
+      "AllowedOrigins": ["*"],
+      "AllowedMethods": ["PUT"],
+      "AllowedHeaders": ["Content-Type"],
+      "MaxAgeSeconds": 3000
+    }]
+  }' &>/dev/null
+log_ok "CORS configurado en ${BUCKET_INFO}"
 
 # =============================================================================
 # PASO 2 — SSM PARAMETER STORE
@@ -233,6 +251,11 @@ create_parameter \
   "$PARAM_WHATSAPP_AGENT_EMAIL" \
   "Configuración SMTP Google Workspace para alertas del agente WhatsApp" \
   '{"host":"smtp.gmail.com","port":465,"secure":true,"user":"agente@work.girasindomito.cl","password":"PLACEHOLDER"}'
+
+create_parameter \
+  "$PARAM_CHATWOOT_TOKEN" \
+  "API Access Token de Chatwoot para crear conversaciones derivadas — Portal Admin ${STAGE}" \
+  'PLACEHOLDER'
 
 # =============================================================================
 # PASO 3 — TABLAS DYNAMODB
@@ -539,6 +562,7 @@ echo "    • ${PARAM_GEMINI}"
 echo "    • ${PARAM_GOOGLE_CALENDAR}"
 echo "    • ${PARAM_GOOGLE_CALENDAR_SA}"
 echo "    • ${PARAM_WHATSAPP_AGENT_EMAIL}"
+echo "    • ${PARAM_CHATWOOT_TOKEN}"
 echo ""
 echo "  DynamoDB Tables:"
 echo "    • ${TABLE_PROGRAMS}  (GSI: gsiOne-index, gsiStartDate-index)"
@@ -557,6 +581,7 @@ echo "     aws ssm put-parameter --name ${PARAM_GEMINI} --value '{...}' --type S
 echo "     aws ssm put-parameter --name ${PARAM_GOOGLE_CALENDAR} --value '{...}' --type SecureString --overwrite --profile ${PROFILE} --region ${REGION}"
 echo "     aws ssm put-parameter --name ${PARAM_GOOGLE_CALENDAR_SA} --value '{...}' --type SecureString --overwrite --profile ${PROFILE} --region ${REGION}"
 echo "     aws ssm put-parameter --name ${PARAM_WHATSAPP_AGENT_EMAIL} --value '{...}' --type SecureString --overwrite --profile ${PROFILE} --region ${REGION}"
+echo "     aws ssm put-parameter --name ${PARAM_CHATWOOT_TOKEN} --value 'TOKEN' --type SecureString --overwrite --profile ${PROFILE} --region ${REGION}"
 echo ""
 echo "  2. Despliega la infraestructura compartida (API Gateway):"
 echo "     cd infrastructure && sls deploy --stage ${STAGE} --region ${REGION}"

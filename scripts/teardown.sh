@@ -59,6 +59,8 @@ PARAM_WHATSAPP="/pa/${STAGE}/whatsapp-config"
 PARAM_GEMINI="/pa/${STAGE}/gemini-api-key"
 PARAM_GOOGLE_CALENDAR="/pa/${STAGE}/google-calendar-oauth"
 PARAM_GOOGLE_CALENDAR_SA="/pa/${STAGE}/google-calendar-sa"
+PARAM_WHATSAPP_AGENT_EMAIL="/pa/${STAGE}/whatsapp-agent-email-config"
+PARAM_CHATWOOT_TOKEN="/pa/${STAGE}/chatwoot-api-token"
 
 # Stacks de CloudFormation en orden de eliminación (dependencias primero)
 CF_STACKS=(
@@ -225,6 +227,8 @@ delete_parameter "$PARAM_WHATSAPP"
 delete_parameter "$PARAM_GEMINI"
 delete_parameter "$PARAM_GOOGLE_CALENDAR"
 delete_parameter "$PARAM_GOOGLE_CALENDAR_SA"
+delete_parameter "$PARAM_WHATSAPP_AGENT_EMAIL"
+delete_parameter "$PARAM_CHATWOOT_TOKEN"
 
 # =============================================================================
 # PASO 4 — VACIAR Y ELIMINAR BUCKETS S3

@@ -154,11 +154,21 @@ functions:
           path: /v1/inbox/conversaciones/{chatwootId}/responder
           method: POST
 
+  presign_adjunto_v1:
+    handler: functions/presign-adjunto-v1.main
+    description: Genera una URL prefirmada de S3 para que el frontend suba adjuntos directamente sin pasar por API Gateway.
+    timeout: 5
+    memorySize: 128
+    events:
+      - httpApi:
+          path: /v1/inbox/adjuntos/presign
+          method: POST
+
   adjuntar_archivo_v1:
     handler: functions/adjuntar-archivo-v1.main
-    description: Sube un PDF o imagen a WhatsApp Media API y lo envía al cliente.
+    description: Descarga un adjunto desde S3 y lo envía al cliente vía WhatsApp Media API.
     timeout: 30
-    memorySize: 512
+    memorySize: 256
     events:
       - httpApi:
           path: /v1/inbox/conversaciones/{chatwootId}/adjuntar

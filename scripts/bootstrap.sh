@@ -152,7 +152,7 @@ create_bucket "$BUCKET_DEPLOY" "Artefactos de despliegue Serverless"
 create_bucket "$BUCKET_INFO"   "Documentos e información de programas (PDFs, comprobantes)"
 
 # Crear carpetas lógicas en el bucket de info
-for prefix in contratos programas comprobantes; do
+for prefix in contratos programas comprobantes inbox-adjuntos; do
   aws s3api put-object \
     --bucket "$BUCKET_INFO" \
     --profile "$PROFILE" \
@@ -160,6 +160,23 @@ for prefix in contratos programas comprobantes; do
     --output text &>/dev/null || true
   log_ok "Carpeta '${prefix}/' creada en ${BUCKET_INFO}"
 done
+
+# Configurar CORS en el bucket de info para permitir PUT directo desde el browser.
+# Requerido por el módulo Comunicaciones: el frontend sube adjuntos directamente a S3
+# usando una URL prefirmada (presign-adjunto-v1), evitando el límite de 10 MB de API Gateway.
+log_info "Configurando CORS en ${BUCKET_INFO} (requerido para upload de adjuntos desde browser)"
+aws s3api put-bucket-cors \
+  --bucket "$BUCKET_INFO" \
+  --profile "$PROFILE" \
+  --cors-configuration '{
+    "CORSRules": [{
+      "AllowedOrigins": ["*"],
+      "AllowedMethods": ["PUT"],
+      "AllowedHeaders": ["Content-Type"],
+      "MaxAgeSeconds": 3000
+    }]
+  }' &>/dev/null
+log_ok "CORS configurado en ${BUCKET_INFO}"
 
 # =============================================================================
 # PASO 2 — SSM PARAMETER STORE

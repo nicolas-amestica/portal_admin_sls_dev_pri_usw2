@@ -1,5 +1,5 @@
 import { getAWSConfigs } from './configs';
-import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 let s3;
@@ -32,6 +32,27 @@ export const getPresignedUrl = async (params, expiresIn = 300) => {
   if (!s3) await initClient();
   const command = new GetObjectCommand(params);
   return getSignedUrl(s3, command, { expiresIn });
+};
+
+/**
+ * Genera una URL prefirmada para subir (PUT) un objeto a S3 sin credenciales.
+ * @param {Object} params - Parámetros de S3 (Bucket, Key, ContentType).
+ * @param {number} expiresIn - Segundos de validez (default: 300).
+ */
+export const putPresignedUrl = async (params, expiresIn = 300) => {
+  if (!s3) await initClient();
+  const command = new PutObjectCommand(params);
+  return getSignedUrl(s3, command, { expiresIn });
+};
+
+/**
+ * Elimina un objeto de S3.
+ * @param {Object} params - Parámetros de S3 (Bucket, Key).
+ */
+export const deleteObject = async (params) => {
+  if (!s3) await initClient();
+  const command = new DeleteObjectCommand(params);
+  return s3.send(command);
 };
 
 /**
