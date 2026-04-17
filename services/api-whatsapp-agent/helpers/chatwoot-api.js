@@ -206,9 +206,9 @@ export async function enviarMensaje(conversacionId, content) {
 }
 
 /**
- * @description Crea una conversación en Chatwoot cuando el agente no puede responder.
- * Incluye el mensaje del cliente como mensaje entrante y una nota privada con el contexto
- * de la derivación (canal, motivo y datos recopilados).
+ * @description Crea o reutiliza una conversación en Chatwoot cuando el agente no puede responder.
+ * Si ya existe una conversación abierta para el contacto en la bandeja, agrega el mensaje a ella
+ * en lugar de crear una duplicada.
  *
  * @param {string} phoneNumber - Número o ID del cliente.
  * @param {string} userText - Mensaje original del cliente.
@@ -221,15 +221,34 @@ export async function derivarAHumano(phoneNumber, userText, reason, channel, col
 
   const contactId = await findOrCreateContact(phoneNumber, CHATWOOT_ACCOUNT_ID, channel);
 
-  const conversation = await chatwootFetch(`/api/v1/accounts/${CHATWOOT_ACCOUNT_ID}/conversations`, {
-    method: 'POST',
-    body: JSON.stringify({
-      contact_id: contactId,
-      inbox_id: Number(CHATWOOT_INBOX_ID),
-    }),
-  });
+  // Reusar conversación abierta existente para evitar duplicados en la bandeja.
+  let conversationId;
+  try {
+    const contactConvs = await chatwootFetch(
+      `/api/v1/accounts/${CHATWOOT_ACCOUNT_ID}/contacts/${contactId}/conversations`
+    );
+    const openConv = (contactConvs?.payload ?? []).find(
+      (c) => c.status === 'open' && c.inbox_id === Number(CHATWOOT_INBOX_ID)
+    );
+    if (openConv) {
+      conversationId = openConv.id;
+      console.log(`[derivarAHumano] Reutilizando conversación abierta #${conversationId} para ${phoneNumber}`);
+    }
+  } catch (err) {
+    console.warn(`[derivarAHumano] No se pudo verificar conversaciones existentes: ${err.message}`);
+  }
 
-  const conversationId = conversation.id;
+  if (!conversationId) {
+    const conversation = await chatwootFetch(`/api/v1/accounts/${CHATWOOT_ACCOUNT_ID}/conversations`, {
+      method: 'POST',
+      body: JSON.stringify({
+        contact_id: contactId,
+        inbox_id: Number(CHATWOOT_INBOX_ID),
+      }),
+    });
+    conversationId = conversation.id;
+  }
+
   const baseUrl = `/api/v1/accounts/${CHATWOOT_ACCOUNT_ID}/conversations/${conversationId}/messages`;
 
   // Mensaje entrante del cliente.
