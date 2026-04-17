@@ -251,6 +251,8 @@ export const main = async (event) => {
     ({ responseText, toolsExecuted } = await runConversationTurn(history, text, phoneNumber, collectedData, channel));
   } catch (error) {
     console.error(`[${ACTION}] Error en Gemini para ${phoneNumber}:`, error.message, error.stack);
+    // Guardar al menos el mensaje del cliente para que no desaparezca del historial.
+    saveConversation(phoneNumber, text, '', collectedData).catch(() => {});
     await derivarAHumano(phoneNumber, text, 'error_gemini', channel, collectedData).catch((e) =>
       console.error(`[${ACTION}] Error creando conversación en Chatwoot:`, e.message)
     );
@@ -265,6 +267,11 @@ export const main = async (event) => {
   if (derivado || sinPresupuesto) {
     const reason = sinPresupuesto ? 'sin_presupuesto' : 'sin_respuesta';
     console.log(`[${ACTION}] Mensaje derivado (${reason}) para ${phoneNumber}. Sin respuesta al cliente.`);
+    // Guardar el turno ANTES de derivar para que el historial quede completo en DynamoDB.
+    const updatedData = mergeCollectedData(collectedData, toolsExecuted);
+    saveConversation(phoneNumber, text, responseText, updatedData).catch((e) =>
+      console.error(`[${ACTION}] Error guardando turno al derivar:`, e.message)
+    );
     await derivarAHumano(phoneNumber, text, reason, channel, collectedData).catch((e) =>
       console.error(`[${ACTION}] Error creando conversación en Chatwoot:`, e.message)
     );
