@@ -15,6 +15,10 @@ const MAX_FILE_SIZE_MB = 7;
  * y lo registra en Chatwoot para que aparezca en el historial.
  * El frontend subió el archivo directamente a S3 usando la URL prefirmada de presign-adjunto-v1.
  *
+ * Resolución del phone del cliente:
+ * 1. Intenta el caché DynamoDB (CHATWOOT#<id> → PHONE) — evita llamar a Chatwoot.
+ * 2. Si hay cache miss, llama a obtenerConversacion como fallback.
+ *
  * @param {object} event - Evento HTTP con pathParameters.chatwootId
  *   y body { s3Key, fileName, mimeType, caption? }.
  */
@@ -31,20 +35,32 @@ export const main = async (event) => {
       return unsuccessful(400, Object.assign(new Error('s3Key, fileName y mimeType son requeridos'), { statusCode: 400 }), ACTION);
     }
 
-    // Descargar el archivo desde S3 (ya subido por el frontend con la URL prefirmada).
-    const buffer = await getObjectBuffer({ Bucket: process.env.BUCKET_INFO_GI, Key: s3Key });
-    const fileSizeMB = buffer.length / (1024 * 1024);
+    const { CONVERSATIONS_TABLE, BUCKET_INFO_GI } = process.env;
 
+    // Descargar el archivo desde S3 y resolver el phone en paralelo.
+    const [buffer, phoneItem] = await Promise.all([
+      getObjectBuffer({ Bucket: BUCKET_INFO_GI, Key: s3Key }),
+      dynamoDbLib.getOne({ TableName: CONVERSATIONS_TABLE, Key: { pk: `CHATWOOT#${chatwootId}`, sk: 'PHONE' } }),
+    ]);
+
+    const fileSizeMB = buffer.length / (1024 * 1024);
     if (fileSizeMB > MAX_FILE_SIZE_MB) {
       return unsuccessful(400, Object.assign(new Error(`El archivo excede el límite de ${MAX_FILE_SIZE_MB} MB`), { statusCode: 400 }), ACTION);
     }
 
     console.log(`[${ACTION}] "${fileName}" (${mimeType}, ${fileSizeMB.toFixed(2)} MB) descargado desde S3`);
 
-    // Obtener número del cliente desde la conversación de Chatwoot.
-    const conv = await obtenerConversacion(chatwootId);
-    const sender = conv.meta?.sender ?? {};
-    const phoneNumber = sender.phone_number || sender.identifier;
+    // Resolver el phone del cliente: caché DynamoDB primero, Chatwoot como fallback.
+    let phoneNumber = phoneItem?.phone ?? null;
+    if (phoneNumber) {
+      console.log(`[${ACTION}] Phone resuelto desde caché DynamoDB: ${phoneNumber}`);
+    } else {
+      console.log(`[${ACTION}] Cache miss — resolviendo phone desde Chatwoot`);
+      const conv = await obtenerConversacion(chatwootId);
+      const sender = conv.meta?.sender ?? {};
+      phoneNumber = sender.phone_number || sender.identifier;
+    }
+
     if (!phoneNumber) {
       return unsuccessful(400, Object.assign(new Error('No se pudo obtener el número del cliente'), { statusCode: 400 }), ACTION);
     }
@@ -66,26 +82,16 @@ export const main = async (event) => {
     }
 
     // Write-through: guardar la caption en DynamoDB para que persista en el historial del portal.
-    // La caption no se pasa a Chatwoot (evita reenvío como segundo mensaje de texto a WhatsApp),
-    // así que sin este write-through desaparecería al recargar la página.
-    if (caption?.trim()) {
-      const { CONVERSATIONS_TABLE } = process.env;
-      const phoneItem = await dynamoDbLib.getOne({
-        TableName: CONVERSATIONS_TABLE,
-        Key: { pk: `CHATWOOT#${chatwootId}`, sk: 'PHONE' },
-      });
-      if (phoneItem?.phone) {
-        const captionItem = buildTurnItem(phoneItem.phone, `MSG#${uuidv7()}`, 'team', caption.trim());
-        dynamoDbLib.put({ TableName: CONVERSATIONS_TABLE, Item: captionItem }).catch((err) =>
-          console.warn(`[${ACTION}] Write-through caption DynamoDB falló (no crítico): ${err.message}`)
-        );
-      } else {
-        console.warn(`[${ACTION}] Phone no cacheado para chatwootId ${chatwootId} — write-through de caption omitido`);
-      }
+    // La caption no se pasa a Chatwoot (evita reenvío como segundo mensaje de texto a WhatsApp).
+    if (caption?.trim() && phoneItem?.phone) {
+      const captionItem = buildTurnItem(phoneItem.phone, `MSG#${uuidv7()}`, 'team', caption.trim());
+      dynamoDbLib.put({ TableName: CONVERSATIONS_TABLE, Item: captionItem }).catch((err) =>
+        console.warn(`[${ACTION}] Write-through caption DynamoDB falló (no crítico): ${err.message}`)
+      );
     }
 
-    // Eliminar objeto temporal de S3 (fire and forget — no bloqueamos la respuesta).
-    deleteObject({ Bucket: process.env.BUCKET_INFO_GI, Key: s3Key }).catch((err) =>
+    // Eliminar objeto temporal de S3 (fire and forget).
+    deleteObject({ Bucket: BUCKET_INFO_GI, Key: s3Key }).catch((err) =>
       console.warn(`[${ACTION}] No se pudo eliminar objeto S3 "${s3Key}": ${err.message}`)
     );
 

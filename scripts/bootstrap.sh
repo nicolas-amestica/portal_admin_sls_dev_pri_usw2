@@ -178,6 +178,22 @@ aws s3api put-bucket-cors \
   }' &>/dev/null
 log_ok "CORS configurado en ${BUCKET_INFO}"
 
+# Lifecycle policy: eliminar objetos temporales de adjuntos después de 24h.
+# Red de seguridad por si adjuntar-archivo-v1 falla antes de borrar el objeto S3.
+log_info "Configurando lifecycle policy en ${BUCKET_INFO} (inbox-adjuntos/ → TTL 1 día)"
+aws s3api put-bucket-lifecycle-configuration \
+  --bucket "$BUCKET_INFO" \
+  --profile "$PROFILE" \
+  --lifecycle-configuration '{
+    "Rules": [{
+      "ID": "inbox-adjuntos-ttl",
+      "Status": "Enabled",
+      "Filter": { "Prefix": "inbox-adjuntos/" },
+      "Expiration": { "Days": 1 }
+    }]
+  }' &>/dev/null
+log_ok "Lifecycle policy configurada en ${BUCKET_INFO} (inbox-adjuntos/ expira en 1 día)"
+
 # =============================================================================
 # PASO 2 — SSM PARAMETER STORE
 # =============================================================================
