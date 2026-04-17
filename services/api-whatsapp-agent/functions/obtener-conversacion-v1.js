@@ -1,6 +1,6 @@
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { success, unsuccessful } from '../../../helpers/responses.js';
-import { obtenerConversacion, obtenerMensajes, obtenerContacto } from '../helpers/chatwoot-api.js';
+import { obtenerConversacion, obtenerContacto } from '../helpers/chatwoot-api.js';
 import { normalizePhone } from '../mappers/map-conversacion-item.js';
 
 const ACTION = 'Obtener detalle de conversación';
@@ -149,37 +149,19 @@ async function resolveContactIdentifier(sender) {
 }
 
 /**
- * @description Normaliza los mensajes de Chatwoot y DynamoDB en un formato común ordenado por tiempo.
- * Excluye notas privadas. Los roles posibles son: 'cliente', 'agente_ia', 'equipo'.
- * @param {object[]} chatwootMsgs - Mensajes de Chatwoot.
- * @param {object[]} dynamoMsgs - Mensajes de DynamoDB.
+ * @description Convierte items de DynamoDB al formato de mensajes del portal.
+ * Los roles posibles son: 'cliente', 'agente_ia', 'equipo'.
+ * Incluye adjuntos si el item los tiene (write-through desde adjuntar-archivo-v1).
+ * @param {object[]} dynamoMsgs - Items DynamoDB con campos role, parts, createdAt y adjuntos opcional.
  * @returns {object[]}
  */
-function mergeMessages(chatwootMsgs, dynamoMsgs) {
-  const filtered = chatwootMsgs
-    .filter((m) => !m.private && m.message_type !== 2 && (m.content || m.attachments?.length))
-    .map((m) => {
-      const tipo = (m.message_type === 1 || m.message_type === 'outgoing') ? 'equipo' : 'cliente';
-      const adjuntos = (m.attachments ?? []).map((a) => ({
-        url: a.data_url ?? a.download_url ?? '',
-        fileName: a.file_name ?? 'archivo',
-        mimeType: a.file_type === 'image' ? 'image/jpeg' : (a.content_type ?? 'application/octet-stream'),
-      })).filter((a) => a.url);
-      return {
-        contenido: m.content ?? '',
-        timestamp: new Date(m.created_at * 1000).toISOString(),
-        tipo,
-        ...(adjuntos.length ? { adjuntos } : {}),
-      };
-    });
-
-  const dynamo = dynamoMsgs.map((m) => ({
+function mapDynamoMessages(dynamoMsgs) {
+  return dynamoMsgs.map((m) => ({
     contenido: m.parts?.[0]?.text ?? '',
     timestamp: m.createdAt,
     tipo: m.role === 'user' ? 'cliente' : m.role === 'team' ? 'equipo' : 'agente_ia',
+    ...(m.attachments?.length ? { adjuntos: m.attachments } : {}),
   }));
-
-  return [...filtered, ...dynamo].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 }
 
 /**
@@ -199,23 +181,13 @@ export const main = async (event) => {
     console.log(`[${ACTION}] Cargando conversación Chatwoot #${chatwootId}`);
 
     const { CONVERSATIONS_TABLE } = process.env;
-
-    // Intentar resolución rápida desde caché DynamoDB (evita llamadas a Chatwoot Contact API).
-    const cachedPhone = await getCachedPhone(chatwootId, CONVERSATIONS_TABLE);
-
     const since = event.queryStringParameters?.since ?? null;
 
-    const [conv, allChatwootMsgs] = await Promise.all([
+    // Paralelizar: metadatos de Chatwoot + caché de phone en DynamoDB son independientes.
+    const [conv, cachedPhone] = await Promise.all([
       obtenerConversacion(chatwootId),
-      obtenerMensajes(chatwootId),
+      getCachedPhone(chatwootId, CONVERSATIONS_TABLE),
     ]);
-
-    const sinceEpoch = since ? Math.floor(new Date(since).getTime() / 1000) : null;
-    const chatwootMsgs = sinceEpoch
-      ? allChatwootMsgs.filter((m) => m.created_at > sinceEpoch)
-      : allChatwootMsgs;
-
-    console.log(`[${ACTION}] Mensajes Chatwoot: ${chatwootMsgs.length}${since ? ` (delta)` : ''}`);
 
     let resolvedPhone;
     if (cachedPhone) {
@@ -238,11 +210,11 @@ export const main = async (event) => {
     }
 
     const dynamoMsgs = await loadDynamoHistory(resolvedPhone, since);
-    const mensajes = mergeMessages(chatwootMsgs, dynamoMsgs);
+    const mensajes = mapDynamoMessages(dynamoMsgs);
     const sender = conv.meta?.sender ?? {};
     const displayPhone = resolvedPhone || sender.phone_number || sender.identifier || '';
 
-    console.log(`[${ACTION}] Total mensajes combinados: ${mensajes.length} (Chatwoot: ${chatwootMsgs.filter(m => !m.private).length}, DynamoDB: ${dynamoMsgs.length})`);
+    console.log(`[${ACTION}] Mensajes desde DynamoDB: ${dynamoMsgs.length}${since ? ` (delta desde ${since})` : ''}`);
 
     return success(200, {
       id: conv.id,

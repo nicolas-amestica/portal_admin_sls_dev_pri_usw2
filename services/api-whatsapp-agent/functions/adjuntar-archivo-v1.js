@@ -5,7 +5,7 @@ import { success, unsuccessful } from '../../../helpers/responses.js';
 import { obtenerConversacion, enviarAdjuntoChatwoot } from '../helpers/chatwoot-api.js';
 import { uploadMedia, sendDocumentById, sendImageById } from '../helpers/whatsapp-api.js';
 import { getObjectBuffer, deleteObject } from '../../../libs/s3-v3.js';
-import { buildTurnItem } from '../mappers/map-conversacion-item.js';
+import { buildTurnItem, normalizePhone } from '../mappers/map-conversacion-item.js';
 
 const ACTION = 'Adjuntar archivo a conversación';
 const MAX_FILE_SIZE_MB = 7;
@@ -75,18 +75,27 @@ export const main = async (event) => {
 
     // Registrar en Chatwoot para que aparezca en el historial de la bandeja.
     // Caption omitido: ya viajó como leyenda del archivo en WhatsApp.
+    let chatwootMsg = null;
     try {
-      await enviarAdjuntoChatwoot(chatwootId, buffer, fileName, mimeType);
+      chatwootMsg = await enviarAdjuntoChatwoot(chatwootId, buffer, fileName, mimeType);
     } catch (chatwootErr) {
       console.warn(`[${ACTION}] Archivo enviado pero no pudo registrarse en Chatwoot: ${chatwootErr.message}`);
     }
 
-    // Write-through: guardar la caption en DynamoDB para que persista en el historial del portal.
-    // La caption no se pasa a Chatwoot (evita reenvío como segundo mensaje de texto a WhatsApp).
-    if (caption?.trim() && phoneItem?.phone) {
-      const captionItem = buildTurnItem(phoneItem.phone, `MSG#${uuidv7()}`, 'team', caption.trim());
-      dynamoDbLib.put({ TableName: CONVERSATIONS_TABLE, Item: captionItem }).catch((err) =>
-        console.warn(`[${ACTION}] Write-through caption DynamoDB falló (no crítico): ${err.message}`)
+    // Write-through: guardar el adjunto (+ caption si la hay) en DynamoDB en un solo item.
+    // Esto elimina la dependencia de obtenerMensajes de Chatwoot para el historial del portal.
+    const resolvedForWrite = phoneItem?.phone ?? normalizePhone(phoneNumber);
+    if (resolvedForWrite) {
+      const attachmentUrl = chatwootMsg?.attachments?.[0]?.data_url ?? chatwootMsg?.attachments?.[0]?.download_url ?? '';
+      const attachmentItem = buildTurnItem(
+        resolvedForWrite,
+        `MSG#${uuidv7()}`,
+        'team',
+        caption?.trim() ?? '',
+        [{ url: attachmentUrl, fileName, mimeType }]
+      );
+      dynamoDbLib.put({ TableName: CONVERSATIONS_TABLE, Item: attachmentItem }).catch((err) =>
+        console.warn(`[${ACTION}] Write-through adjunto DynamoDB falló (no crítico): ${err.message}`)
       );
     }
 

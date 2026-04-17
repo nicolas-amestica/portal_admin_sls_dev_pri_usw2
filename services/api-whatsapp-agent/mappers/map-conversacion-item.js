@@ -54,17 +54,19 @@ export function buildSessionItem(phoneNumber, collectedData = {}) {
  *
  * @param {string} phoneNumber - Número de teléfono.
  * @param {string} sk - Sort key única para este turno (MSG#<uuidv7>).
- * @param {'user'|'model'} role - Rol del turno.
+ * @param {'user'|'model'|'team'} role - Rol del turno.
  * @param {string} text - Texto del mensaje.
+ * @param {Array<{url: string, fileName: string, mimeType: string}>} [attachments] - Adjuntos opcionales.
  * @returns {object} Item listo para PutCommand de DynamoDB.
  */
-export function buildTurnItem(phoneNumber, sk, role, text) {
+export function buildTurnItem(phoneNumber, sk, role, text, attachments = []) {
   const normalized = normalizePhone(phoneNumber);
   return {
     pk: `CONV#${normalized}`,
     sk,
     role,
     parts: [{ text }],
+    ...(attachments.length ? { attachments } : {}),
     createdAt: new Date().toISOString(),
     ttl: ttlMessages(),
   };
