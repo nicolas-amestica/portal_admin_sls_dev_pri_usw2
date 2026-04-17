@@ -57,8 +57,6 @@ PARAM_TRANSBANK="/pa/${STAGE}/transbank-api-key"
 PARAM_WHATSAPP="/pa/${STAGE}/whatsapp-config"
 PARAM_GEMINI="/pa/${STAGE}/gemini-api-key"
 PARAM_GOOGLE_CALENDAR="/pa/${STAGE}/google-calendar-oauth"
-PARAM_GOOGLE_CALENDAR_SA="/pa/${STAGE}/google-calendar-sa"
-PARAM_WHATSAPP_AGENT_EMAIL="/pa/${STAGE}/whatsapp-agent-email-config"
 PARAM_CHATWOOT_TOKEN="/pa/${STAGE}/chatwoot-api-token"
 
 # ─── Colores ──────────────────────────────────────────────────────────────────
@@ -257,16 +255,6 @@ create_parameter \
   "$PARAM_GOOGLE_CALENDAR" \
   "Credenciales OAuth2 de Google Calendar — Portal Admin ${STAGE}" \
   '{"client_id":"PLACEHOLDER","client_secret":"PLACEHOLDER","refresh_token":"PLACEHOLDER"}'
-
-create_parameter \
-  "$PARAM_GOOGLE_CALENDAR_SA" \
-  "Service Account de Google Calendar (bot) — Portal Admin ${STAGE}" \
-  '{"type":"service_account","project_id":"PLACEHOLDER","private_key_id":"PLACEHOLDER","private_key":"PLACEHOLDER","client_email":"PLACEHOLDER","client_id":"PLACEHOLDER"}'
-
-create_parameter \
-  "$PARAM_WHATSAPP_AGENT_EMAIL" \
-  "Configuración SMTP Google Workspace para alertas del agente WhatsApp — Portal Admin ${STAGE}" \
-  '{"host":"smtp.gmail.com","port":465,"secure":true,"user":"agente@work.girasindomito.cl","password":"PLACEHOLDER"}'
 
 create_parameter \
   "$PARAM_CHATWOOT_TOKEN" \
@@ -576,9 +564,7 @@ echo "    • ${PARAM_TRANSBANK}"
 echo "    • ${PARAM_WHATSAPP}"
 echo "    • ${PARAM_GEMINI}"
 echo "    • ${PARAM_GOOGLE_CALENDAR}"
-echo "    • ${PARAM_GOOGLE_CALENDAR_SA}"
-echo "    • ${PARAM_WHATSAPP_AGENT_EMAIL}
-    • ${PARAM_CHATWOOT_TOKEN}"
+echo "    • ${PARAM_CHATWOOT_TOKEN}"
 echo ""
 echo "  DynamoDB Tables:"
 echo "    • ${TABLE_PROGRAMS}  (GSI: gsiOne-index, gsiStartDate-index)"
@@ -595,9 +581,7 @@ echo "     aws ssm put-parameter --name ${PARAM_TRANSBANK} --value '{...}' --typ
 echo "     aws ssm put-parameter --name ${PARAM_WHATSAPP} --value '{...}' --type SecureString --overwrite --profile ${PROFILE} --region ${REGION}"
 echo "     aws ssm put-parameter --name ${PARAM_GEMINI} --value '{...}' --type SecureString --overwrite --profile ${PROFILE} --region ${REGION}"
 echo "     aws ssm put-parameter --name ${PARAM_GOOGLE_CALENDAR} --value '{...}' --type SecureString --overwrite --profile ${PROFILE} --region ${REGION}"
-echo "     aws ssm put-parameter --name ${PARAM_GOOGLE_CALENDAR_SA} --value '{...}' --type SecureString --overwrite --profile ${PROFILE} --region ${REGION}"
-echo "     aws ssm put-parameter --name ${PARAM_WHATSAPP_AGENT_EMAIL} --value '{...}' --type SecureString --overwrite --profile ${PROFILE} --region ${REGION}
-     aws ssm put-parameter --name ${PARAM_CHATWOOT_TOKEN} --value 'TOKEN' --type SecureString --overwrite --profile ${PROFILE} --region ${REGION}"
+echo "     aws ssm put-parameter --name ${PARAM_CHATWOOT_TOKEN} --value 'TOKEN' --type SecureString --overwrite --profile ${PROFILE} --region ${REGION}"
 echo ""
 echo "  2. Despliega la infraestructura compartida (API Gateway):"
 echo "     cd infrastructure && sls deploy --stage ${STAGE} --region ${REGION}"

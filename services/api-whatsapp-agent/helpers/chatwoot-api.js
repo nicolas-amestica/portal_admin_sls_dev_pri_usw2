@@ -140,19 +140,6 @@ export async function obtenerConversacion(conversacionId) {
 }
 
 /**
- * @description Obtiene los mensajes de una conversación de Chatwoot.
- * @param {number} conversacionId - ID de la conversación en Chatwoot.
- * @returns {Promise<object[]>} Array de mensajes de la conversación.
- */
-export async function obtenerMensajes(conversacionId) {
-  const { CHATWOOT_ACCOUNT_ID } = process.env;
-  const result = await chatwootFetch(
-    `/api/v1/accounts/${CHATWOOT_ACCOUNT_ID}/conversations/${conversacionId}/messages`
-  );
-  return result?.payload ?? [];
-}
-
-/**
  * @description Registra un archivo adjunto como mensaje saliente en Chatwoot usando multipart/form-data.
  * Esto NO envía el archivo al cliente (eso se hace vía WhatsApp API directamente).
  * Solo persiste el registro en el historial de Chatwoot para que aparezca en la bandeja.

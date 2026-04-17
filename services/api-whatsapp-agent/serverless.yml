@@ -52,12 +52,9 @@ provider:
     CONVERSATIONS_TABLE: conversations-${self:custom.stage}-pri-${self:custom.shortRegion}
     BUCKET_INFO_GI: giras-indomito-${self:custom.stage}-info
     AGENT_LAMBDA_NAME: agente-whatsapp-${self:custom.stage}-ejecutar_agente_v1
-    EMAIL_CONFIG_SECRET_KEY: /pa/${self:custom.stage}/email-config
-    WHATSAPP_AGENT_EMAIL_CONFIG_SECRET_KEY: /pa/${self:custom.stage}/whatsapp-agent-email-config
     META_PAGE_SECRET_KEY: /pa/${self:custom.stage}/meta-page-config
     # Cambiar a 'true' para habilitar respuestas en Messenger e Instagram
     ENABLE_META_CHANNELS: 'true'
-    ALERT_EMAIL: agente-whatsapp@work.girasindomito.cl
     CHATWOOT_BASE_URL: https://app.chatwoot.com
     CHATWOOT_ACCOUNT_ID: '159539'
     CHATWOOT_INBOX_ID: '105362'
