@@ -94,7 +94,7 @@ export function toGeminiHistory(items) {
   const trimmed = firstUserIdx > 0 ? turns.slice(firstUserIdx) : turns;
 
   // Fusionar turnos consecutivos del mismo rol para cumplir el requisito de alternancia.
-  return trimmed.reduce((acc, turn) => {
+  const merged = trimmed.reduce((acc, turn) => {
     if (acc.length === 0) return [turn];
     const last = acc[acc.length - 1];
     if (last.role === turn.role) {
@@ -102,4 +102,12 @@ export function toGeminiHistory(items) {
     }
     return [...acc, turn];
   }, []);
+
+  // Gemini requiere que el historial termine en 'model'. Un turno 'user' final significa
+  // que ese mensaje nunca recibió respuesta (sin_respuesta, error, derivación) y causaría
+  // dos user consecutivos al llamar sendMessage. Se descarta para mantener la alternancia.
+  if (merged.length > 0 && merged[merged.length - 1].role === 'user') {
+    return merged.slice(0, -1);
+  }
+  return merged;
 }

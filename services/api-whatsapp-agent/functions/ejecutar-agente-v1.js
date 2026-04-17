@@ -250,11 +250,14 @@ export const main = async (event) => {
   const { session, turnItems } = await loadConversation(phoneNumber);
   const history = toGeminiHistory(turnItems);
   const collectedData = session?.collectedData || {};
+  // hasHistory: hay mensajes previos en DynamoDB aunque el historial de Gemini quede vacío
+  // (ej: todos los turnos fueron sin_respuesta → ningún turno model guardado → trim deja history=[]).
+  const hasHistory = turnItems.length > 0;
 
   // 2. Llamar a Gemini con function calling.
   let responseText, toolsExecuted;
   try {
-    ({ responseText, toolsExecuted } = await runConversationTurn(history, text, phoneNumber, collectedData, channel));
+    ({ responseText, toolsExecuted } = await runConversationTurn(history, text, phoneNumber, collectedData, channel, hasHistory));
   } catch (error) {
     console.error(`[${ACTION}] Error en Gemini para ${phoneNumber}:`, error.message, error.stack);
     // Guardar al menos el mensaje del cliente para que no desaparezca del historial.

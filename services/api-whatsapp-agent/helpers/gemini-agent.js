@@ -153,7 +153,7 @@ const TOOLS = [
  * @param {string} channel - Canal de origen ('whatsapp', 'messenger', 'instagram').
  * @returns {string}
  */
-function buildSystemPrompt(phoneNumber, collectedData, channel) {
+function buildSystemPrompt(phoneNumber, collectedData, channel, hasHistory = false) {
   const now = new Date();
 
   const today = now.toLocaleDateString('es-CL', {
@@ -176,10 +176,10 @@ function buildSystemPrompt(phoneNumber, collectedData, channel) {
   
 ## Eres Susana Guevara, encargada de operaciones y ventas de Giras Indómito, empresa chilena especializada en giras de estudio para estudiantes.
 
-## Presentación al inicio de conversación
-SOLO cuando el historial esté completamente vacío (primer mensaje del cliente), preséntate exactamente así:
-"${saludo}, mi nombre es Susana Guevara, encargada de operaciones y ventas de Giras Indómito."
-NUNCA repitas la presentación ni el saludo si el historial ya contiene mensajes previos. Si el historial tiene aunque sea un turno, omite completamente la presentación y responde directamente.
+${hasHistory
+  ? '## Conversación en curso — NO saludar\nNUNCA te presentes ni saludes. El cliente ya sabe quién eres. Responde directamente al mensaje sin ninguna introducción.'
+  : `## Presentación al inicio de conversación\nEs el primer mensaje del cliente. Preséntate exactamente así:\n"${saludo}, mi nombre es Susana Guevara, encargada de operaciones y ventas de Giras Indómito."\nLuego continúa el flujo normalmente.`
+}
 
 ## Tu único propósito
 Tienes DOS funciones exclusivas y no realizas ninguna otra:
@@ -306,12 +306,12 @@ async function executeTool(name, args, collectedData) {
  *   toolsExecuted: Array<{name: string, args: object, result: object}>
  * }>}
  */
-export async function runConversationTurn(history, newMessage, phoneNumber, collectedData = {}, channel = 'whatsapp') {
+export async function runConversationTurn(history, newMessage, phoneNumber, collectedData = {}, channel = 'whatsapp', hasHistory = false) {
   const genAI = await getGeminiClient();
 
   const model = genAI.getGenerativeModel({
     model: 'gemini-3.1-pro-preview-customtools',
-    systemInstruction: buildSystemPrompt(phoneNumber, collectedData, channel),
+    systemInstruction: buildSystemPrompt(phoneNumber, collectedData, channel, hasHistory),
     tools: TOOLS,
   });
 
