@@ -9,7 +9,7 @@ const ACTION = 'Listar conversaciones derivadas';
  *
  * @param {object} event - Evento HTTP de API Gateway.
  */
-export const main = async (event) => {
+export const main = async (_event) => {
   try {
     const rawConversaciones = await listarConversaciones();
 
@@ -17,6 +17,7 @@ export const main = async (event) => {
       const sender = conv.meta?.sender ?? {};
       return {
         id: conv.id,
+        contactId: sender.id ?? null,
         contactName: sender.name || sender.phone_number || sender.identifier || 'Desconocido',
         phoneNumber: sender.phone_number || sender.identifier || '',
         channel: conv.meta?.channel ?? 'whatsapp',

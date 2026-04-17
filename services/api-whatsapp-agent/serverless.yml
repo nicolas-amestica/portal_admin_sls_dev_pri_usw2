@@ -178,6 +178,26 @@ functions:
           path: /v1/inbox/adjuntos/presign
           method: POST
 
+  eliminar_conversacion_v1:
+    handler: functions/eliminar-conversacion-v1.main
+    description: Resuelve la conversación en Chatwoot y elimina todos sus datos de DynamoDB.
+    timeout: 20
+    memorySize: 256
+    events:
+      - httpApi:
+          path: /v1/inbox/conversaciones/{chatwootId}
+          method: DELETE
+
+  actualizar_contacto_v1:
+    handler: functions/actualizar-contacto-v1.main
+    description: Actualiza el nombre/alias de un contacto en Chatwoot a partir del ID de conversación.
+    timeout: 10
+    memorySize: 128
+    events:
+      - httpApi:
+          path: /v1/inbox/conversaciones/{chatwootId}/contacto
+          method: PATCH
+
   adjuntar_archivo_v1:
     handler: functions/adjuntar-archivo-v1.main
     description: Descarga un adjunto desde S3 y lo envía al cliente vía WhatsApp Media API.

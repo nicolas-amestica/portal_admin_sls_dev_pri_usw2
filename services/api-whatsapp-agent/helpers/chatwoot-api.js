@@ -203,6 +203,31 @@ export async function enviarMensaje(conversacionId, content) {
  * @param {string} channel - Canal de origen ('whatsapp', 'messenger', 'instagram').
  * @param {object} [collectedData] - Datos recopilados por el agente antes de derivar.
  */
+/**
+ * @description Resuelve (cierra) una conversación en Chatwoot.
+ * @param {number} chatwootId - ID de la conversación.
+ */
+export async function resolverConversacion(chatwootId) {
+  const { CHATWOOT_ACCOUNT_ID } = process.env;
+  return chatwootFetch(
+    `/api/v1/accounts/${CHATWOOT_ACCOUNT_ID}/conversations/${chatwootId}/toggle_status`,
+    { method: 'POST', body: JSON.stringify({ status: 'resolved' }) }
+  );
+}
+
+/**
+ * @description Actualiza el nombre/alias de un contacto en Chatwoot.
+ * @param {number} contactId - ID del contacto en Chatwoot.
+ * @param {string} name - Nuevo nombre/alias para el contacto.
+ */
+export async function actualizarContacto(contactId, name) {
+  const { CHATWOOT_ACCOUNT_ID } = process.env;
+  return chatwootFetch(`/api/v1/accounts/${CHATWOOT_ACCOUNT_ID}/contacts/${contactId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ name }),
+  });
+}
+
 export async function derivarAHumano(phoneNumber, userText, reason, channel, collectedData = {}) {
   const { CHATWOOT_ACCOUNT_ID, CHATWOOT_INBOX_ID } = process.env;
 
