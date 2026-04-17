@@ -83,7 +83,10 @@ async function resolvePhoneForDynamo(phoneOrId) {
  * @returns {string} Sort key prefijada con 'MSG#'.
  */
 function sinceSkForTimestamp(isoTimestamp) {
-  const ms = BigInt(new Date(isoTimestamp).getTime());
+  // +1ms para excluir el mensaje exactamente en este timestamp:
+  // uuidv7 tiene bits aleatorios > 0 en el mismo ms, por lo que el piso sin +1
+  // siempre sería menor que el sk real y el mensaje se devolvería en cada delta.
+  const ms = BigInt(new Date(isoTimestamp).getTime()) + 1n;
   const hi32 = (ms >> 16n).toString(16).padStart(8, '0');
   const lo16 = (ms & 0xffffn).toString(16).padStart(4, '0');
   return `MSG#${hi32}-${lo16}-7000-8000-000000000000`;

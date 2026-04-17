@@ -124,14 +124,20 @@ async function saveConversation(phoneNumber, userText, modelText, collectedData)
   const ttl = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60;
 
   const userItem = buildTurnItem(phoneNumber, `MSG#${uuidv7()}`, 'user', sanitizeForHistory(userText));
-  const modelItem = buildTurnItem(phoneNumber, `MSG#${uuidv7()}`, 'model', sanitizeForHistory(modelText));
   const sessionItem = { ...buildSessionItem(phoneNumber, collectedData), updatedAt: now, ttl };
 
-  await Promise.all([
+  const writes = [
     dynamoDbLib.put({ TableName: CONVERSATIONS_TABLE, Item: userItem }),
-    dynamoDbLib.put({ TableName: CONVERSATIONS_TABLE, Item: modelItem }),
     dynamoDbLib.put({ TableName: CONVERSATIONS_TABLE, Item: sessionItem }),
-  ]);
+  ];
+
+  // Solo guardar el turno del modelo si hay texto (evita burbujas en blanco en el portal).
+  if (modelText?.trim()) {
+    const modelItem = buildTurnItem(phoneNumber, `MSG#${uuidv7()}`, 'model', sanitizeForHistory(modelText));
+    writes.push(dynamoDbLib.put({ TableName: CONVERSATIONS_TABLE, Item: modelItem }));
+  }
+
+  await Promise.all(writes);
 }
 
 /**
@@ -289,10 +295,14 @@ export const main = async (event) => {
 
   // 5. Enviar documentos PDF y luego el texto de respuesta según el canal.
   await sendPresupuestoDocuments(channel, phoneNumber, toolsExecuted);
-  if (channel === 'whatsapp') {
-    await sendTextMessage(phoneNumber, responseText);
+  if (responseText?.trim()) {
+    if (channel === 'whatsapp') {
+      await sendTextMessage(phoneNumber, responseText);
+    } else {
+      await sendMetaTextMessage(phoneNumber, responseText);
+    }
   } else {
-    await sendMetaTextMessage(phoneNumber, responseText);
+    console.warn(`[${ACTION}] responseText vacío para ${phoneNumber} — mensaje de texto omitido.`);
   }
 
   // 6. Persistir el turno en DynamoDB.
