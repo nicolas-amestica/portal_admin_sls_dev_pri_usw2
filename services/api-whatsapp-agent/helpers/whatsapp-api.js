@@ -155,6 +155,27 @@ export async function downloadMedia(mediaId) {
 }
 
 /**
+ * @description Envía un mensaje de audio por WhatsApp usando su media_id (subido previamente).
+ * WhatsApp renderiza el audio como nota de voz reproducible en el chat.
+ * @param {string} to - Número del destinatario.
+ * @param {string} mediaId - ID del media ya subido a Meta.
+ */
+export async function sendAudioById(to, mediaId) {
+  const { accessToken, phoneNumberId } = await getCredentials();
+  await httpClient.post(
+    buildMessagesUrl(phoneNumberId),
+    {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to,
+      type: 'audio',
+      audio: { id: mediaId },
+    },
+    { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' } }
+  );
+}
+
+/**
  * @description Marca un mensaje recibido como leído (muestra el doble check azul).
  * @param {string} messageId - ID del mensaje de WhatsApp a marcar como leído.
  */

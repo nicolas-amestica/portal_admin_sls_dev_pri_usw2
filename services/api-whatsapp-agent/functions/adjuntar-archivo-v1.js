@@ -3,7 +3,7 @@ import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { parseEventBody } from '../../../helpers/event-parser.js';
 import { success, unsuccessful } from '../../../helpers/responses.js';
 import { obtenerConversacion, enviarAdjuntoChatwoot } from '../helpers/chatwoot-api.js';
-import { uploadMedia, sendDocumentById, sendImageById } from '../helpers/whatsapp-api.js';
+import { uploadMedia, sendDocumentById, sendImageById, sendAudioById } from '../helpers/whatsapp-api.js';
 import { getObjectBuffer, deleteObject } from '../../../libs/s3-v3.js';
 import { buildTurnItem, normalizePhone } from '../mappers/map-conversacion-item.js';
 
@@ -65,10 +65,17 @@ export const main = async (event) => {
       return unsuccessful(400, Object.assign(new Error('No se pudo obtener el número del cliente'), { statusCode: 400 }), ACTION);
     }
 
+    // WhatsApp Cloud API no acepta audio/webm — remapear a audio/ogg (mismo codec Opus).
+    const isAudio = mimeType.startsWith('audio/');
+    const uploadMime = (mimeType === 'audio/webm') ? 'audio/ogg' : mimeType;
+    const uploadFileName = (mimeType === 'audio/webm') ? fileName.replace(/\.webm$/, '.ogg') : fileName;
+
     // Subir archivo a la Media API de WhatsApp y enviar al cliente.
-    const mediaId = await uploadMedia(buffer, fileName, mimeType);
+    const mediaId = await uploadMedia(buffer, uploadFileName, uploadMime);
     if (mimeType.startsWith('image/')) {
       await sendImageById(phoneNumber, mediaId, caption);
+    } else if (isAudio) {
+      await sendAudioById(phoneNumber, mediaId);
     } else {
       await sendDocumentById(phoneNumber, mediaId, fileName, caption);
     }

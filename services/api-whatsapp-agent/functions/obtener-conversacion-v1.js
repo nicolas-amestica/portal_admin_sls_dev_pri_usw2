@@ -100,7 +100,7 @@ function sinceSkForTimestamp(isoTimestamp) {
  * @returns {Promise<object[]>}
  */
 async function loadDynamoHistory(phoneOrId, since = null) {
-  if (!phoneOrId) return [];
+  if (!phoneOrId) return { msgs: [], sessionItem: null };
 
   const { CONVERSATIONS_TABLE } = process.env;
   const pk = `CONV#${phoneOrId}`;
@@ -119,10 +119,14 @@ async function loadDynamoHistory(phoneOrId, since = null) {
   }
 
   const items = await dynamoDbLib.iterativeQuery(query);
-  if (!items) return [];
+  if (!items) return { msgs: [], sessionItem: null };
+
+  // En carga completa (sin since), el session item (sk = pk) ya viene en la query — extraerlo
+  // evita una read extra para obtener unreadCount y permite reset condicional.
+  const sessionItem = since ? null : (items.find((i) => i.sk === pk) ?? null);
   const msgs = items.filter((i) => i.sk.startsWith('MSG#'));
   console.log(`[${ACTION}] DynamoDB: ${msgs.length} mensajes para ${pk}${since ? ` (delta desde ${since})` : ''}`);
-  return msgs;
+  return { msgs, sessionItem };
 }
 
 /**
@@ -212,7 +216,21 @@ export const main = async (event) => {
       }
     }
 
-    const dynamoMsgs = await loadDynamoHistory(resolvedPhone, since);
+    // Paralelizar: historial DynamoDB + reset unreadCount son independientes.
+    // El reset se awaita dentro del Promise.all para que Lambda no lo cancele al retornar.
+    const [{ msgs: dynamoMsgs, sessionItem }] = await Promise.all([
+      loadDynamoHistory(resolvedPhone, since),
+      resolvedPhone && !since
+        ? dynamoDbLib.update({
+            TableName: CONVERSATIONS_TABLE,
+            Key: { pk: `CONV#${resolvedPhone}`, sk: `CONV#${resolvedPhone}` },
+            UpdateExpression: 'SET unreadCount = :zero',
+            ExpressionAttributeValues: { ':zero': 0 },
+            ReturnValues: 'NONE',
+          }).catch((err) => console.warn(`[${ACTION}] No se pudo resetear unreadCount: ${err.message}`))
+        : Promise.resolve(),
+    ]);
+
     const mensajes = mapDynamoMessages(dynamoMsgs);
     const sender = conv.meta?.sender ?? {};
     const displayPhone = resolvedPhone || sender.phone_number || sender.identifier || '';
@@ -226,7 +244,7 @@ export const main = async (event) => {
       channel: conv.meta?.channel ?? 'whatsapp',
       lastMessage: conv.last_non_activity_message?.content ?? '',
       lastMessageAt: conv.timestamp ? new Date(conv.timestamp * 1000).toISOString() : '',
-      unreadCount: conv.unread_count ?? 0,
+      unreadCount: since ? (conv.unread_count ?? 0) : (sessionItem?.unreadCount ?? 0),
       status: conv.status ?? 'open',
       mensajes,
     }, ACTION);

@@ -11,7 +11,7 @@ import {
   sendTextMessage,
   downloadMedia,
 } from '../helpers/whatsapp-api.js';
-import { buildSessionItem, buildTurnItem, toGeminiHistory, normalizePhone } from '../mappers/map-conversacion-item.js';
+import { buildTurnItem, toGeminiHistory, normalizePhone } from '../mappers/map-conversacion-item.js';
 import { derivarAHumano } from '../helpers/chatwoot-api.js';
 import { sendMetaTextMessage } from '../helpers/messenger-api.js';
 import { getPresignedUrl } from '../../../libs/s3-v3.js';
@@ -122,13 +122,23 @@ async function saveConversation(phoneNumber, userText, modelText, collectedData)
   const { CONVERSATIONS_TABLE } = process.env;
   const now = new Date().toISOString();
   const ttl = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60;
+  const normalizedPhone = normalizePhone(phoneNumber);
+  const sessionKey = `CONV#${normalizedPhone}`;
 
   const userItem = buildTurnItem(phoneNumber, `MSG#${uuidv7()}`, 'user', sanitizeForHistory(userText));
-  const sessionItem = { ...buildSessionItem(phoneNumber, collectedData), updatedAt: now, ttl };
 
+  // UpdateItem atómico: incrementa unreadCount con ADD para no perder el contador si hay
+  // escrituras concurrentes, y preserva createdAt/phoneNumber si el item ya existe.
   const writes = [
     dynamoDbLib.put({ TableName: CONVERSATIONS_TABLE, Item: userItem }),
-    dynamoDbLib.put({ TableName: CONVERSATIONS_TABLE, Item: sessionItem }),
+    dynamoDbLib.update({
+      TableName: CONVERSATIONS_TABLE,
+      Key: { pk: sessionKey, sk: sessionKey },
+      UpdateExpression: 'SET collectedData = :cd, lastMessageAt = :now, updatedAt = :now, #ttl = :ttl, createdAt = if_not_exists(createdAt, :now), phoneNumber = if_not_exists(phoneNumber, :phone) ADD unreadCount :one',
+      ExpressionAttributeNames: { '#ttl': 'ttl' },
+      ExpressionAttributeValues: { ':cd': collectedData, ':now': now, ':ttl': ttl, ':one': 1, ':phone': normalizedPhone },
+      ReturnValues: 'NONE',
+    }),
   ];
 
   // Solo guardar el turno del modelo si hay texto (evita burbujas en blanco en el portal).

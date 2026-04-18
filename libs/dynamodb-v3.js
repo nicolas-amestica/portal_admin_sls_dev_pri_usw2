@@ -1,6 +1,6 @@
 import { getAWSConfigs } from "./configs";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, DeleteCommand, GetCommand, PutCommand, QueryCommand, ScanCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import { BatchGetCommand, DynamoDBDocumentClient, DeleteCommand, GetCommand, PutCommand, QueryCommand, ScanCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 
 let dynamoDb;
 
@@ -150,7 +150,9 @@ export const remove = async (params) => {
  * null si no hay atributos, o un error si ocurre una excepción.
  */
 export const update = async (params) => {
-  params = { ...params, ReturnValues: "ALL_NEW" };
+  if (!params.ReturnValues) {
+    params = { ...params, ReturnValues: "ALL_NEW" };
+  }
   try {
     if (!dynamoDb) await initClient();
     const command = new UpdateCommand(params);
@@ -159,6 +161,50 @@ export const update = async (params) => {
     if (!Attributes) return null;
 
     return Attributes;
+  } catch (e) {
+    throw e;
+  }
+};
+
+/**
+ * Obtiene múltiples elementos de DynamoDB en una sola llamada (batch).
+ * Retorna un objeto `{ [TableName]: items[] }` equivalente a `result.Responses`.
+ *
+ * @async
+ * @function
+ * @param {Object} params - Parámetros para BatchGetCommand (RequestItems).
+ * @returns {Promise<Object>} Mapa de tabla → array de items encontrados.
+ */
+export const batchGet = async (params) => {
+  try {
+    if (!dynamoDb) await initClient();
+    let requestItems = params.RequestItems;
+    let allResponses = {};
+    let attempt = 0;
+    const MAX_RETRIES = 3;
+
+    while (true) {
+      const command = new BatchGetCommand({ ...params, RequestItems: requestItems });
+      const result = await dynamoDb.send(command);
+
+      for (const [table, items] of Object.entries(result.Responses ?? {})) {
+        allResponses[table] = [...(allResponses[table] ?? []), ...items];
+      }
+
+      const unprocessed = result.UnprocessedKeys ?? {};
+      if (!Object.keys(unprocessed).length) break;
+
+      attempt++;
+      if (attempt > MAX_RETRIES) {
+        console.warn(`[batchGet] UnprocessedKeys tras ${MAX_RETRIES} reintentos — datos parciales.`);
+        break;
+      }
+
+      await new Promise((r) => setTimeout(r, 100 * 2 ** (attempt - 1)));
+      requestItems = unprocessed;
+    }
+
+    return allResponses;
   } catch (e) {
     throw e;
   }
