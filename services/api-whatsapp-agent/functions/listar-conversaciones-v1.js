@@ -75,11 +75,13 @@ export const main = async (_event) => {
           for (const item of responses[CONVERSATIONS_TABLE] ?? []) byKey.set(item.pk, item);
         }
 
-        // DynamoDB es la única fuente de unreadCount — nunca usar el valor de Chatwoot.
-        // Si no hay session item para una conversación, el contador es 0.
+        // DynamoDB es la fuente de verdad para contadores y último mensaje del portal.
+        // Chatwoot no conoce los mensajes manejados por el bot → sus valores son stale.
         for (const conv of conPhone) {
           const sessionItem = byKey.get(`CONV#${normalizePhone(conv.phoneNumber)}`);
           conv.unreadCount = sessionItem?.unreadCount ?? 0;
+          if (sessionItem?.lastMessageText) conv.lastMessage = sessionItem.lastMessageText;
+          if (sessionItem?.lastMessageAt) conv.lastMessageAt = sessionItem.lastMessageAt;
         }
       } catch (err) {
         // En caso de error del BatchGet, poner 0 en lugar de mostrar el valor de Chatwoot.

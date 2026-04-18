@@ -134,9 +134,9 @@ async function saveConversation(phoneNumber, userText, modelText, collectedData)
     dynamoDbLib.update({
       TableName: CONVERSATIONS_TABLE,
       Key: { pk: sessionKey, sk: sessionKey },
-      UpdateExpression: 'SET collectedData = :cd, lastMessageAt = :now, updatedAt = :now, #ttl = :ttl, createdAt = if_not_exists(createdAt, :now), phoneNumber = if_not_exists(phoneNumber, :phone) ADD unreadCount :one',
+      UpdateExpression: 'SET collectedData = :cd, lastMessageAt = :now, lastMessageText = :txt, updatedAt = :now, #ttl = :ttl, createdAt = if_not_exists(createdAt, :now), phoneNumber = if_not_exists(phoneNumber, :phone) ADD unreadCount :one',
       ExpressionAttributeNames: { '#ttl': 'ttl' },
-      ExpressionAttributeValues: { ':cd': collectedData, ':now': now, ':ttl': ttl, ':one': 1, ':phone': normalizedPhone },
+      ExpressionAttributeValues: { ':cd': collectedData, ':now': now, ':txt': sanitizeForHistory(userText).slice(0, 100), ':ttl': ttl, ':one': 1, ':phone': normalizedPhone },
       ReturnValues: 'NONE',
     }),
   ];
