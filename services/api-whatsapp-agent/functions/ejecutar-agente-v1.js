@@ -283,14 +283,20 @@ export const main = async (event) => {
     console.error(`[${ACTION}] Error en Gemini para ${phoneNumber}:`, error.message, error.stack);
     // Await en paralelo para garantizar que el write en DynamoDB termina antes de retornar
     // (Lambda mata promesas pendientes tras el return → fire-and-forget pierde el UpdateItem).
-    await Promise.all([
+    const [, chatwootId] = await Promise.all([
       saveConversation(phoneNumber, text, '', collectedData).catch((e) =>
         console.error(`[${ACTION}] Error guardando turno tras error Gemini:`, e.message)
       ),
-      derivarAHumano(phoneNumber, text, 'error_gemini', channel, collectedData).catch((e) =>
-        console.error(`[${ACTION}] Error creando conversación en Chatwoot:`, e.message)
-      ),
+      derivarAHumano(phoneNumber, text, 'error_gemini', channel, collectedData).catch((e) => {
+        console.error(`[${ACTION}] Error creando conversación en Chatwoot:`, e.message);
+        return null;
+      }),
     ]);
+    if (chatwootId) {
+      await broadcastToScope({ chatwootId }, { type: 'new_message', chatwootId }).catch((err) =>
+        console.warn(`[${ACTION}] Broadcast detalle fallido: ${err.message}`)
+      );
+    }
     return;
   }
 
@@ -305,14 +311,20 @@ export const main = async (event) => {
     const updatedData = mergeCollectedData(collectedData, toolsExecuted);
     // Await en paralelo: sin esto, Lambda puede retornar antes de que el UpdateItem termine y
     // el unreadCount/lastMessageText quedaría sin persistir.
-    await Promise.all([
+    const [, chatwootId] = await Promise.all([
       saveConversation(phoneNumber, text, responseText, updatedData).catch((e) =>
         console.error(`[${ACTION}] Error guardando turno al derivar:`, e.message)
       ),
-      derivarAHumano(phoneNumber, text, reason, channel, collectedData).catch((e) =>
-        console.error(`[${ACTION}] Error creando conversación en Chatwoot:`, e.message)
-      ),
+      derivarAHumano(phoneNumber, text, reason, channel, collectedData).catch((e) => {
+        console.error(`[${ACTION}] Error creando conversación en Chatwoot:`, e.message);
+        return null;
+      }),
     ]);
+    if (chatwootId) {
+      await broadcastToScope({ chatwootId }, { type: 'new_message', chatwootId }).catch((err) =>
+        console.warn(`[${ACTION}] Broadcast detalle fallido: ${err.message}`)
+      );
+    }
     return;
   }
 

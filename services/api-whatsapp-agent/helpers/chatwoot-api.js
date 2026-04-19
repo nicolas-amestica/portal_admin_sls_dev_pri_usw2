@@ -282,4 +282,6 @@ export async function derivarAHumano(phoneNumber, userText, reason, channel, col
     method: 'POST',
     body: JSON.stringify({ content: lines.join('\n'), private: true }),
   });
+
+  return conversationId;
 }
