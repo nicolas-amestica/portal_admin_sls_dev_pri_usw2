@@ -5,40 +5,48 @@ const TTL_24H = () => Math.floor(Date.now() / 1000) + 24 * 60 * 60;
 
 /**
  * @description Registra una conexión WebSocket activa en DynamoDB.
- * Persiste dos items para lookup bidireccional:
- *  - WS#<chatwootId> / CONN#<connectionId>  → permite notificar a todos los admins de una conv.
- *  - WSCONN#<connectionId> / WSCONN#<connectionId>  → permite resolver chatwootId en disconnect.
+ * Dos scopes posibles:
+ *  - ?scope=list → canal de bandeja (clave pk = WS#LIST). Recibe eventos de conversación actualizada.
+ *  - ?chatwootId=<id> → canal por conversación (clave pk = WS#<id>). Recibe nuevos mensajes de esa conv.
  *
- * El cliente debe pasar ?chatwootId=<id> en la URL de conexión WebSocket.
+ * Índice inverso WSCONN#<connectionId> guarda el pk de origen para resolver la partición en disconnect.
  *
  * @param {object} event - Evento de API Gateway WebSocket ($connect route).
  */
 export const main = async (event) => {
   try {
     const connectionId = event.requestContext.connectionId;
+    const scope = event.queryStringParameters?.scope;
     const chatwootId = event.queryStringParameters?.chatwootId;
 
-    if (!chatwootId) {
-      console.warn(`[${ACTION}] Conexión ${connectionId} rechazada: falta chatwootId`);
+    let pk;
+    const itemExtra = { createdAt: new Date().toISOString(), ttl: TTL_24H(), connectionId };
+
+    if (scope === 'list') {
+      pk = 'WS#LIST';
+      itemExtra.scope = 'LIST';
+    } else if (chatwootId) {
+      pk = `WS#${chatwootId}`;
+      itemExtra.chatwootId = Number(chatwootId);
+    } else {
+      console.warn(`[${ACTION}] Conexión ${connectionId} rechazada: falta scope o chatwootId`);
       return { statusCode: 400 };
     }
 
     const { CONVERSATIONS_TABLE } = process.env;
-    const now = new Date().toISOString();
-    const ttl = TTL_24H();
 
     await Promise.all([
       dynamoDbLib.put({
         TableName: CONVERSATIONS_TABLE,
-        Item: { pk: `WS#${chatwootId}`, sk: `CONN#${connectionId}`, connectionId, chatwootId: Number(chatwootId), createdAt: now, ttl },
+        Item: { pk, sk: `CONN#${connectionId}`, ...itemExtra },
       }),
       dynamoDbLib.put({
         TableName: CONVERSATIONS_TABLE,
-        Item: { pk: `WSCONN#${connectionId}`, sk: `WSCONN#${connectionId}`, chatwootId: Number(chatwootId), createdAt: now, ttl },
+        Item: { pk: `WSCONN#${connectionId}`, sk: `WSCONN#${connectionId}`, sourcePk: pk, ...itemExtra },
       }),
     ]);
 
-    console.log(`[${ACTION}] Conexión ${connectionId} registrada para chatwootId ${chatwootId}`);
+    console.log(`[${ACTION}] Conexión ${connectionId} registrada en ${pk}`);
     return { statusCode: 200 };
   } catch (error) {
     console.error(`[${ACTION}] Error:`, error.message);

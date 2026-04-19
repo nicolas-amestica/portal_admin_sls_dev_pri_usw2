@@ -16,6 +16,7 @@ import { derivarAHumano } from '../helpers/chatwoot-api.js';
 import { sendMetaTextMessage } from '../helpers/messenger-api.js';
 import { getPresignedUrl } from '../../../libs/s3-v3.js';
 import { shortenUrl } from '../helpers/url-shortener.js';
+import { broadcastToScope } from '../helpers/ws-broadcast.js';
 
 const ACTION = 'Ejecutar agente WhatsApp';
 // Cada turno ocupa 2 items en DynamoDB (user + model). +1 por si el item de sesión aparece.
@@ -124,22 +125,21 @@ async function saveConversation(phoneNumber, userText, modelText, collectedData)
   const ttl = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60;
   const normalizedPhone = normalizePhone(phoneNumber);
   const sessionKey = `CONV#${normalizedPhone}`;
+  const lastMessageText = sanitizeForHistory(userText).slice(0, 100);
 
   const userItem = buildTurnItem(phoneNumber, `MSG#${uuidv7()}`, 'user', sanitizeForHistory(userText));
 
-  // UpdateItem atómico: incrementa unreadCount con ADD para no perder el contador si hay
-  // escrituras concurrentes, y preserva createdAt/phoneNumber si el item ya existe.
-  const writes = [
-    dynamoDbLib.put({ TableName: CONVERSATIONS_TABLE, Item: userItem }),
-    dynamoDbLib.update({
-      TableName: CONVERSATIONS_TABLE,
-      Key: { pk: sessionKey, sk: sessionKey },
-      UpdateExpression: 'SET collectedData = :cd, lastMessageAt = :now, lastMessageText = :txt, updatedAt = :now, #ttl = :ttl, createdAt = if_not_exists(createdAt, :now), phoneNumber = if_not_exists(phoneNumber, :phone) ADD unreadCount :one',
-      ExpressionAttributeNames: { '#ttl': 'ttl' },
-      ExpressionAttributeValues: { ':cd': collectedData, ':now': now, ':txt': sanitizeForHistory(userText).slice(0, 100), ':ttl': ttl, ':one': 1, ':phone': normalizedPhone },
-      ReturnValues: 'NONE',
-    }),
-  ];
+  // UPDATED_NEW devuelve el unreadCount post-ADD sin una read extra (lo usamos para el broadcast).
+  const sessionUpdate = dynamoDbLib.update({
+    TableName: CONVERSATIONS_TABLE,
+    Key: { pk: sessionKey, sk: sessionKey },
+    UpdateExpression: 'SET collectedData = :cd, lastMessageAt = :now, lastMessageText = :txt, updatedAt = :now, #ttl = :ttl, createdAt = if_not_exists(createdAt, :now), phoneNumber = if_not_exists(phoneNumber, :phone) ADD unreadCount :one',
+    ExpressionAttributeNames: { '#ttl': 'ttl' },
+    ExpressionAttributeValues: { ':cd': collectedData, ':now': now, ':txt': lastMessageText, ':ttl': ttl, ':one': 1, ':phone': normalizedPhone },
+    ReturnValues: 'UPDATED_NEW',
+  });
+
+  const writes = [dynamoDbLib.put({ TableName: CONVERSATIONS_TABLE, Item: userItem }), sessionUpdate];
 
   // Solo guardar el turno del modelo si hay texto (evita burbujas en blanco en el portal).
   if (modelText?.trim()) {
@@ -147,7 +147,18 @@ async function saveConversation(phoneNumber, userText, modelText, collectedData)
     writes.push(dynamoDbLib.put({ TableName: CONVERSATIONS_TABLE, Item: modelItem }));
   }
 
-  await Promise.all(writes);
+  const results = await Promise.all(writes);
+  const unreadCount = results[1]?.unreadCount ?? 0;
+
+  // Notificar a la bandeja (canal LIST) para que los admins vean el badge y el último mensaje
+  // sin esperar al polling de fallback. No crítico: si falla el polling recupera el estado.
+  await broadcastToScope('LIST', {
+    type: 'conversation_updated',
+    phoneNumber: normalizedPhone,
+    unreadCount,
+    lastMessage: lastMessageText,
+    lastMessageAt: now,
+  }).catch((err) => console.warn(`[${ACTION}] Broadcast WS fallido (no crítico): ${err.message}`));
 }
 
 /**
@@ -270,11 +281,16 @@ export const main = async (event) => {
     ({ responseText, toolsExecuted } = await runConversationTurn(history, text, phoneNumber, collectedData, channel, hasHistory));
   } catch (error) {
     console.error(`[${ACTION}] Error en Gemini para ${phoneNumber}:`, error.message, error.stack);
-    // Guardar al menos el mensaje del cliente para que no desaparezca del historial.
-    saveConversation(phoneNumber, text, '', collectedData).catch(() => {});
-    await derivarAHumano(phoneNumber, text, 'error_gemini', channel, collectedData).catch((e) =>
-      console.error(`[${ACTION}] Error creando conversación en Chatwoot:`, e.message)
-    );
+    // Await en paralelo para garantizar que el write en DynamoDB termina antes de retornar
+    // (Lambda mata promesas pendientes tras el return → fire-and-forget pierde el UpdateItem).
+    await Promise.all([
+      saveConversation(phoneNumber, text, '', collectedData).catch((e) =>
+        console.error(`[${ACTION}] Error guardando turno tras error Gemini:`, e.message)
+      ),
+      derivarAHumano(phoneNumber, text, 'error_gemini', channel, collectedData).catch((e) =>
+        console.error(`[${ACTION}] Error creando conversación en Chatwoot:`, e.message)
+      ),
+    ]);
     return;
   }
 
@@ -286,14 +302,17 @@ export const main = async (event) => {
   if (derivado || sinPresupuesto) {
     const reason = sinPresupuesto ? 'sin_presupuesto' : 'sin_respuesta';
     console.log(`[${ACTION}] Mensaje derivado (${reason}) para ${phoneNumber}. Sin respuesta al cliente.`);
-    // Guardar el turno ANTES de derivar para que el historial quede completo en DynamoDB.
     const updatedData = mergeCollectedData(collectedData, toolsExecuted);
-    saveConversation(phoneNumber, text, responseText, updatedData).catch((e) =>
-      console.error(`[${ACTION}] Error guardando turno al derivar:`, e.message)
-    );
-    await derivarAHumano(phoneNumber, text, reason, channel, collectedData).catch((e) =>
-      console.error(`[${ACTION}] Error creando conversación en Chatwoot:`, e.message)
-    );
+    // Await en paralelo: sin esto, Lambda puede retornar antes de que el UpdateItem termine y
+    // el unreadCount/lastMessageText quedaría sin persistir.
+    await Promise.all([
+      saveConversation(phoneNumber, text, responseText, updatedData).catch((e) =>
+        console.error(`[${ACTION}] Error guardando turno al derivar:`, e.message)
+      ),
+      derivarAHumano(phoneNumber, text, reason, channel, collectedData).catch((e) =>
+        console.error(`[${ACTION}] Error creando conversación en Chatwoot:`, e.message)
+      ),
+    ]);
     return;
   }
 

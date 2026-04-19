@@ -1,59 +1,15 @@
-import { ApiGatewayManagementApiClient, PostToConnectionCommand } from '@aws-sdk/client-apigatewaymanagementapi';
-import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { parseEventBody } from '../../../helpers/event-parser.js';
 import { success, unsuccessful } from '../../../helpers/responses.js';
 import { sendTextMessage } from '../helpers/whatsapp-api.js';
+import { broadcastToScope } from '../helpers/ws-broadcast.js';
 
 const ACTION = 'Responder desde Chatwoot a WhatsApp';
-
-let _wsClient = null;
-
-function getWsClient() {
-  if (_wsClient) return _wsClient;
-  _wsClient = new ApiGatewayManagementApiClient({ endpoint: process.env.WS_MANAGEMENT_ENDPOINT });
-  return _wsClient;
-}
-
-/**
- * @description Envía una notificación push a todos los admins conectados vía WebSocket para un chatwootId.
- * Las conexiones obsoletas (GoneException) se eliminan silenciosamente de DynamoDB.
- * @param {number} chatwootId
- * @param {object} data - Payload a enviar al frontend.
- */
-async function notificarConexiones(chatwootId, data) {
-  const { CONVERSATIONS_TABLE } = process.env;
-  const connections = await dynamoDbLib.query({
-    TableName: CONVERSATIONS_TABLE,
-    KeyConditionExpression: 'pk = :pk AND begins_with(sk, :prefix)',
-    ExpressionAttributeValues: { ':pk': `WS#${chatwootId}`, ':prefix': 'CONN#' },
-  });
-
-  if (!connections?.length) return;
-
-  const client = getWsClient();
-  const payload = Buffer.from(JSON.stringify(data));
-
-  await Promise.allSettled(
-    connections.map(async (conn) => {
-      try {
-        await client.send(new PostToConnectionCommand({ ConnectionId: conn.connectionId, Data: payload }));
-      } catch (err) {
-        if (err.statusCode === 410 || err.$metadata?.httpStatusCode === 410) {
-          // Conexión obsoleta: limpiar DynamoDB (fire and forget).
-          Promise.all([
-            dynamoDbLib.remove({ TableName: CONVERSATIONS_TABLE, Key: { pk: `WS#${chatwootId}`, sk: `CONN#${conn.connectionId}` } }),
-            dynamoDbLib.remove({ TableName: CONVERSATIONS_TABLE, Key: { pk: `WSCONN#${conn.connectionId}`, sk: `WSCONN#${conn.connectionId}` } }),
-          ]).catch(() => {});
-        }
-      }
-    })
-  );
-}
 
 /**
  * @description Recibe webhooks de Chatwoot y:
  * 1. Si el mensaje es saliente (del equipo) → reenvía al cliente vía WhatsApp.
- * 2. Si el mensaje es entrante (del cliente) → notifica a los admins conectados vía WebSocket.
+ * 2. Si el mensaje es entrante (del cliente) → notifica vía WebSocket a los admins
+ *    conectados a esa conversación y al canal LIST para refrescar la bandeja.
  *
  * @param {object} event - Evento HTTP de API Gateway con el payload del webhook de Chatwoot.
  */
@@ -80,11 +36,13 @@ export const main = async (event) => {
       console.log(`[${ACTION}] Mensaje enviado a ${phoneNumber}: "${payload.content.slice(0, 60)}"`);
     }
 
-    // Mensajes entrantes del cliente → notificar admins conectados vía WebSocket.
-    if (esIncoming && !payload.private && chatwootId && process.env.WS_MANAGEMENT_ENDPOINT) {
-      notificarConexiones(chatwootId, { type: 'new_message', chatwootId }).catch((err) =>
-        console.warn(`[${ACTION}] Notificación WebSocket falló (no crítico): ${err.message}`)
-      );
+    // Mensajes entrantes del cliente → notificar admins en el detalle y en la lista.
+    // Se awaita para garantizar que la Lambda no termine antes del publish (webhook rápido).
+    if (esIncoming && !payload.private && chatwootId) {
+      await Promise.allSettled([
+        broadcastToScope({ chatwootId }, { type: 'new_message', chatwootId }),
+        broadcastToScope('LIST', { type: 'conversation_updated', chatwootId }),
+      ]);
     }
 
     return success(200, {}, ACTION);

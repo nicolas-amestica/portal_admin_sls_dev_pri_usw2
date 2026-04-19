@@ -3,6 +3,7 @@ import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { parseEventBody } from '../../../helpers/event-parser.js';
 import { success, unsuccessful } from '../../../helpers/responses.js';
 import { enviarMensaje } from '../helpers/chatwoot-api.js';
+import { broadcastToScope } from '../helpers/ws-broadcast.js';
 import { buildTurnItem } from '../mappers/map-conversacion-item.js';
 
 const ACTION = 'Responder conversación derivada';
@@ -47,6 +48,19 @@ export const main = async (event) => {
     } else {
       console.warn(`[${ACTION}] Phone no cacheado para chatwootId ${chatwootId} — write-through omitido`);
     }
+
+    // Propagar a otras pestañas abiertas: detalle recarga delta, lista actualiza último mensaje.
+    const now = new Date().toISOString();
+    await Promise.allSettled([
+      broadcastToScope({ chatwootId }, { type: 'new_message', chatwootId }),
+      broadcastToScope('LIST', {
+        type: 'conversation_updated',
+        chatwootId,
+        phoneNumber: phoneItem?.phone,
+        lastMessage: text.slice(0, 100),
+        lastMessageAt: now,
+      }),
+    ]);
 
     return success(200, {}, ACTION);
   } catch (error) {

@@ -1,6 +1,7 @@
 import { parseEventBody } from '../../../helpers/event-parser.js';
 import { success, unsuccessful } from '../../../helpers/responses.js';
 import { obtenerConversacion, actualizarContacto } from '../helpers/chatwoot-api.js';
+import { broadcastToScope } from '../helpers/ws-broadcast.js';
 
 const ACTION = 'Actualizar contacto';
 
@@ -22,9 +23,15 @@ export const main = async (event) => {
     const contactId = conv?.meta?.sender?.id;
     if (!contactId) throw Object.assign(new Error('Contacto no encontrado en la conversación'), { statusCode: 404 });
 
-    await actualizarContacto(contactId, name.trim());
+    const nuevoNombre = name.trim();
+    await actualizarContacto(contactId, nuevoNombre);
 
-    return success(200, { contactId, name: name.trim() }, ACTION);
+    // Propagar el alias actualizado a otras pestañas que tengan la lista abierta.
+    await broadcastToScope('LIST', { type: 'contact_updated', chatwootId, name: nuevoNombre }).catch(
+      (err) => console.warn(`[${ACTION}] Broadcast WS falló: ${err.message}`)
+    );
+
+    return success(200, { contactId, name: nuevoNombre }, ACTION);
   } catch (error) {
     console.error(`[${ACTION}] Error:`, error.message, error.stack);
     return unsuccessful(error.statusCode || 500, error, ACTION);

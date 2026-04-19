@@ -244,7 +244,10 @@ export const main = async (event) => {
       channel: conv.meta?.channel ?? 'whatsapp',
       lastMessage: conv.last_non_activity_message?.content ?? '',
       lastMessageAt: conv.timestamp ? new Date(conv.timestamp * 1000).toISOString() : '',
-      unreadCount: since ? (conv.unread_count ?? 0) : (sessionItem?.unreadCount ?? 0),
+      // En delta no se relee el sessionItem (optimización). Chatwoot.unread_count está siempre
+      // stale porque los mensajes del bot no pasan por Chatwoot → el polling de la lista ya
+      // provee el valor correcto, acá devolvemos 0 para no pisar ese estado.
+      unreadCount: since ? 0 : (sessionItem?.unreadCount ?? 0),
       status: conv.status ?? 'open',
       mensajes,
     }, ACTION);

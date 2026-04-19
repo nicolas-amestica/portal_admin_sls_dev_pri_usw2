@@ -1,6 +1,7 @@
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { success, unsuccessful } from '../../../helpers/responses.js';
 import { resolverConversacion } from '../helpers/chatwoot-api.js';
+import { broadcastToScope } from '../helpers/ws-broadcast.js';
 
 const ACTION = 'Eliminar conversación';
 
@@ -78,6 +79,11 @@ export const main = async (event) => {
 
     // Ejecutar todas las eliminaciones DynamoDB y resolver en Chatwoot en paralelo
     await Promise.all([...deletePromises, resolverConversacion(chatwootId)]);
+
+    // Propagar la eliminación a otras pestañas con la lista abierta para que la retiren sin fetch.
+    await broadcastToScope('LIST', { type: 'conversation_deleted', chatwootId }).catch(
+      (err) => console.warn(`[${ACTION}] Broadcast WS falló: ${err.message}`)
+    );
 
     return success(200, { chatwootId }, ACTION);
   } catch (error) {

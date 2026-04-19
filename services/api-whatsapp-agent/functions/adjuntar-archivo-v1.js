@@ -5,6 +5,7 @@ import { success, unsuccessful } from '../../../helpers/responses.js';
 import { obtenerConversacion, enviarAdjuntoChatwoot } from '../helpers/chatwoot-api.js';
 import { uploadMedia, sendDocumentById, sendImageById, sendAudioById } from '../helpers/whatsapp-api.js';
 import { getObjectBuffer, deleteObject } from '../../../libs/s3-v3.js';
+import { broadcastToScope } from '../helpers/ws-broadcast.js';
 import { buildTurnItem, normalizePhone } from '../mappers/map-conversacion-item.js';
 
 const ACTION = 'Adjuntar archivo a conversación';
@@ -110,6 +111,20 @@ export const main = async (event) => {
     deleteObject({ Bucket: BUCKET_INFO_GI, Key: s3Key }).catch((err) =>
       console.warn(`[${ACTION}] No se pudo eliminar objeto S3 "${s3Key}": ${err.message}`)
     );
+
+    // Propagar a otras pestañas: detalle recarga delta, lista muestra el adjunto como último mensaje.
+    const preview = caption?.trim() || `📎 ${fileName}`;
+    const now = new Date().toISOString();
+    await Promise.allSettled([
+      broadcastToScope({ chatwootId }, { type: 'new_message', chatwootId }),
+      broadcastToScope('LIST', {
+        type: 'conversation_updated',
+        chatwootId,
+        phoneNumber: resolvedForWrite,
+        lastMessage: preview.slice(0, 100),
+        lastMessageAt: now,
+      }),
+    ]);
 
     console.log(`[${ACTION}] "${fileName}" enviado a ${phoneNumber} en conversación ${chatwootId}`);
     return success(200, {}, ACTION);
