@@ -1,10 +1,11 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getParameterValue } from '../../../libs/parameter-store.js';
 import { buscarPresupuestos } from '../tools/buscar-presupuestos.js';
-import { crearReunion } from '../tools/crear-reunion.js';
+import { crearReunion, buscarEventosPorTelefono } from '../tools/crear-reunion.js';
 import { listarReunion } from '../tools/listar-reunion.js';
 import { editarReunion } from '../tools/editar-reunion.js';
 import { cancelarReunion } from '../tools/cancelar-reunion.js';
+import { getCalendarAccessToken } from '../../../helpers/google-calendar-auth.js';
 
 /** Cache del cliente Gemini en memoria. */
 let _geminiClient = null;
@@ -261,13 +262,16 @@ function buildSystemPrompt(phoneNumber, collectedData, channel, hasHistory = fal
   }
 
   ## Flujo para gestionar reuniones
-  - Crear (seguir en orden estricto):
+  - **Si el cliente YA tiene una reunión** (ver "Estado de reunión" en el contexto):
+    - Para cambiar fecha/hora: llamar SIEMPRE a editar_reunion. NUNCA llamar a crear_reunion aunque tengas todos los datos.
+    - Para cancelar: pedir confirmación explícita, luego llamar cancelar_reunion.
+    - Para consultar: llamar listar_reunion.
+  - **Si el cliente NO tiene reunión** — Crear (seguir en orden):
     1. Cada vez que el cliente proporcione nombre, fecha, hora o correo, llama PRIMERO a guardar_datos_reunion con los datos recibidos en ese turno.
-    2. Verifica si ya tienes TODOS los datos necesarios: nombre, fecha, hora y correo electrónico (revisa el historial Y los "Datos ya recopilados" del contexto actual).
-    3. Si tienes TODOS los datos: llama a crear_reunion INMEDIATAMENTE. No pidas confirmación adicional de los datos.
+    2. Verifica si ya tienes TODOS los datos: nombre, fecha, hora y correo electrónico (revisa el historial Y los "Datos ya recopilados" del contexto).
+    3. Si tienes TODOS los datos: llama a crear_reunion INMEDIATAMENTE. No pidas confirmación adicional.
     4. Si faltan datos: pide SOLO lo que falta en un único mensaje.
   - NUNCA repitas una pregunta sobre un dato que el cliente ya te proporcionó en esta conversación.
-  - Consultar/Reagendar/Cancelar: usa las herramientas correspondientes. Pide confirmación explícita para cancelaciones.
 
   ## Reglas estrictas
   - No inventes precios. Guía siempre al envío del PDF o a la reunión informativa.
@@ -307,9 +311,12 @@ function sanitizeResultForModel(name, result) {
  * @param {string} name - Nombre de la función.
  * @param {object} args - Argumentos de la función provistos por Gemini.
  * @param {object} collectedData - Datos de sesión del cliente (incluye codigoEvento si ya creó reunión).
+ * @param {string} [phoneNumber] - Número del cliente (con o sin '+'). Fallback para sesiones stale.
  * @returns {Promise<object>} Resultado de la herramienta.
  */
-async function executeTool(name, args, collectedData) {
+async function executeTool(name, args, collectedData, phoneNumber) {
+  const phone = phoneNumber?.replace(/^\+/, '') || null;
+
   if (name === 'sin_respuesta') {
     return { derivado: true, motivo: args.motivo };
   }
@@ -321,28 +328,39 @@ async function executeTool(name, args, collectedData) {
     return buscarPresupuestos(args);
   }
   if (name === 'crear_reunion') {
-    // Si el cliente ya tiene una reunión, eliminarla usando eventId directo (más confiable que buscar por texto).
-    if (collectedData?.codigoEvento) {
-      await cancelarReunion({ codigoEvento: collectedData.codigoEvento, eventId: collectedData.eventId }).catch((err) =>
-        console.warn('[GEMINI] No se pudo cancelar reunión anterior:', err.message)
+    // Eliminar reuniones previas: por teléfono (cubre sesiones stale) y por eventId (sesión activa).
+    if (phone) {
+      const accessToken = await getCalendarAccessToken();
+      const previos = await buscarEventosPorTelefono(process.env.GOOGLE_CALENDAR_ID || 'primary', phone, accessToken).catch(() => []);
+      await Promise.all(previos.map((e) =>
+        cancelarReunion({ eventId: e.id }).catch((err) => console.warn('[GEMINI] No se pudo eliminar evento previo:', err.message))
+      ));
+    }
+    if (collectedData?.eventId) {
+      await cancelarReunion({ eventId: collectedData.eventId }).catch((err) =>
+        console.warn('[GEMINI] No se pudo cancelar reunión por eventId:', err.message)
       );
     }
-    return crearReunion({ ...args, destino: collectedData?.destino });
+    return crearReunion({ ...args, destino: collectedData?.destino, phoneNumber: phone });
   }
   if (name === 'listar_reunion') {
     // El código viene siempre de la sesión, no del modelo.
     return listarReunion({ codigoEvento: collectedData?.codigoEvento });
   }
   if (name === 'editar_reunion') {
-    // Pasar eventId directo para evitar búsqueda por texto en Google Calendar.
-    return editarReunion({ ...args, codigoEvento: collectedData?.codigoEvento, eventId: collectedData?.eventId });
+    return editarReunion({
+      ...args,
+      codigoEvento: collectedData?.codigoEvento,
+      eventId: collectedData?.eventId,
+      phoneNumber: phone,
+    });
   }
   if (name === 'cancelar_reunion') {
     // Guard programático: bloquear la cancelación si el modelo no obtuvo confirmación explícita.
     if (args.confirmado !== true) {
       return { exito: false, mensaje: 'Confirmación requerida. Pregunta al cliente si confirma la cancelación antes de proceder.' };
     }
-    return cancelarReunion({ codigoEvento: collectedData?.codigoEvento });
+    return cancelarReunion({ codigoEvento: collectedData?.codigoEvento, eventId: collectedData?.eventId, phoneNumber: phone });
   }
   throw new Error(`Herramienta desconocida: ${name}`);
 }
@@ -384,7 +402,7 @@ export async function runConversationTurn(history, newMessage, phoneNumber, coll
 
     let result;
     try {
-      result = await executeTool(name, args, collectedData);
+      result = await executeTool(name, args, collectedData, phoneNumber);
     } catch (err) {
       result = { error: err.message };
     }

@@ -46,6 +46,26 @@ const DESTINO_LABEL = {
 };
 
 /**
+ * @description Busca eventos futuros del cliente por número de teléfono usando extendedProperties.private.
+ * Permite encontrar reuniones aunque la sesión en DynamoDB esté vacía o haya expirado.
+ *
+ * @param {string} calendarId
+ * @param {string} phone - Número normalizado sin '+' (ej: '56959139687').
+ * @param {string} accessToken
+ * @returns {Promise<object[]>} Lista de eventos encontrados.
+ */
+export async function buscarEventosPorTelefono(calendarId, phone, accessToken) {
+  const url = buildCalendarApiUrl(calendarId, null, {
+    privateExtendedProperty: `phoneNumber=${phone}`,
+    singleEvents: 'true',
+    orderBy: 'startTime',
+    timeMin: new Date().toISOString(),
+  });
+  const response = await axios.get(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+  return response.data.items || [];
+}
+
+/**
  * @description Crea una reunión de Google Meet en el calendario de Giras Indómito.
  *
  * @param {object} params
@@ -54,9 +74,10 @@ const DESTINO_LABEL = {
  * @param {string} params.fechaSugerida - Fecha en formato YYYY-MM-DD.
  * @param {string} params.horaSugerida - Hora en formato HH:MM (America/Santiago).
  * @param {string} [params.destino] - Destino de interés (ej: 'bariloche', 'camboriu').
+ * @param {string} [params.phoneNumber] - Teléfono normalizado sin '+'. Se almacena como propiedad privada del evento.
  * @returns {Promise<{meetLink: string, eventId: string, codigoEvento: string, fecha: string, hora: string}>}
  */
-export async function crearReunion({ nombreCliente, emailCliente, fechaSugerida, horaSugerida, destino }) {
+export async function crearReunion({ nombreCliente, emailCliente, fechaSugerida, horaSugerida, destino, phoneNumber }) {
   const { GOOGLE_CALENDAR_ID = 'primary', TIMEZONE = 'America/Santiago' } = process.env;
   const accessToken = await getCalendarAccessToken();
   const codigoEvento = generarCodigoEvento();
@@ -73,6 +94,7 @@ export async function crearReunion({ nombreCliente, emailCliente, fechaSugerida,
     attendees: guests,
     colorId: FLAMINGO_COLOR_ID,
     reminders: { useDefault: false, overrides: NOTIFICATIONS },
+    ...(phoneNumber && { extendedProperties: { private: { phoneNumber } } }),
     conferenceData: {
       createRequest: {
         requestId: randomUUID(),

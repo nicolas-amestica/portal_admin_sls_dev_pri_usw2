@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { getCalendarAccessToken, buildCalendarApiUrl, mapGoogleEventToMeetEvent } from '../../../helpers/google-calendar-auth.js';
+import { buscarEventosPorTelefono } from './crear-reunion.js';
 
 const TIMEZONE = 'America/Santiago';
 
@@ -49,8 +50,7 @@ async function buscarEventoPorCodigo(calendarId, codigoEvento, accessToken) {
 
 /**
  * @description Reagenda la reunión del cliente.
- * Si se pasa eventId, lo usa directamente (más confiable).
- * Si no, busca el evento por codigoEvento en el título del calendario.
+ * Orden de búsqueda: eventId directo → codigoEvento en título → teléfono (fallback para sesiones stale).
  *
  * @param {object} params
  * @param {string} [params.codigoEvento] - Código único del evento (sesión).
@@ -58,35 +58,44 @@ async function buscarEventoPorCodigo(calendarId, codigoEvento, accessToken) {
  * @param {string} params.nuevaFecha - Nueva fecha en formato YYYY-MM-DD.
  * @param {string} params.nuevaHora - Nueva hora de inicio en formato HH:MM (America/Santiago).
  * @param {string} [params.emailCliente] - Email del cliente para enviarle la invitación actualizada.
+ * @param {string} [params.phoneNumber] - Teléfono normalizado sin '+'. Fallback cuando sesión no tiene codigoEvento.
  * @returns {Promise<{exito: boolean, fecha: string, hora: string, meetLink: string|null, mensaje: string}>}
  */
-export async function editarReunion({ codigoEvento, eventId, nuevaFecha, nuevaHora, emailCliente }) {
+export async function editarReunion({ codigoEvento, eventId, nuevaFecha, nuevaHora, emailCliente, phoneNumber }) {
   const { GOOGLE_CALENDAR_ID = 'primary' } = process.env;
 
-  if (!codigoEvento && !eventId) {
+  if (!codigoEvento && !eventId && !phoneNumber) {
     return { exito: false, mensaje: 'No tienes una reunión agendada para reagendar.' };
   }
 
   const accessToken = await getCalendarAccessToken();
 
-  let eventoExistente;
+  let eventoExistente = null;
+
   if (eventId) {
-    // Lookup directo por ID — evita la búsqueda por texto que puede ser lenta o inexacta.
+    // 1. Lookup directo por ID — más rápido y fiable.
     try {
       const url = buildCalendarApiUrl(GOOGLE_CALENDAR_ID, eventId);
       const response = await axios.get(url, { headers: { Authorization: `Bearer ${accessToken}` } });
       eventoExistente = response.data;
     } catch (err) {
       console.error('[EDITAR-REUNION] Error obteniendo evento por ID:', JSON.stringify(err.response?.data ?? err.message));
-      eventoExistente = null;
     }
-  } else {
+  }
+
+  if (!eventoExistente && codigoEvento) {
+    // 2. Búsqueda por código en el título.
     try {
       eventoExistente = await buscarEventoPorCodigo(GOOGLE_CALENDAR_ID, codigoEvento, accessToken);
     } catch (err) {
-      console.error('[EDITAR-REUNION] Error buscando evento:', JSON.stringify(err.response?.data ?? err.message));
-      throw err;
+      console.error('[EDITAR-REUNION] Error buscando por código:', JSON.stringify(err.response?.data ?? err.message));
     }
+  }
+
+  if (!eventoExistente && phoneNumber) {
+    // 3. Fallback por teléfono — cubre sesiones stale o sin codigoEvento/eventId.
+    const events = await buscarEventosPorTelefono(GOOGLE_CALENDAR_ID, phoneNumber, accessToken).catch(() => []);
+    eventoExistente = events[0] || null;
   }
 
   if (!eventoExistente || eventoExistente.status === 'cancelled') {
