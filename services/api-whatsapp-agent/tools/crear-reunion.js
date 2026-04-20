@@ -87,7 +87,7 @@ export async function crearReunion({ nombreCliente, emailCliente, fechaSugerida,
   const summaryDestino = destinoLabel ? ` | ${destinoLabel}` : '';
 
   const eventBody = {
-    summary: `Agente — ${nombreCliente}${summaryDestino} [${codigoEvento}]`,
+    summary: `AG — ${nombreCliente}${summaryDestino} [${codigoEvento}]`,
     description: `Reunión informativa sobre giras de estudio con el apoderado ${nombreCliente}.${destinoLabel ? ` Destino de interés: ${destinoLabel}.` : ''}`,
     start: { dateTime: `${fechaSugerida}T${horaSugerida}:00`, timeZone: TIMEZONE },
     end: { dateTime: buildEndDateTime(fechaSugerida, horaSugerida), timeZone: TIMEZONE },

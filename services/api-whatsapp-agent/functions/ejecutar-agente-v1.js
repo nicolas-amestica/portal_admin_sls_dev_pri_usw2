@@ -20,7 +20,7 @@ import { broadcastToScope } from '../helpers/ws-broadcast.js';
 
 const ACTION = 'Ejecutar agente WhatsApp';
 // Cada turno ocupa 2 items en DynamoDB (user + model). +1 por si el item de sesión aparece.
-const MAX_HISTORY_TURNS = 20;
+const MAX_HISTORY_TURNS = 5;
 const MAX_HISTORY_ITEMS = MAX_HISTORY_TURNS * 2 + 1;
 // Límite de caracteres por mensaje para mitigar prompt injection y abuso de contexto.
 const MAX_MESSAGE_LENGTH = 800;
