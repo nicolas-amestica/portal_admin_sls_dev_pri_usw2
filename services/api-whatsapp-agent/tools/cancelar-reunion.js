@@ -25,36 +25,42 @@ async function buscarEventoPorCodigo(calendarId, codigoEvento, accessToken) {
 }
 
 /**
- * @description Cancela la reunión del cliente buscándola por su código único asignado.
- * No permite cancelar eventos que no pertenezcan al cliente.
+ * @description Cancela la reunión del cliente.
+ * Si se pasa eventId, lo usa directamente (más confiable).
+ * Si no, busca el evento por codigoEvento en el título del calendario.
  *
  * @param {object} params
- * @param {string} params.codigoEvento - Código único del evento (tomado de la sesión, no del usuario).
+ * @param {string} [params.codigoEvento] - Código único del evento (sesión).
+ * @param {string} [params.eventId] - ID directo del evento en Google Calendar (preferido).
  * @returns {Promise<{exito: boolean, mensaje: string}>}
  */
-export async function cancelarReunion({ codigoEvento }) {
+export async function cancelarReunion({ codigoEvento, eventId }) {
   const { GOOGLE_CALENDAR_ID = 'primary' } = process.env;
 
-  if (!codigoEvento) {
+  if (!codigoEvento && !eventId) {
     return { exito: false, mensaje: 'No tienes una reunión agendada para cancelar.' };
   }
 
   const accessToken = await getCalendarAccessToken();
 
-  let eventoExistente;
-  try {
-    eventoExistente = await buscarEventoPorCodigo(GOOGLE_CALENDAR_ID, codigoEvento, accessToken);
-  } catch (err) {
-    console.error('[CANCELAR-REUNION] Error buscando evento:', JSON.stringify(err.response?.data ?? err.message));
-    throw err;
+  let targetEventId = eventId;
+
+  if (!targetEventId) {
+    let eventoExistente;
+    try {
+      eventoExistente = await buscarEventoPorCodigo(GOOGLE_CALENDAR_ID, codigoEvento, accessToken);
+    } catch (err) {
+      console.error('[CANCELAR-REUNION] Error buscando evento:', JSON.stringify(err.response?.data ?? err.message));
+      throw err;
+    }
+    if (!eventoExistente) {
+      return { exito: false, mensaje: 'No se encontró tu reunión. Es posible que ya haya sido cancelada anteriormente.' };
+    }
+    targetEventId = eventoExistente.id;
   }
 
-  if (!eventoExistente) {
-    return { exito: false, mensaje: 'No se encontró tu reunión. Es posible que ya haya sido cancelada anteriormente.' };
-  }
-
   try {
-    const url = buildCalendarApiUrl(GOOGLE_CALENDAR_ID, eventoExistente.id);
+    const url = buildCalendarApiUrl(GOOGLE_CALENDAR_ID, targetEventId);
     await axios.delete(url, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });

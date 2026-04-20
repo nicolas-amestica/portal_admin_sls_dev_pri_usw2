@@ -40,6 +40,11 @@ function buildEndDateTime(date, time) {
   return `${newDate}T${String(newH).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
 }
 
+const DESTINO_LABEL = {
+  bariloche: 'Bariloche',
+  camboriu: 'Camboriú',
+};
+
 /**
  * @description Crea una reunión de Google Meet en el calendario de Giras Indómito.
  *
@@ -48,18 +53,21 @@ function buildEndDateTime(date, time) {
  * @param {string} [params.emailCliente] - Email opcional del cliente.
  * @param {string} params.fechaSugerida - Fecha en formato YYYY-MM-DD.
  * @param {string} params.horaSugerida - Hora en formato HH:MM (America/Santiago).
+ * @param {string} [params.destino] - Destino de interés (ej: 'bariloche', 'camboriu').
  * @returns {Promise<{meetLink: string, eventId: string, codigoEvento: string, fecha: string, hora: string}>}
  */
-export async function crearReunion({ nombreCliente, emailCliente, fechaSugerida, horaSugerida }) {
+export async function crearReunion({ nombreCliente, emailCliente, fechaSugerida, horaSugerida, destino }) {
   const { GOOGLE_CALENDAR_ID = 'primary', TIMEZONE = 'America/Santiago' } = process.env;
   const accessToken = await getCalendarAccessToken();
   const codigoEvento = generarCodigoEvento();
 
   const guests = emailCliente ? [{ email: emailCliente }] : [];
+  const destinoLabel = destino ? (DESTINO_LABEL[destino] ?? destino) : null;
+  const summaryDestino = destinoLabel ? ` | ${destinoLabel}` : '';
 
   const eventBody = {
-    summary: `Reunión Giras Indómito — ${nombreCliente} [${codigoEvento}]`,
-    description: `Reunión informativa sobre giras de estudio con el apoderado ${nombreCliente}.`,
+    summary: `Agente — ${nombreCliente}${summaryDestino} [${codigoEvento}]`,
+    description: `Reunión informativa sobre giras de estudio con el apoderado ${nombreCliente}.${destinoLabel ? ` Destino de interés: ${destinoLabel}.` : ''}`,
     start: { dateTime: `${fechaSugerida}T${horaSugerida}:00`, timeZone: TIMEZONE },
     end: { dateTime: buildEndDateTime(fechaSugerida, horaSugerida), timeZone: TIMEZONE },
     attendees: guests,

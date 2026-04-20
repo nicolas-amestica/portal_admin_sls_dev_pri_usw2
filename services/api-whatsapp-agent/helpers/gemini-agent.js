@@ -80,6 +80,33 @@ const TOOLS = [
         },
       },
       {
+        name: 'guardar_datos_reunion',
+        description:
+          'Persiste datos parciales de la reunión a medida que el cliente los proporciona. Llamar CADA VEZ que el cliente entregue nombre, fecha, hora o correo, ANTES de responderle. Así los datos no se pierden si la conversación se interrumpe.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            nombreCliente: {
+              type: 'STRING',
+              description: 'Nombre del cliente si lo proporcionó en este turno.',
+            },
+            fechaSugerida: {
+              type: 'STRING',
+              description: 'Fecha en formato YYYY-MM-DD si la proporcionó en este turno.',
+            },
+            horaSugerida: {
+              type: 'STRING',
+              description: 'Hora en formato HH:MM si la proporcionó en este turno.',
+            },
+            emailCliente: {
+              type: 'STRING',
+              description: 'Correo electrónico si lo proporcionó en este turno.',
+            },
+          },
+          required: [],
+        },
+      },
+      {
         name: 'listar_reunion',
         description:
           'Muestra la información de la reunión agendada por el cliente. Solo funciona si el cliente ya creó una reunión previamente en esta conversación.',
@@ -172,6 +199,11 @@ function buildSystemPrompt(phoneNumber, collectedData, channel, hasHistory = fal
     ? `El cliente YA tiene una reunión agendada con código [${collectedData.codigoEvento}].`
     : 'El cliente aún NO tiene una reunión agendada.';
 
+  const pending = collectedData?.pendingMeeting;
+  const datosPendientes = pending && Object.keys(pending).length > 0
+    ? `\n  Datos de reunión ya recopilados (NO volver a solicitar): ${JSON.stringify(pending)}`
+    : '';
+
   return `
 
   ## Eres Susana Guevara, encargada de operaciones y ventas de Giras Indómito, empresa chilena especializada en giras de estudio para estudiantes.
@@ -229,7 +261,12 @@ function buildSystemPrompt(phoneNumber, collectedData, channel, hasHistory = fal
   }
 
   ## Flujo para gestionar reuniones
-  - Crear: antes de llamar a crear_reunion, asegúrate de tener el correo electrónico del cliente. Llama a crear_reunion solo con confirmación explícita.
+  - Crear (seguir en orden estricto):
+    1. Cada vez que el cliente proporcione nombre, fecha, hora o correo, llama PRIMERO a guardar_datos_reunion con los datos recibidos en ese turno.
+    2. Verifica si ya tienes TODOS los datos necesarios: nombre, fecha, hora y correo electrónico (revisa el historial Y los "Datos ya recopilados" del contexto actual).
+    3. Si tienes TODOS los datos: llama a crear_reunion INMEDIATAMENTE. No pidas confirmación adicional de los datos.
+    4. Si faltan datos: pide SOLO lo que falta en un único mensaje.
+  - NUNCA repitas una pregunta sobre un dato que el cliente ya te proporcionó en esta conversación.
   - Consultar/Reagendar/Cancelar: usa las herramientas correspondientes. Pide confirmación explícita para cancelaciones.
 
   ## Reglas estrictas
@@ -240,7 +277,7 @@ function buildSystemPrompt(phoneNumber, collectedData, channel, hasHistory = fal
   ## Contexto actual
   Fecha: ${today}
   Número WhatsApp del cliente: ${phoneNumber}
-  Estado de reunión: ${estadoReunion}`;
+  Estado de reunión: ${estadoReunion}${datosPendientes}`;
   }
 
 /**
@@ -276,25 +313,29 @@ async function executeTool(name, args, collectedData) {
   if (name === 'sin_respuesta') {
     return { derivado: true, motivo: args.motivo };
   }
+  if (name === 'guardar_datos_reunion') {
+    // Los datos se persisten vía mergeCollectedData en ejecutar-agente-v1.js; nada que hacer aquí.
+    return { guardado: true };
+  }
   if (name === 'buscar_presupuestos') {
     return buscarPresupuestos(args);
   }
   if (name === 'crear_reunion') {
-    // Si el cliente ya tiene una reunión, cancelarla automáticamente antes de crear la nueva.
-    // Esto evita que queden eventos huérfanos en el calendario.
+    // Si el cliente ya tiene una reunión, eliminarla usando eventId directo (más confiable que buscar por texto).
     if (collectedData?.codigoEvento) {
-      await cancelarReunion({ codigoEvento: collectedData.codigoEvento }).catch((err) =>
+      await cancelarReunion({ codigoEvento: collectedData.codigoEvento, eventId: collectedData.eventId }).catch((err) =>
         console.warn('[GEMINI] No se pudo cancelar reunión anterior:', err.message)
       );
     }
-    return crearReunion(args);
+    return crearReunion({ ...args, destino: collectedData?.destino });
   }
   if (name === 'listar_reunion') {
     // El código viene siempre de la sesión, no del modelo.
     return listarReunion({ codigoEvento: collectedData?.codigoEvento });
   }
   if (name === 'editar_reunion') {
-    return editarReunion({ ...args, codigoEvento: collectedData?.codigoEvento });
+    // Pasar eventId directo para evitar búsqueda por texto en Google Calendar.
+    return editarReunion({ ...args, codigoEvento: collectedData?.codigoEvento, eventId: collectedData?.eventId });
   }
   if (name === 'cancelar_reunion') {
     // Guard programático: bloquear la cancelación si el modelo no obtuvo confirmación explícita.

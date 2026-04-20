@@ -176,11 +176,19 @@ function mergeCollectedData(existingData, toolsExecuted) {
     data.region = presupuestoTool.args.codigoRegion;
   }
 
+  // Acumular datos parciales de reunión a medida que el cliente los proporciona.
+  const guardarTool = toolsExecuted.find((t) => t.name === 'guardar_datos_reunion');
+  if (guardarTool) {
+    const received = Object.fromEntries(Object.entries(guardarTool.args).filter(([, v]) => v));
+    data.pendingMeeting = { ...(data.pendingMeeting || {}), ...received };
+  }
+
   // Guardar el código y el ID del evento cuando se crea una reunión.
   const reunionTool = toolsExecuted.find((t) => t.name === 'crear_reunion' && t.result?.codigoEvento);
   if (reunionTool) {
     data.codigoEvento = reunionTool.result.codigoEvento;
     data.eventId = reunionTool.result.eventId;
+    delete data.pendingMeeting;
   }
 
   // Limpiar el evento si fue cancelado exitosamente.
