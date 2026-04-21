@@ -55,10 +55,6 @@ provider:
     META_PAGE_SECRET_KEY: /pa/${self:custom.stage}/meta-page-config
     # Cambiar a 'true' para habilitar respuestas en Messenger e Instagram
     ENABLE_META_CHANNELS: 'false'
-    CHATWOOT_BASE_URL: https://app.chatwoot.com
-    CHATWOOT_ACCOUNT_ID: '159539'
-    CHATWOOT_INBOX_ID: '105362'
-    CHATWOOT_API_TOKEN_KEY: /pa/${self:custom.stage}/chatwoot-api-token
     WS_MANAGEMENT_ENDPOINT:
       Fn::Join:
         - ''
@@ -128,16 +124,6 @@ functions:
     timeout: 60
     memorySize: 512
 
-  responder_chatwoot_v1:
-    handler: functions/responder-chatwoot-v1.main
-    description: Recibe webhooks de Chatwoot y reenvía las respuestas del equipo al cliente por WhatsApp.
-    timeout: 15
-    memorySize: 256
-    events:
-      - httpApi:
-          path: /v1/chatwoot/webhook
-          method: POST
-
   listar_conversaciones_v1:
     handler: functions/listar-conversaciones-v1.main
     description: Lista las conversaciones abiertas derivadas al equipo humano en la bandeja de entrada.
@@ -155,7 +141,7 @@ functions:
     memorySize: 256
     events:
       - httpApi:
-          path: /v1/inbox/conversaciones/{chatwootId}
+          path: /v1/inbox/conversaciones/{phone}
           method: GET
 
   responder_conversacion_v1:
@@ -165,7 +151,7 @@ functions:
     memorySize: 256
     events:
       - httpApi:
-          path: /v1/inbox/conversaciones/{chatwootId}/responder
+          path: /v1/inbox/conversaciones/{phone}/responder
           method: POST
 
   presign_adjunto_v1:
@@ -185,7 +171,7 @@ functions:
     memorySize: 256
     events:
       - httpApi:
-          path: /v1/inbox/conversaciones/{chatwootId}
+          path: /v1/inbox/conversaciones/{phone}
           method: DELETE
 
   actualizar_contacto_v1:
@@ -195,7 +181,7 @@ functions:
     memorySize: 128
     events:
       - httpApi:
-          path: /v1/inbox/conversaciones/{chatwootId}/contacto
+          path: /v1/inbox/conversaciones/{phone}/contacto
           method: PATCH
 
   adjuntar_archivo_v1:
@@ -205,7 +191,7 @@ functions:
     memorySize: 256
     events:
       - httpApi:
-          path: /v1/inbox/conversaciones/{chatwootId}/adjuntar
+          path: /v1/inbox/conversaciones/{phone}/adjuntar
           method: POST
 
   ws_connect_v1:

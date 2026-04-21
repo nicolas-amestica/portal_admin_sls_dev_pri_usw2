@@ -1,37 +1,48 @@
+import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { parseEventBody } from '../../../helpers/event-parser.js';
 import { success, unsuccessful } from '../../../helpers/responses.js';
-import { obtenerConversacion, actualizarContacto } from '../helpers/chatwoot-api.js';
 import { broadcastToScope } from '../helpers/ws-broadcast.js';
 
 const ACTION = 'Actualizar contacto';
 
 /**
- * @description Actualiza el nombre/alias de un contacto en Chatwoot a partir del ID de conversación.
- * El alias queda persistido en Chatwoot y se refleja en todos los listados.
+ * @description Actualiza el nombre/alias de un contacto en DynamoDB.
+ * Actualiza tanto el item INBOX (listado) como la sesión CONV# (detalle).
  *
- * @param {object} event - Evento HTTP de API Gateway.
+ * @param {object} event - Evento HTTP de API Gateway con pathParameters.phone y body.name.
  */
 export const main = async (event) => {
   try {
-    const chatwootId = Number(event.pathParameters?.chatwootId);
-    if (!chatwootId) throw Object.assign(new Error('chatwootId requerido'), { statusCode: 400 });
+    const phone = event.pathParameters?.phone;
+    if (!phone) throw Object.assign(new Error('phone requerido'), { statusCode: 400 });
 
     const { name } = parseEventBody(event);
     if (!name?.trim()) throw Object.assign(new Error('name es requerido'), { statusCode: 400 });
 
-    const conv = await obtenerConversacion(chatwootId);
-    const contactId = conv?.meta?.sender?.id;
-    if (!contactId) throw Object.assign(new Error('Contacto no encontrado en la conversación'), { statusCode: 404 });
-
     const nuevoNombre = name.trim();
-    await actualizarContacto(contactId, nuevoNombre);
+    const { CONVERSATIONS_TABLE } = process.env;
 
-    // Propagar el alias actualizado a otras pestañas que tengan la lista abierta.
-    await broadcastToScope('LIST', { type: 'contact_updated', chatwootId, name: nuevoNombre }).catch(
+    await Promise.all([
+      dynamoDbLib.update({
+        TableName: CONVERSATIONS_TABLE,
+        Key: { pk: 'INBOX', sk: `CONV#${phone}` },
+        UpdateExpression: 'SET contactName = :name',
+        ConditionExpression: 'attribute_exists(pk)',
+        ExpressionAttributeValues: { ':name': nuevoNombre },
+      }).catch((err) => console.warn(`[${ACTION}] No se pudo actualizar INBOX: ${err.message}`)),
+      dynamoDbLib.update({
+        TableName: CONVERSATIONS_TABLE,
+        Key: { pk: `CONV#${phone}`, sk: `CONV#${phone}` },
+        UpdateExpression: 'SET contactName = :name',
+        ExpressionAttributeValues: { ':name': nuevoNombre },
+      }).catch((err) => console.warn(`[${ACTION}] No se pudo actualizar sesión: ${err.message}`)),
+    ]);
+
+    await broadcastToScope('LIST', { type: 'contact_updated', phone, name: nuevoNombre }).catch(
       (err) => console.warn(`[${ACTION}] Broadcast WS falló: ${err.message}`)
     );
 
-    return success(200, { contactId, name: nuevoNombre }, ACTION);
+    return success(200, { phone, name: nuevoNombre }, ACTION);
   } catch (error) {
     console.error(`[${ACTION}] Error:`, error.message, error.stack);
     return unsuccessful(error.statusCode || 500, error, ACTION);

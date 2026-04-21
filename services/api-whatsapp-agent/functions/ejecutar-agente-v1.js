@@ -12,7 +12,6 @@ import {
   downloadMedia,
 } from '../helpers/whatsapp-api.js';
 import { buildTurnItem, toGeminiHistory, normalizePhone } from '../mappers/map-conversacion-item.js';
-import { derivarAHumano } from '../helpers/chatwoot-api.js';
 import { sendMetaTextMessage } from '../helpers/messenger-api.js';
 import { getPresignedUrl } from '../../../libs/s3-v3.js';
 import { shortenUrl } from '../helpers/url-shortener.js';
@@ -20,7 +19,7 @@ import { broadcastToScope } from '../helpers/ws-broadcast.js';
 
 const ACTION = 'Ejecutar agente WhatsApp';
 // Cada turno ocupa 2 items en DynamoDB (user + model). +1 por si el item de sesión aparece.
-const MAX_HISTORY_TURNS = 5;
+const MAX_HISTORY_TURNS = 20;
 const MAX_HISTORY_ITEMS = MAX_HISTORY_TURNS * 2 + 1;
 // Límite de caracteres por mensaje para mitigar prompt injection y abuso de contexto.
 const MAX_MESSAGE_LENGTH = 800;
@@ -114,6 +113,7 @@ async function loadConversation(phoneNumber) {
 
 /**
  * @description Persiste el nuevo turno y la sesión actualizada en DynamoDB.
+ * Si la conversación ya fue derivada (item INBOX existe), actualiza también ese item.
  * @param {string} phoneNumber
  * @param {string} userText
  * @param {string} modelText
@@ -150,6 +150,15 @@ async function saveConversation(phoneNumber, userText, modelText, collectedData)
   const results = await Promise.all(writes);
   const unreadCount = results[1]?.unreadCount ?? 0;
 
+  // Actualizar item INBOX si la conversación ya fue derivada (ConditionExpression evita crear uno nuevo).
+  dynamoDbLib.update({
+    TableName: CONVERSATIONS_TABLE,
+    Key: { pk: 'INBOX', sk: `CONV#${normalizedPhone}` },
+    UpdateExpression: 'SET lastMessage = :txt, lastMessageAt = :now ADD unreadCount :one',
+    ConditionExpression: 'attribute_exists(pk)',
+    ExpressionAttributeValues: { ':txt': lastMessageText, ':now': now, ':one': 1 },
+  }).catch(() => {}); // No-op si la conversación no está derivada
+
   // Notificar a la bandeja (canal LIST) para que los admins vean el badge y el último mensaje
   // sin esperar al polling de fallback. No crítico: si falla el polling recupera el estado.
   await broadcastToScope('LIST', {
@@ -159,6 +168,68 @@ async function saveConversation(phoneNumber, userText, modelText, collectedData)
     lastMessage: lastMessageText,
     lastMessageAt: now,
   }).catch((err) => console.warn(`[${ACTION}] Broadcast WS fallido (no crítico): ${err.message}`));
+}
+
+const REASON_LABELS = {
+  sin_presupuesto: 'No se encontró presupuesto disponible',
+  sin_respuesta: 'Consulta fuera del alcance del agente',
+  error_gemini: 'Error en el agente de IA (Gemini)',
+};
+
+/**
+ * @description Marca la conversación como derivada al equipo humano escribiendo en la partición
+ * INBOX de DynamoDB. Reemplaza la creación de conversación en Chatwoot.
+ * @param {string} phoneNumber
+ * @param {string} text - Último mensaje del cliente.
+ * @param {string} reason - Motivo de derivación ('sin_presupuesto' | 'sin_respuesta' | 'error_gemini').
+ * @param {string} channel - Canal de origen ('whatsapp' | 'messenger' | 'instagram').
+ * @param {object} collectedData - Datos de sesión del cliente.
+ * @returns {Promise<string>} phone normalizado.
+ */
+async function derivarConversacion(phoneNumber, text, reason, channel, collectedData) {
+  const { CONVERSATIONS_TABLE } = process.env;
+  const phone = normalizePhone(phoneNumber);
+  const now = new Date().toISOString();
+
+  // Leer sesión para obtener contactName si ya fue guardado previamente.
+  const session = await dynamoDbLib.getOne({
+    TableName: CONVERSATIONS_TABLE,
+    Key: { pk: `CONV#${phone}`, sk: `CONV#${phone}` },
+  }).catch(() => null);
+
+  const contactName = session?.contactName || phone;
+
+  await Promise.all([
+    dynamoDbLib.put({
+      TableName: CONVERSATIONS_TABLE,
+      Item: {
+        pk: 'INBOX',
+        sk: `CONV#${phone}`,
+        phone,
+        contactName,
+        channel,
+        reason,
+        reasonLabel: REASON_LABELS[reason] ?? reason,
+        lastMessage: (text ?? '').slice(0, 200),
+        lastMessageAt: now,
+        unreadCount: 1,
+        status: 'derived',
+        createdAt: now,
+        ...(collectedData?.destino && { destino: collectedData.destino }),
+        ...(collectedData?.codigoEvento && { codigoEvento: collectedData.codigoEvento }),
+        ttl: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
+      },
+    }),
+    dynamoDbLib.update({
+      TableName: CONVERSATIONS_TABLE,
+      Key: { pk: `CONV#${phone}`, sk: `CONV#${phone}` },
+      UpdateExpression: 'SET #s = :s',
+      ExpressionAttributeNames: { '#s': 'status' },
+      ExpressionAttributeValues: { ':s': 'derived' },
+    }),
+  ]);
+
+  return phone;
 }
 
 /**
@@ -291,17 +362,17 @@ export const main = async (event) => {
     console.error(`[${ACTION}] Error en Gemini para ${phoneNumber}:`, error.message, error.stack);
     // Await en paralelo para garantizar que el write en DynamoDB termina antes de retornar
     // (Lambda mata promesas pendientes tras el return → fire-and-forget pierde el UpdateItem).
-    const [, chatwootId] = await Promise.all([
+    const [, phone] = await Promise.all([
       saveConversation(phoneNumber, text, '', collectedData).catch((e) =>
         console.error(`[${ACTION}] Error guardando turno tras error Gemini:`, e.message)
       ),
-      derivarAHumano(phoneNumber, text, 'error_gemini', channel, collectedData).catch((e) => {
-        console.error(`[${ACTION}] Error creando conversación en Chatwoot:`, e.message);
+      derivarConversacion(phoneNumber, text, 'error_gemini', channel, collectedData).catch((e) => {
+        console.error(`[${ACTION}] Error derivando conversación:`, e.message);
         return null;
       }),
     ]);
-    if (chatwootId) {
-      await broadcastToScope({ chatwootId }, { type: 'new_message', chatwootId }).catch((err) =>
+    if (phone) {
+      await broadcastToScope({ phone }, { type: 'new_message', phone }).catch((err) =>
         console.warn(`[${ACTION}] Broadcast detalle fallido: ${err.message}`)
       );
     }
@@ -319,17 +390,17 @@ export const main = async (event) => {
     const updatedData = mergeCollectedData(collectedData, toolsExecuted);
     // Await en paralelo: sin esto, Lambda puede retornar antes de que el UpdateItem termine y
     // el unreadCount/lastMessageText quedaría sin persistir.
-    const [, chatwootId] = await Promise.all([
+    const [, phone] = await Promise.all([
       saveConversation(phoneNumber, text, responseText, updatedData).catch((e) =>
         console.error(`[${ACTION}] Error guardando turno al derivar:`, e.message)
       ),
-      derivarAHumano(phoneNumber, text, reason, channel, collectedData).catch((e) => {
-        console.error(`[${ACTION}] Error creando conversación en Chatwoot:`, e.message);
+      derivarConversacion(phoneNumber, text, reason, channel, collectedData).catch((e) => {
+        console.error(`[${ACTION}] Error derivando conversación:`, e.message);
         return null;
       }),
     ]);
-    if (chatwootId) {
-      await broadcastToScope({ chatwootId }, { type: 'new_message', chatwootId }).catch((err) =>
+    if (phone) {
+      await broadcastToScope({ phone }, { type: 'new_message', phone }).catch((err) =>
         console.warn(`[${ACTION}] Broadcast detalle fallido: ${err.message}`)
       );
     }

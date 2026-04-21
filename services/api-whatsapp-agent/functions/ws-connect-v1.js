@@ -7,7 +7,7 @@ const TTL_24H = () => Math.floor(Date.now() / 1000) + 24 * 60 * 60;
  * @description Registra una conexión WebSocket activa en DynamoDB.
  * Dos scopes posibles:
  *  - ?scope=list → canal de bandeja (clave pk = WS#LIST). Recibe eventos de conversación actualizada.
- *  - ?chatwootId=<id> → canal por conversación (clave pk = WS#<id>). Recibe nuevos mensajes de esa conv.
+ *  - ?phone=<phone> → canal por conversación (clave pk = WS#<phone>). Recibe nuevos mensajes de esa conv.
  *
  * Índice inverso WSCONN#<connectionId> guarda el pk de origen para resolver la partición en disconnect.
  *
@@ -17,7 +17,7 @@ export const main = async (event) => {
   try {
     const connectionId = event.requestContext.connectionId;
     const scope = event.queryStringParameters?.scope;
-    const chatwootId = event.queryStringParameters?.chatwootId;
+    const phone = event.queryStringParameters?.phone;
 
     let pk;
     const itemExtra = { createdAt: new Date().toISOString(), ttl: TTL_24H(), connectionId };
@@ -25,11 +25,11 @@ export const main = async (event) => {
     if (scope === 'list') {
       pk = 'WS#LIST';
       itemExtra.scope = 'LIST';
-    } else if (chatwootId) {
-      pk = `WS#${chatwootId}`;
-      itemExtra.chatwootId = Number(chatwootId);
+    } else if (phone) {
+      pk = `WS#${phone}`;
+      itemExtra.phone = phone;
     } else {
-      console.warn(`[${ACTION}] Conexión ${connectionId} rechazada: falta scope o chatwootId`);
+      console.warn(`[${ACTION}] Conexión ${connectionId} rechazada: falta scope o phone`);
       return { statusCode: 400 };
     }
 

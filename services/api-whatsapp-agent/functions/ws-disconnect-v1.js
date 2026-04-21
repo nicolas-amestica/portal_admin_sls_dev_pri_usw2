@@ -5,7 +5,7 @@ const ACTION = 'WebSocket Disconnect';
 /**
  * @description Elimina la conexión WebSocket de DynamoDB al desconectarse el cliente.
  * Usa el índice inverso WSCONN#<connectionId> para resolver el pk de origen sin scan.
- * Soporta dos scopes registrados por ws-connect-v1: canal LIST y canal por chatwootId.
+ * Soporta dos scopes registrados por ws-connect-v1: canal LIST y canal por phone.
  *
  * @param {object} event - Evento de API Gateway WebSocket ($disconnect route).
  */
@@ -18,8 +18,7 @@ export const main = async (event) => {
     const item = await dynamoDbLib.getOne({ TableName: CONVERSATIONS_TABLE, Key: reverseKey });
 
     const deletes = [dynamoDbLib.remove({ TableName: CONVERSATIONS_TABLE, Key: reverseKey })];
-    // sourcePk fue guardado en connect; fallback a WS#<chatwootId> para conexiones creadas pre-refactor.
-    const sourcePk = item?.sourcePk ?? (item?.chatwootId ? `WS#${item.chatwootId}` : null);
+    const sourcePk = item?.sourcePk ?? null;
     if (sourcePk) {
       deletes.push(
         dynamoDbLib.remove({

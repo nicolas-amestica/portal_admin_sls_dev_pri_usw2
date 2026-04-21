@@ -1,91 +1,16 @@
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { success, unsuccessful } from '../../../helpers/responses.js';
-import { obtenerConversacion, obtenerContacto } from '../helpers/chatwoot-api.js';
-import { normalizePhone } from '../mappers/map-conversacion-item.js';
 
 const ACTION = 'Obtener detalle de conversación';
-const TTL_30_DAYS = () => Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60;
+const PAGE_SIZE = 50;
+// Límite superior del rango para filtrar solo items MSG# (mayor que cualquier uuidv7 hex)
+const MSG_SK_END = 'MSG#\uffff';
 
 /**
- * @description Lee el teléfono cacheado para un chatwootId desde DynamoDB.
- * Devuelve null si no existe aún el mapping.
- * @param {number} chatwootId
- * @param {string} table
- * @returns {Promise<string|null>}
- */
-async function getCachedPhone(chatwootId, table) {
-  const item = await dynamoDbLib.getOne({
-    TableName: table,
-    Key: { pk: `CHATWOOT#${chatwootId}`, sk: 'PHONE' },
-  });
-  return item?.phone ?? null;
-}
-
-/**
- * @description Persiste el mapping chatwootId → phone en DynamoDB (TTL 30 días).
- * Permite saltear las llamadas a Chatwoot Contact API en aperturas futuras.
- * @param {number} chatwootId
- * @param {string} phone - Número normalizado (sin '+').
- * @param {string} table
- */
-async function saveCachedPhone(chatwootId, phone, table) {
-  await dynamoDbLib.put({
-    TableName: table,
-    Item: { pk: `CHATWOOT#${chatwootId}`, sk: 'PHONE', phone, ttl: TTL_30_DAYS() },
-  });
-}
-
-/**
- * @description Resuelve el identificador de teléfono correcto para el lookup en DynamoDB.
- * Prueba el valor original (E.164 con '+') y como fallback sin '+', ya que Chatwoot
- * puede devolver el número normalizado con '+' aunque DynamoDB lo tenga sin él.
- * @param {string} phoneOrId
- * @returns {Promise<string>} El identificador que encontró resultados, o el original.
- */
-async function resolvePhoneForDynamo(phoneOrId) {
-  if (!phoneOrId) return '';
-
-  const { CONVERSATIONS_TABLE } = process.env;
-
-  const check = async (candidate) => {
-    const result = await dynamoDbLib.query({
-      TableName: CONVERSATIONS_TABLE,
-      KeyConditionExpression: 'pk = :pk',
-      ExpressionAttributeValues: { ':pk': `CONV#${candidate}` },
-      Limit: 1,
-    });
-    return result?.length > 0;
-  };
-
-  // 1. Intentar con el valor tal como viene de Chatwoot (normalmente E.164 con +).
-  if (await check(phoneOrId)) {
-    console.log(`[${ACTION}] DynamoDB encontrado con clave directa: CONV#${phoneOrId}`);
-    return phoneOrId;
-  }
-
-  // 2. Fallback: probar sin '+' (por si DynamoDB lo almacenó sin prefijo).
-  const withoutPlus = phoneOrId.startsWith('+') ? phoneOrId.slice(1) : `+${phoneOrId}`;
-  if (await check(withoutPlus)) {
-    console.log(`[${ACTION}] DynamoDB encontrado con clave alternativa: CONV#${withoutPlus}`);
-    return withoutPlus;
-  }
-
-  console.warn(`[${ACTION}] No se encontró historial DynamoDB para ${phoneOrId} (ni variante alternativa).`);
-  return phoneOrId;
-}
-
-/**
- * @description Construye el sort key mínimo posible para un timestamp ISO en formato uuidv7.
- * Dado que uuidv7 codifica los primeros 48 bits como Unix ms, cualquier uuidv7 real generado
- * en ese milisegundo tendrá bits aleatorios no nulos y será mayor que este valor piso.
- * Permite filtrar eficientemente usando KeyConditionExpression sin leer toda la partición.
- * @param {string} isoTimestamp
- * @returns {string} Sort key prefijada con 'MSG#'.
+ * @description Convierte un ISO timestamp al sort key mínimo posible en formato uuidv7.
+ * Permite filtrar eficientemente usando sk > sinceSk sin leer toda la partición.
  */
 function sinceSkForTimestamp(isoTimestamp) {
-  // +1ms para excluir el mensaje exactamente en este timestamp:
-  // uuidv7 tiene bits aleatorios > 0 en el mismo ms, por lo que el piso sin +1
-  // siempre sería menor que el sk real y el mensaje se devolvería en cada delta.
   const ms = BigInt(new Date(isoTimestamp).getTime()) + 1n;
   const hi32 = (ms >> 16n).toString(16).padStart(8, '0');
   const lo16 = (ms & 0xffffn).toString(16).padStart(4, '0');
@@ -93,74 +18,53 @@ function sinceSkForTimestamp(isoTimestamp) {
 }
 
 /**
- * @description Carga mensajes del agente IA desde DynamoDB.
- * Si se provee 'since', solo retorna mensajes posteriores a ese timestamp (carga delta).
- * @param {string} phoneOrId - Número de teléfono o PSID resuelto.
- * @param {string|null} [since] - ISO timestamp para carga delta.
- * @returns {Promise<object[]>}
+ * @description Carga mensajes delta: solo los posteriores al timestamp 'since'.
+ * Usado por el frontend al recibir un evento WS new_message para evitar recargar todo.
  */
-async function loadDynamoHistory(phoneOrId, since = null) {
-  if (!phoneOrId) return { msgs: [], sessionItem: null };
-
+async function loadDeltaMsgs(phone, since) {
   const { CONVERSATIONS_TABLE } = process.env;
-  const pk = `CONV#${phoneOrId}`;
-
-  const query = {
+  const pk = `CONV#${phone}`;
+  const items = await dynamoDbLib.iterativeQuery({
     TableName: CONVERSATIONS_TABLE,
+    KeyConditionExpression: 'pk = :pk AND sk > :since',
+    ExpressionAttributeValues: { ':pk': pk, ':since': sinceSkForTimestamp(since) },
     ScanIndexForward: true,
-  };
-
-  if (since) {
-    query.KeyConditionExpression = 'pk = :pk AND sk > :sinceSk';
-    query.ExpressionAttributeValues = { ':pk': pk, ':sinceSk': sinceSkForTimestamp(since) };
-  } else {
-    query.KeyConditionExpression = 'pk = :pk';
-    query.ExpressionAttributeValues = { ':pk': pk };
-  }
-
-  const items = await dynamoDbLib.iterativeQuery(query);
-  if (!items) return { msgs: [], sessionItem: null };
-
-  // En carga completa (sin since), el session item (sk = pk) ya viene en la query — extraerlo
-  // evita una read extra para obtener unreadCount y permite reset condicional.
-  const sessionItem = since ? null : (items.find((i) => i.sk === pk) ?? null);
-  const msgs = items.filter((i) => i.sk.startsWith('MSG#'));
-  console.log(`[${ACTION}] DynamoDB: ${msgs.length} mensajes para ${pk}${since ? ` (delta desde ${since})` : ''}`);
-  return { msgs, sessionItem };
+  }) ?? [];
+  return items.filter((i) => i.sk.startsWith('MSG#'));
 }
 
 /**
- * @description Extrae el identificador de contacto más confiable desde Chatwoot.
- * Primero intenta el contacto completo vía API; si falla usa el meta del sender.
- * @param {object} sender - Objeto meta.sender de la conversación.
- * @returns {Promise<string>}
+ * @description Carga una página de PAGE_SIZE mensajes en orden DESC (más recientes primero).
+ * Si se pasa cursor (sk del mensaje más antiguo visible), devuelve la página anterior a él.
+ * Devuelve msgs en orden cronológico (ASC) para el frontend.
  */
-async function resolveContactIdentifier(sender) {
-  const contactId = sender?.id;
+async function loadMsgsPage(phone, cursor) {
+  const { CONVERSATIONS_TABLE } = process.env;
+  const pk = `CONV#${phone}`;
 
-  if (contactId) {
-    try {
-      const contact = await obtenerContacto(contactId);
-      const phone = contact.phone_number || contact.identifier;
-      console.log(`[${ACTION}] Contacto Chatwoot ${contactId}: phone="${contact.phone_number}" identifier="${contact.identifier}"`);
-      if (phone) return phone;
-    } catch (err) {
-      console.warn(`[${ACTION}] No se pudo obtener contacto ${contactId} de Chatwoot: ${err.message}`);
-    }
-  }
+  // BETWEEN 'MSG#' AND (cursor | MSG_SK_END) + ScanIndexForward=false → últimos PAGE_SIZE msgs
+  const rawItems = await dynamoDbLib.query({
+    TableName: CONVERSATIONS_TABLE,
+    KeyConditionExpression: 'pk = :pk AND sk BETWEEN :start AND :end',
+    ExpressionAttributeValues: { ':pk': pk, ':start': 'MSG#', ':end': cursor ?? MSG_SK_END },
+    ScanIndexForward: false,
+    Limit: PAGE_SIZE + 1,
+  }) ?? [];
 
-  // Fallback al meta del sender de la conversación.
-  const fallback = sender?.phone_number || sender?.identifier || '';
-  console.log(`[${ACTION}] Usando fallback del meta.sender: "${fallback}"`);
-  return fallback;
+  // Excluir el cursor mismo (BETWEEN es inclusivo en ambos extremos)
+  const items = cursor ? rawItems.filter((i) => i.sk !== cursor) : rawItems;
+  const hasMore = items.length > PAGE_SIZE;
+  const page = items.slice(0, PAGE_SIZE);
+
+  return {
+    msgs: [...page].reverse(), // cronológico para el frontend
+    hasMore,
+    nextCursor: hasMore ? page[page.length - 1].sk : null,
+  };
 }
 
 /**
- * @description Convierte items de DynamoDB al formato de mensajes del portal.
- * Los roles posibles son: 'cliente', 'agente_ia', 'equipo'.
- * Incluye adjuntos si el item los tiene (write-through desde adjuntar-archivo-v1).
- * @param {object[]} dynamoMsgs - Items DynamoDB con campos role, parts, createdAt y adjuntos opcional.
- * @returns {object[]}
+ * @description Convierte items DynamoDB al formato de mensajes del portal.
  */
 function mapDynamoMessages(dynamoMsgs) {
   return dynamoMsgs.map((m) => ({
@@ -172,84 +76,73 @@ function mapDynamoMessages(dynamoMsgs) {
 }
 
 /**
- * @description Retorna el detalle de una conversación derivada: datos del contacto, canal
- * y el historial completo combinando mensajes de Chatwoot y DynamoDB.
+ * @description Retorna el detalle de una conversación derivada.
  *
- * @param {object} event - Evento HTTP de API Gateway con pathParameters.chatwootId.
+ * Query params:
+ *   ?since=ISO   → delta: solo mensajes nuevos desde ese timestamp (para WS new_message)
+ *   ?cursor=SK   → paginación hacia atrás: mensajes anteriores al cursor
+ *   (ninguno)    → carga inicial: últimos PAGE_SIZE mensajes + reset unread
  */
 export const main = async (event) => {
   try {
-    const chatwootId = Number(event.pathParameters?.chatwootId);
-    if (!chatwootId) {
-      const err = Object.assign(new Error('chatwootId es requerido'), { statusCode: 400 });
-      return unsuccessful(400, err, ACTION);
+    const phone = event.pathParameters?.phone;
+    if (!phone) {
+      return unsuccessful(400, Object.assign(new Error('phone es requerido'), { statusCode: 400 }), ACTION);
     }
-
-    console.log(`[${ACTION}] Cargando conversación Chatwoot #${chatwootId}`);
 
     const { CONVERSATIONS_TABLE } = process.env;
     const since = event.queryStringParameters?.since ?? null;
+    const cursor = event.queryStringParameters?.cursor ?? null;
+    const isFullLoad = !since && !cursor;
 
-    // Paralelizar: metadatos de Chatwoot + caché de phone en DynamoDB son independientes.
-    const [conv, cachedPhone] = await Promise.all([
-      obtenerConversacion(chatwootId),
-      getCachedPhone(chatwootId, CONVERSATIONS_TABLE),
-    ]);
-
-    let resolvedPhone;
-    if (cachedPhone) {
-      console.log(`[${ACTION}] Phone resuelto desde caché DynamoDB: ${cachedPhone}`);
-      resolvedPhone = cachedPhone;
-    } else {
-      console.log(`[${ACTION}] Cache miss — resolviendo desde Chatwoot meta.sender`);
-      console.log(`[${ACTION}] Chatwoot meta.sender:`, JSON.stringify(conv.meta?.sender));
-      const rawPhoneOrId = await resolveContactIdentifier(conv.meta?.sender);
-      resolvedPhone = await resolvePhoneForDynamo(rawPhoneOrId);
-
-      // Persistir el mapping para las próximas aperturas.
-      if (resolvedPhone) {
-        const normalized = normalizePhone(resolvedPhone);
-        saveCachedPhone(chatwootId, normalized, CONVERSATIONS_TABLE).catch((err) =>
-          console.warn(`[${ACTION}] No se pudo guardar cache de phone: ${err.message}`)
-        );
-        resolvedPhone = normalized;
-      }
-    }
-
-    // Paralelizar: historial DynamoDB + reset unreadCount son independientes.
-    // El reset se awaita dentro del Promise.all para que Lambda no lo cancele al retornar.
-    const [{ msgs: dynamoMsgs, sessionItem }] = await Promise.all([
-      loadDynamoHistory(resolvedPhone, since),
-      resolvedPhone && !since
+    const [inboxItem, histResult, sessionItem] = await Promise.all([
+      dynamoDbLib.getOne({ TableName: CONVERSATIONS_TABLE, Key: { pk: 'INBOX', sk: `CONV#${phone}` } }),
+      since
+        ? loadDeltaMsgs(phone, since).then((msgs) => ({ msgs, hasMore: false, nextCursor: null }))
+        : loadMsgsPage(phone, cursor ?? null),
+      isFullLoad
+        ? dynamoDbLib.getOne({ TableName: CONVERSATIONS_TABLE, Key: { pk: `CONV#${phone}`, sk: `CONV#${phone}` } })
+        : Promise.resolve(null),
+      isFullLoad
         ? dynamoDbLib.update({
             TableName: CONVERSATIONS_TABLE,
-            Key: { pk: `CONV#${resolvedPhone}`, sk: `CONV#${resolvedPhone}` },
+            Key: { pk: 'INBOX', sk: `CONV#${phone}` },
+            UpdateExpression: 'SET unreadCount = :zero',
+            ConditionExpression: 'attribute_exists(pk)',
+            ExpressionAttributeValues: { ':zero': 0 },
+          }).catch(() => {})
+        : Promise.resolve(),
+      isFullLoad
+        ? dynamoDbLib.update({
+            TableName: CONVERSATIONS_TABLE,
+            Key: { pk: `CONV#${phone}`, sk: `CONV#${phone}` },
             UpdateExpression: 'SET unreadCount = :zero',
             ExpressionAttributeValues: { ':zero': 0 },
             ReturnValues: 'NONE',
-          }).catch((err) => console.warn(`[${ACTION}] No se pudo resetear unreadCount: ${err.message}`))
+          }).catch((err) => console.warn(`[${ACTION}] No se pudo resetear unreadCount sesión: ${err.message}`))
         : Promise.resolve(),
     ]);
 
-    const mensajes = mapDynamoMessages(dynamoMsgs);
-    const sender = conv.meta?.sender ?? {};
-    const displayPhone = resolvedPhone || sender.phone_number || sender.identifier || '';
+    const { msgs, hasMore, nextCursor } = histResult;
+    const mensajes = mapDynamoMessages(msgs);
+    const contactName = inboxItem?.contactName || sessionItem?.contactName || phone;
 
-    console.log(`[${ACTION}] Mensajes desde DynamoDB: ${dynamoMsgs.length}${since ? ` (delta desde ${since})` : ''}`);
+    console.log(`[${ACTION}] ${phone}: ${mensajes.length} msgs, hasMore=${hasMore}, since=${since}, cursor=${cursor}`);
 
     return success(200, {
-      id: conv.id,
-      contactName: sender.name || displayPhone || 'Desconocido',
-      phoneNumber: displayPhone,
-      channel: conv.meta?.channel ?? 'whatsapp',
-      lastMessage: conv.last_non_activity_message?.content ?? '',
-      lastMessageAt: conv.timestamp ? new Date(conv.timestamp * 1000).toISOString() : '',
-      // En delta no se relee el sessionItem (optimización). Chatwoot.unread_count está siempre
-      // stale porque los mensajes del bot no pasan por Chatwoot → el polling de la lista ya
-      // provee el valor correcto, acá devolvemos 0 para no pisar ese estado.
-      unreadCount: since ? 0 : (sessionItem?.unreadCount ?? 0),
-      status: conv.status ?? 'open',
+      id: phone,
+      contactName,
+      phoneNumber: phone,
+      channel: inboxItem?.channel ?? sessionItem?.channel ?? 'whatsapp',
+      lastMessage: inboxItem?.lastMessage ?? sessionItem?.lastMessageText ?? '',
+      lastMessageAt: inboxItem?.lastMessageAt ?? sessionItem?.lastMessageAt ?? '',
+      unreadCount: isFullLoad ? (sessionItem?.unreadCount ?? 0) : 0,
+      status: inboxItem?.status ?? 'derived',
+      reason: inboxItem?.reason,
+      reasonLabel: inboxItem?.reasonLabel,
       mensajes,
+      hasMore,
+      nextCursor,
     }, ACTION);
   } catch (error) {
     console.error(`[${ACTION}] Error:`, error.message, error.stack);

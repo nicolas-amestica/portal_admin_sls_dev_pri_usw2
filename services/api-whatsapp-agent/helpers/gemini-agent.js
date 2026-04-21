@@ -272,6 +272,11 @@ function buildSystemPrompt(phoneNumber, collectedData, channel, hasHistory = fal
     3. Si tienes TODOS los datos: llama a crear_reunion INMEDIATAMENTE. No pidas confirmación adicional.
     4. Si faltan datos: pide SOLO lo que falta en un único mensaje.
   - NUNCA repitas una pregunta sobre un dato que el cliente ya te proporcionó en esta conversación.
+  - **Antes de guardar o confirmar una fecha/hora**, valida que esté dentro del horario disponible:
+    - Lunes a viernes: 09:00 a 23:00 hrs.
+    - Sábado: 09:00 a 14:00 hrs.
+    - Domingo: no disponible.
+    Si la fecha/hora solicitada cae fuera de este horario, informa al cliente que no es posible agendar en ese momento e indícale los días y horarios disponibles para que elija uno nuevo. No llames a guardar_datos_reunion ni a crear_reunion con una hora fuera de horario.
 
   ## Reglas estrictas
   - No inventes precios. Guía siempre al envío del PDF o a la reunión informativa.

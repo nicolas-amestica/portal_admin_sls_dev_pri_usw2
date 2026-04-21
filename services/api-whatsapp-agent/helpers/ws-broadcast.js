@@ -14,13 +14,13 @@ function getWsClient() {
 /**
  * @description Resuelve el partition key de DynamoDB para un scope dado.
  * - 'LIST' → canal de bandeja global (todas las filas de la lista).
- * - { chatwootId } → canal por conversación (admins viendo ese detalle).
- * @param {string|{chatwootId: number|string}} scope
+ * - { phone } → canal por conversación (admins viendo ese detalle).
+ * @param {string|{phone: string}} scope
  * @returns {string}
  */
 function pkForScope(scope) {
   if (scope === SCOPE_LIST) return `WS#${SCOPE_LIST}`;
-  if (scope && typeof scope === 'object' && scope.chatwootId != null) return `WS#${scope.chatwootId}`;
+  if (scope && typeof scope === 'object' && scope.phone != null) return `WS#${scope.phone}`;
   throw new Error(`Scope WebSocket inválido: ${JSON.stringify(scope)}`);
 }
 
@@ -28,7 +28,7 @@ function pkForScope(scope) {
  * @description Publica un payload a todas las conexiones WebSocket registradas en un scope.
  * Silenciosamente limpia conexiones obsoletas (GoneException 410) de DynamoDB.
  * No-op si WS_MANAGEMENT_ENDPOINT no está configurado (dev sin WS).
- * @param {string|{chatwootId: number|string}} scope - 'LIST' o { chatwootId }.
+ * @param {string|{phone: string}} scope - 'LIST' o { phone }.
  * @param {object} payload - Datos JSON-serializables a enviar a cada conexión.
  */
 export async function broadcastToScope(scope, payload) {
