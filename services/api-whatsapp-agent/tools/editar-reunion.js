@@ -5,14 +5,14 @@ import { buscarEventosPorTelefono } from './crear-reunion.js';
 const TIMEZONE = 'America/Santiago';
 
 /**
- * @description Suma una hora a la combinación de fecha y hora dadas.
+ * @description Suma dos horas a la combinación de fecha y hora dadas.
  * @param {string} date - Fecha en formato YYYY-MM-DD.
  * @param {string} time - Hora en formato HH:MM.
  * @returns {string} Fecha y hora de fin en formato YYYY-MM-DDTHH:MM:00.
  */
 function buildEndDateTime(date, time) {
   const [h, m] = time.split(':').map(Number);
-  let newH = h + 1;
+  let newH = h + 2;
   let newDate = date;
 
   if (newH >= 24) {

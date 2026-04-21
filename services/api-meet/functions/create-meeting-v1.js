@@ -12,11 +12,11 @@ const NOTIFICATIONS = [
 ];
 
 /**
- * Suma tres horas a la combinación de fecha y hora dadas.
+ * Suma dos horas a la combinación de fecha y hora dadas.
  */
 function buildEndDateTime(date, time) {
   const [h, m] = time.split(':').map(Number);
-  let newH = h + 3;
+  let newH = h + 2;
   let newDate = date;
 
   if (newH >= 24) {

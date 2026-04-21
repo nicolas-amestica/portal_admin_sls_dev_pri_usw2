@@ -22,14 +22,14 @@ const NOTIFICATIONS = [
 ];
 
 /**
- * @description Suma una hora a la combinación de fecha y hora para calcular el fin del evento.
+ * @description Suma dos horas a la combinación de fecha y hora para calcular el fin del evento.
  * @param {string} date - Fecha en formato YYYY-MM-DD.
  * @param {string} time - Hora en formato HH:MM.
  * @returns {string} Fecha y hora de fin en formato YYYY-MM-DDTHH:MM:00.
  */
 function buildEndDateTime(date, time) {
   const [h, m] = time.split(':').map(Number);
-  let newH = h + 1;
+  let newH = h + 2;
   let newDate = date;
   if (newH >= 24) {
     newH = 0;
