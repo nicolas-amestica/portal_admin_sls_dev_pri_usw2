@@ -422,25 +422,33 @@ export async function runConversationTurn(history, newMessage, phoneNumber, coll
   while (true) {
     const candidate = response.response.candidates?.[0];
     const parts = candidate?.content?.parts || [];
-    const functionCallPart = parts.find((p) => p.functionCall);
-    if (!functionCallPart) break;
+    const calls = parts.filter((p) => p.functionCall);
+    
+    if (calls.length === 0) break;
 
-    const { name, args } = functionCallPart.functionCall;
-    console.log(`[GEMINI] Herramienta: ${name}`, JSON.stringify(args));
+    const responses = await Promise.all(calls.map(async (part) => {
+      const { name, args } = part.functionCall;
+      console.log(`[GEMINI] Herramienta: ${name}`, JSON.stringify(args));
 
-    let result;
-    try {
-      result = await executeTool(name, args, collectedData, phoneNumber);
-    } catch (err) {
-      result = { error: err.message };
-    }
+      let result;
+      try {
+        result = await executeTool(name, args, collectedData, phoneNumber);
+      } catch (err) {
+        result = { error: err.message };
+      }
 
-    toolsExecuted.push({ name, args, result });
-    console.log(`[GEMINI] Resultado ${name}:`, JSON.stringify(result));
+      toolsExecuted.push({ name, args, result });
+      console.log(`[GEMINI] Resultado ${name}:`, JSON.stringify(result));
 
-    response = await chat.sendMessage([
-      { functionResponse: { name, response: sanitizeResultForModel(name, result) } },
-    ]);
+      return {
+        functionResponse: {
+          name,
+          response: sanitizeResultForModel(name, result),
+        },
+      };
+    }));
+
+    response = await chat.sendMessage(responses);
   }
 
   const responseText = response.response.text();

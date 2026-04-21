@@ -386,12 +386,12 @@ export const main = async (event) => {
   );
   if (derivado || sinPresupuesto) {
     const reason = sinPresupuesto ? 'sin_presupuesto' : 'sin_respuesta';
-    console.log(`[${ACTION}] Mensaje derivado (${reason}) para ${phoneNumber}. Sin respuesta al cliente.`);
+    const motivoTool = toolsExecuted.find((t) => t.name === 'sin_respuesta')?.args?.motivo || 'N/A';
+    console.log(`[${ACTION}] Mensaje derivado (${reason}) para ${phoneNumber}. Motivo: ${motivoTool}. Sin respuesta al cliente.`);
     const updatedData = mergeCollectedData(collectedData, toolsExecuted);
-    // Await en paralelo: sin esto, Lambda puede retornar antes de que el UpdateItem termine y
-    // el unreadCount/lastMessageText quedaría sin persistir.
+    // Await en paralelo: sin esto, Lambda puede retornar antes de que el UpdateItem termine.
     const [, phone] = await Promise.all([
-      saveConversation(phoneNumber, text, responseText, updatedData).catch((e) =>
+      saveConversation(phoneNumber, text, responseText || `(Derivación: ${reason})`, updatedData).catch((e) =>
         console.error(`[${ACTION}] Error guardando turno al derivar:`, e.message)
       ),
       derivarConversacion(phoneNumber, text, reason, channel, collectedData).catch((e) => {
@@ -414,7 +414,13 @@ export const main = async (event) => {
     );
     await sendTypingIndicator(phoneNumber).catch(() => {});
   }
-  await new Promise((resolve) => setTimeout(resolve, calculateTypingDelay(responseText)));
+
+  // Fallback: Si Gemini no devolvió texto pero ejecutó herramientas, forzar un mensaje informativo.
+  if (!responseText?.trim() && toolsExecuted.length > 0) {
+    responseText = "He procesado tu solicitud. ¿En qué más puedo ayudarte?";
+  }
+
+  await new Promise((resolve) => setTimeout(resolve, calculateTypingDelay(responseText || '')));
 
   // 5. Enviar documentos PDF y luego el texto de respuesta según el canal.
   await sendPresupuestoDocuments(channel, phoneNumber, toolsExecuted);
@@ -425,7 +431,7 @@ export const main = async (event) => {
       await sendMetaTextMessage(phoneNumber, responseText);
     }
   } else {
-    console.warn(`[${ACTION}] responseText vacío para ${phoneNumber} — mensaje de texto omitido.`);
+    console.warn(`[${ACTION}] [${phoneNumber}] responseText vacío tras Gemini. Tools: ${toolsExecuted.map(t => t.name).join(', ')}`);
   }
 
   // 6. Persistir el turno en DynamoDB.

@@ -1,4 +1,4 @@
-import * as httpClient from '../../../libs/axios.js';
+import axios from 'axios';
 import { getCalendarAccessToken, buildCalendarApiUrl, mapGoogleEventToMeetEvent } from '../../../helpers/google-calendar-auth.js';
 
 /**
@@ -12,23 +12,29 @@ import { getCalendarAccessToken, buildCalendarApiUrl, mapGoogleEventToMeetEvent 
  */
 export async function listarReuniones({ fechaInicio, fechaFin }) {
   const { GOOGLE_CALENDAR_ID = 'primary' } = process.env;
+
+  if (!fechaInicio || !fechaFin) {
+    throw new Error('fechaInicio y fechaFin son requeridas en formato YYYY-MM-DD');
+  }
+
   const accessToken = await getCalendarAccessToken();
 
+  // En abril de 2026, Chile continental está en UTC-4.
   const url = buildCalendarApiUrl(GOOGLE_CALENDAR_ID, null, {
-    timeMin: `${fechaInicio}T00:00:00-03:00`,
-    timeMax: `${fechaFin}T23:59:59-03:00`,
+    timeMin: `${fechaInicio}T00:00:00-04:00`,
+    timeMax: `${fechaFin}T23:59:59-04:00`,
     singleEvents: 'true',
     orderBy: 'startTime',
   });
 
   let response;
   try {
-    response = await httpClient.get(url, {
+    response = await axios.get(url, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
   } catch (err) {
     console.error('[LISTAR-REUNIONES] Google Calendar error:', JSON.stringify(err.response?.data ?? err.message));
-    throw err;
+    throw new Error(`No se pudieron listar las reuniones del calendario: ${err.message}`);
   }
 
   const reuniones = (response.data.items || []).map(mapGoogleEventToMeetEvent);
