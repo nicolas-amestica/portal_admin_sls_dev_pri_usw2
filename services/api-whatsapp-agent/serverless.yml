@@ -184,6 +184,16 @@ functions:
           path: /v1/inbox/conversaciones/{phone}/contacto
           method: PATCH
 
+  marcar_no_leido_v1:
+    handler: functions/marcar-no-leido-v1.main
+    description: Marca una conversación como no leída (unreadCount = 1) en el inbox.
+    timeout: 10
+    memorySize: 128
+    events:
+      - httpApi:
+          path: /v1/inbox/conversaciones/{phone}/marcar-no-leido
+          method: PATCH
+
   adjuntar_archivo_v1:
     handler: functions/adjuntar-archivo-v1.main
     description: Descarga un adjunto desde S3 y lo envía al cliente vía WhatsApp Media API.
