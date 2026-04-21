@@ -3,6 +3,7 @@ import { getParameterValue } from '../../../libs/parameter-store.js';
 import { buscarPresupuestos } from '../tools/buscar-presupuestos.js';
 import { crearReunion, buscarEventosPorTelefono } from '../tools/crear-reunion.js';
 import { listarReunion } from '../tools/listar-reunion.js';
+import { listarReuniones } from '../tools/listar-reuniones.js';
 import { editarReunion } from '../tools/editar-reunion.js';
 import { cancelarReunion } from '../tools/cancelar-reunion.js';
 import { getCalendarAccessToken } from '../../../helpers/google-calendar-auth.js';
@@ -115,6 +116,25 @@ const TOOLS = [
           type: 'OBJECT',
           properties: {},
           required: [],
+        },
+      },
+      {
+        name: 'listar_reuniones',
+        description:
+          'Lista las reuniones del calendario de Giras Indómito en un rango de fechas. Usar antes de proponer horarios para verificar disponibilidad.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            fechaInicio: {
+              type: 'STRING',
+              description: 'Fecha de inicio del rango en formato YYYY-MM-DD.',
+            },
+            fechaFin: {
+              type: 'STRING',
+              description: 'Fecha de fin del rango en formato YYYY-MM-DD.',
+            },
+          },
+          required: ['fechaInicio', 'fechaFin'],
         },
       },
       {
@@ -331,6 +351,9 @@ async function executeTool(name, args, collectedData, phoneNumber) {
   }
   if (name === 'buscar_presupuestos') {
     return buscarPresupuestos(args);
+  }
+  if (name === 'listar_reuniones') {
+    return listarReuniones(args);
   }
   if (name === 'crear_reunion') {
     // Eliminar reuniones previas: por teléfono (cubre sesiones stale) y por eventId (sesión activa).
