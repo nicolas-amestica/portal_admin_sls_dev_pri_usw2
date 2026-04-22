@@ -1,7 +1,7 @@
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { parseEventBody } from '../../../helpers/event-parser.js';
 import { success, unsuccessful } from '../../../helpers/responses.js';
-import { broadcastToScope } from '../helpers/ws-broadcast.js';
+import { broadcastToScope, SCOPES } from '../../../libs/websocket.js';
 
 const ACTION = 'Actualizar contacto';
 
@@ -38,7 +38,7 @@ export const main = async (event) => {
       }).catch((err) => console.warn(`[${ACTION}] No se pudo actualizar sesión: ${err.message}`)),
     ]);
 
-    await broadcastToScope('LIST', { type: 'contact_updated', phone, name: nuevoNombre }).catch(
+    await broadcastToScope(SCOPES.LIST, { type: 'contact_updated', phone, name: nuevoNombre }).catch(
       (err) => console.warn(`[${ACTION}] Broadcast WS falló: ${err.message}`)
     );
 

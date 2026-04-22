@@ -1,7 +1,10 @@
 import { ApiGatewayManagementApiClient, PostToConnectionCommand } from '@aws-sdk/client-apigatewaymanagementapi';
-import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
+import * as dynamoDbLib from './dynamodb-v3.js';
 
-const SCOPE_LIST = 'LIST';
+export const SCOPES = {
+  LIST: 'LIST',
+  CALENDAR: 'CALENDAR',
+};
 
 let _wsClient = null;
 
@@ -13,13 +16,12 @@ function getWsClient() {
 
 /**
  * @description Resuelve el partition key de DynamoDB para un scope dado.
- * - 'LIST' → canal de bandeja global (todas las filas de la lista).
- * - { phone } → canal por conversación (admins viendo ese detalle).
  * @param {string|{phone: string}} scope
  * @returns {string}
  */
 function pkForScope(scope) {
-  if (scope === SCOPE_LIST) return `WS#${SCOPE_LIST}`;
+  if (scope === SCOPES.LIST) return `WS#${SCOPES.LIST}`;
+  if (scope === SCOPES.CALENDAR) return `WS#${SCOPES.CALENDAR}`;
   if (scope && typeof scope === 'object' && scope.phone != null) return `WS#${scope.phone}`;
   throw new Error(`Scope WebSocket inválido: ${JSON.stringify(scope)}`);
 }
@@ -27,14 +29,21 @@ function pkForScope(scope) {
 /**
  * @description Publica un payload a todas las conexiones WebSocket registradas en un scope.
  * Silenciosamente limpia conexiones obsoletas (GoneException 410) de DynamoDB.
- * No-op si WS_MANAGEMENT_ENDPOINT no está configurado (dev sin WS).
- * @param {string|{phone: string}} scope - 'LIST' o { phone }.
+ * @param {string|{phone: string}} scope - 'LIST', 'CALENDAR' o { phone }.
  * @param {object} payload - Datos JSON-serializables a enviar a cada conexión.
  */
 export async function broadcastToScope(scope, payload) {
-  if (!process.env.WS_MANAGEMENT_ENDPOINT) return;
+  if (!process.env.WS_MANAGEMENT_ENDPOINT) {
+    console.warn('[WS-BROADCAST] No hay WS_MANAGEMENT_ENDPOINT configurado');
+    return;
+  }
 
   const { CONVERSATIONS_TABLE } = process.env;
+  if (!CONVERSATIONS_TABLE) {
+    console.warn('[WS-BROADCAST] No hay CONVERSATIONS_TABLE configurado');
+    return;
+  }
+
   const pk = pkForScope(scope);
 
   const connections = await dynamoDbLib.query({
@@ -54,11 +63,13 @@ export async function broadcastToScope(scope, payload) {
         await client.send(new PostToConnectionCommand({ ConnectionId: conn.connectionId, Data: data }));
       } catch (err) {
         if (err.statusCode === 410 || err.$metadata?.httpStatusCode === 410) {
-          // Conexión obsoleta: limpiar ambas filas en DynamoDB (fire and forget).
+          // Conexión obsoleta: limpiar ambas filas en DynamoDB.
           Promise.all([
             dynamoDbLib.remove({ TableName: CONVERSATIONS_TABLE, Key: { pk, sk: `CONN#${conn.connectionId}` } }),
             dynamoDbLib.remove({ TableName: CONVERSATIONS_TABLE, Key: { pk: `WSCONN#${conn.connectionId}`, sk: `WSCONN#${conn.connectionId}` } }),
           ]).catch(() => {});
+        } else {
+          console.error(`[WS-BROADCAST] Error enviando a ${conn.connectionId}:`, err.message);
         }
       }
     })

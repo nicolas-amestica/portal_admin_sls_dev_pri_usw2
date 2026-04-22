@@ -1,6 +1,7 @@
 import axios from '../../../libs/axios.js';
 import { standardMiddleware } from '../../../libs/middleware/index.js';
 import { success, unsuccessful } from '../../../helpers/responses.js';
+import { broadcastToScope, SCOPES } from '../../../libs/websocket.js';
 import { getCalendarAccessToken, buildCalendarApiUrl, mapGoogleEventToMeetEvent } from '../../../helpers/google-calendar-auth.js';
 
 const ACTION = 'Actualizar reunión';
@@ -64,7 +65,15 @@ const baseHandler = async (event) => {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 
-  return success(200, { Item: mapGoogleEventToMeetEvent(updatedEvent) }, ACTION, { eventId });
+  const meeting = mapGoogleEventToMeetEvent(updatedEvent);
+
+  // Notificar por WebSocket
+  await broadcastToScope(SCOPES.CALENDAR, {
+    type: 'meeting_updated',
+    meeting,
+  });
+
+  return success(200, { Item: meeting }, ACTION, { eventId });
 };
 
 export const main = standardMiddleware(baseHandler);

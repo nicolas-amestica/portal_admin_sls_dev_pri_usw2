@@ -3,7 +3,7 @@ import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { parseEventBody } from '../../../helpers/event-parser.js';
 import { success, unsuccessful } from '../../../helpers/responses.js';
 import { sendTextMessage } from '../helpers/whatsapp-api.js';
-import { broadcastToScope } from '../helpers/ws-broadcast.js';
+import { broadcastToScope, SCOPES } from '../../../libs/websocket.js';
 import { buildTurnItem } from '../mappers/map-conversacion-item.js';
 
 const ACTION = 'Responder conversación derivada';
@@ -51,7 +51,7 @@ export const main = async (event) => {
     // Propagar a otras pestañas: detalle recarga delta, lista actualiza último mensaje.
     await Promise.allSettled([
       broadcastToScope({ phone }, { type: 'new_message', phone }),
-      broadcastToScope('LIST', {
+      broadcastToScope(SCOPES.LIST, {
         type: 'conversation_updated',
         phone,
         lastMessage: text.slice(0, 100),

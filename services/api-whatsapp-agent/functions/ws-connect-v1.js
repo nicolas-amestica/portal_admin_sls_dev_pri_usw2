@@ -1,4 +1,5 @@
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
+import { SCOPES } from '../../../libs/websocket.js';
 
 const ACTION = 'WebSocket Connect';
 const TTL_24H = () => Math.floor(Date.now() / 1000) + 24 * 60 * 60;
@@ -23,8 +24,11 @@ export const main = async (event) => {
     const itemExtra = { createdAt: new Date().toISOString(), ttl: TTL_24H(), connectionId };
 
     if (scope === 'list') {
-      pk = 'WS#LIST';
-      itemExtra.scope = 'LIST';
+      pk = `WS#${SCOPES.LIST}`;
+      itemExtra.scope = SCOPES.LIST;
+    } else if (scope === 'calendar') {
+      pk = `WS#${SCOPES.CALENDAR}`;
+      itemExtra.scope = SCOPES.CALENDAR;
     } else if (phone) {
       pk = `WS#${phone}`;
       itemExtra.phone = phone;

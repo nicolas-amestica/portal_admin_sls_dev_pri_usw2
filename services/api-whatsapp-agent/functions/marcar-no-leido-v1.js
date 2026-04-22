@@ -1,6 +1,6 @@
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { success, unsuccessful } from '../../../helpers/responses.js';
-import { broadcastToScope } from '../helpers/ws-broadcast.js';
+import { broadcastToScope, SCOPES } from '../../../libs/websocket.js';
 
 const ACTION = 'Marcar como no leído';
 
@@ -25,7 +25,7 @@ export const main = async (event) => {
       ExpressionAttributeValues: { ':one': 1 },
     });
 
-    await broadcastToScope('LIST', {
+    await broadcastToScope(SCOPES.LIST, {
       type: 'conversation_updated', phone, unreadCount: 1,
     }).catch((err) => console.warn(`[${ACTION}] Broadcast WS falló: ${err.message}`));
 

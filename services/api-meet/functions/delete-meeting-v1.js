@@ -1,6 +1,7 @@
 import axios from '../../../libs/axios.js';
 import { standardMiddleware } from '../../../libs/middleware/index.js';
 import { success, unsuccessful } from '../../../helpers/responses.js';
+import { broadcastToScope, SCOPES } from '../../../libs/websocket.js';
 import { getCalendarAccessToken, buildCalendarApiUrl } from '../../../helpers/google-calendar-auth.js';
 
 const ACTION = 'Eliminar reunión';
@@ -22,6 +23,12 @@ const baseHandler = async (event) => {
 
   await axios.delete(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  // Notificar por WebSocket
+  await broadcastToScope(SCOPES.CALENDAR, {
+    type: 'meeting_deleted',
+    meetingId: eventId,
   });
 
   return success(200, { Item: { id: eventId } }, ACTION, { eventId });

@@ -2,6 +2,7 @@ import axios from '../../../libs/axios.js';
 import { randomUUID } from '../../../libs/crypto.js';
 import { standardMiddleware } from '../../../libs/middleware/index.js';
 import { success, unsuccessful } from '../../../helpers/responses.js';
+import { broadcastToScope, SCOPES } from '../../../libs/websocket.js';
 import { getCalendarAccessToken, getMeetHostAccessToken, buildCalendarApiUrl, mapGoogleEventToMeetEvent, createMeetSpace } from '../../../helpers/google-calendar-auth.js';
 
 const ACTION = 'Crear reunión';
@@ -97,7 +98,15 @@ const baseHandler = async (event) => {
     throw axiosErr;
   }
 
-  return success(201, { Item: mapGoogleEventToMeetEvent(createdEvent) }, ACTION, {});
+  const meeting = mapGoogleEventToMeetEvent(createdEvent);
+
+  // Notificar por WebSocket
+  await broadcastToScope(SCOPES.CALENDAR, {
+    type: 'meeting_created',
+    meeting,
+  });
+
+  return success(201, { Item: meeting }, ACTION, {});
 };
 
 export const main = standardMiddleware(baseHandler);

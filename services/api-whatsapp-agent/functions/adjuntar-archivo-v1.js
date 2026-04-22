@@ -4,7 +4,7 @@ import { parseEventBody } from '../../../helpers/event-parser.js';
 import { success, unsuccessful } from '../../../helpers/responses.js';
 import { uploadMedia, sendDocumentById, sendImageById, sendAudioById } from '../helpers/whatsapp-api.js';
 import { getObjectBuffer, deleteObject } from '../../../libs/s3-v3.js';
-import { broadcastToScope } from '../helpers/ws-broadcast.js';
+import { broadcastToScope, SCOPES } from '../../../libs/websocket.js';
 import { buildTurnItem } from '../mappers/map-conversacion-item.js';
 
 const ACTION = 'Adjuntar archivo a conversación';
@@ -87,7 +87,7 @@ export const main = async (event) => {
     // Propagar a otras pestañas.
     await Promise.allSettled([
       broadcastToScope({ phone }, { type: 'new_message', phone }),
-      broadcastToScope('LIST', {
+      broadcastToScope(SCOPES.LIST, {
         type: 'conversation_updated',
         phone,
         lastMessage: preview.slice(0, 100),

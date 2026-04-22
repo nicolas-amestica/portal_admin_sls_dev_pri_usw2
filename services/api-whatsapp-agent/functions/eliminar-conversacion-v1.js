@@ -1,6 +1,6 @@
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { success, unsuccessful } from '../../../helpers/responses.js';
-import { broadcastToScope } from '../helpers/ws-broadcast.js';
+import { broadcastToScope, SCOPES } from '../../../libs/websocket.js';
 
 const ACTION = 'Eliminar conversación';
 
@@ -68,7 +68,7 @@ export const main = async (event) => {
     await Promise.all(deletePromises);
 
     // Notificar a otras pestañas para que retiren la conversación de la lista sin fetch.
-    await broadcastToScope('LIST', { type: 'conversation_deleted', phone }).catch(
+    await broadcastToScope(SCOPES.LIST, { type: 'conversation_deleted', phone }).catch(
       (err) => console.warn(`[${ACTION}] Broadcast WS falló: ${err.message}`)
     );
 

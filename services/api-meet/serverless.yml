@@ -46,6 +46,15 @@ provider:
     GOOGLE_MEET_HOST_OAUTH_SECRET_KEY: /pa/${self:custom.stage}/google-meet-host-oauth
     GOOGLE_CALENDAR_ID: c_22d82dc32bd2255c8e0a5de671df98c7338ca03b8528c26c9e091ea79bf4118c@group.calendar.google.com
     TIMEZONE: America/Santiago
+    CONVERSATIONS_TABLE: conversations-${self:custom.stage}-pri-${self:custom.shortRegion}
+    WS_MANAGEMENT_ENDPOINT:
+      Fn::Join:
+        - ''
+        - - 'https://'
+          - 'Fn::ImportValue': inbox-ws-${self:custom.stage}-id
+          - '.execute-api.'
+          - Ref: 'AWS::Region'
+          - '.amazonaws.com/${self:provider.stage}'
 
   tracing:
     lambda: true
@@ -57,6 +66,18 @@ provider:
     - ${file(../../aws/policies/lambda-policy-xray.yml)}
     - ${file(../../aws/policies/lambda-policy-ssm.yml)}
     - ${file(../../aws/policies/lambda-policy-kms-ssm.yml)}
+    - Effect: Allow
+      Action:
+        - dynamodb:Query
+        - dynamodb:DeleteItem
+        - dynamodb:PutItem
+      Resource:
+        - arn:aws:dynamodb:${self:provider.region}:*:table/conversations-${self:custom.stage}-pri-${self:custom.shortRegion}
+    - Effect: Allow
+      Action:
+        - execute-api:ManageConnections
+      Resource:
+        - arn:aws:execute-api:${self:provider.region}:*:*/@connections/*
 
 functions:
   create_meeting_v1:

@@ -243,3 +243,10 @@ resources:
             KeyType: HASH
           - AttributeName: sk
             KeyType: RANGE
+
+  Outputs:
+    WebsocketsApiIdExport:
+      Value:
+        Ref: WebsocketsApi
+      Export:
+        Name: inbox-ws-${self:custom.stage}-id

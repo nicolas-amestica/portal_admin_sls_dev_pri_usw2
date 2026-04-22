@@ -15,7 +15,7 @@ import { buildTurnItem, toGeminiHistory, normalizePhone } from '../mappers/map-c
 import { sendMetaTextMessage } from '../helpers/messenger-api.js';
 import { getPresignedUrl } from '../../../libs/s3-v3.js';
 import { shortenUrl } from '../helpers/url-shortener.js';
-import { broadcastToScope } from '../helpers/ws-broadcast.js';
+import { broadcastToScope, SCOPES } from '../../../libs/websocket.js';
 
 const ACTION = 'Ejecutar agente WhatsApp';
 // Cada turno ocupa 2 items en DynamoDB (user + model). +1 por si el item de sesión aparece.
@@ -161,14 +161,14 @@ async function saveConversation(phoneNumber, userText, modelText, collectedData)
 
   // Notificar a la bandeja (canal LIST) para que los admins vean el badge y el último mensaje
   // sin esperar al polling de fallback. No crítico: si falla el polling recupera el estado.
-  await broadcastToScope('LIST', {
+  await broadcastToScope(SCOPES.LIST, {
     type: 'conversation_updated',
     phoneNumber: normalizedPhone,
     unreadCount,
     lastMessage: lastMessageText,
     lastMessageAt: now,
-  }).catch((err) => console.warn(`[${ACTION}] Broadcast WS fallido (no crítico): ${err.message}`));
-}
+  }).catch((err) => console.warn(`[${ACTION}] Broadcast WS falló (no crítico): ${err.message}`));
+  }
 
 const REASON_LABELS = {
   sin_presupuesto: 'No se encontró presupuesto disponible',
