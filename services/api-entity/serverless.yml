@@ -310,3 +310,15 @@ functions:
           authorizer:
             id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
             type: request
+
+  register_fcm_token_v1:
+    handler: functions/register-fcm-token-v1.main
+    description: Registra o actualiza el token FCM del usuario autenticado para notificaciones push.
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/notificaciones/fcm-token
+          method: POST
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request

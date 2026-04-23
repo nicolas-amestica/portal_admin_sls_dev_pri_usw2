@@ -3,6 +3,8 @@ import { standardMiddleware } from '../../../libs/middleware/index.js';
 import { success, unsuccessful } from '../../../helpers/responses.js';
 import { broadcastToScope, SCOPES } from '../../../libs/websocket.js';
 import { getCalendarAccessToken, buildCalendarApiUrl } from '../../../helpers/google-calendar-auth.js';
+import { getAllFcmTokens, sendFcmPush } from '../helpers/send-fcm-push.js';
+import { deleteReminders } from '../helpers/manage-reminders.js';
 
 const ACTION = 'Eliminar reunión';
 
@@ -30,6 +32,22 @@ const baseHandler = async (event) => {
     type: 'meeting_deleted',
     meetingId: eventId,
   });
+
+  // Push inmediato + eliminar recordatorios programados
+  try {
+    const tokens = await getAllFcmTokens();
+    if (tokens.length) {
+      await sendFcmPush({
+        tokens,
+        title: 'Reunión cancelada',
+        body: 'Una reunión ha sido eliminada del calendario.',
+        data: { eventId },
+      });
+    }
+    await deleteReminders(eventId);
+  } catch (err) {
+    console.error('[PUSH] Error al enviar notificación o eliminar recordatorio:', err.message);
+  }
 
   return success(200, { Item: { id: eventId } }, ACTION, { eventId });
 };

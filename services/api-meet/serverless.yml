@@ -47,6 +47,13 @@ provider:
     GOOGLE_CALENDAR_ID: c_22d82dc32bd2255c8e0a5de671df98c7338ca03b8528c26c9e091ea79bf4118c@group.calendar.google.com
     TIMEZONE: America/Santiago
     CONVERSATIONS_TABLE: conversations-${self:custom.stage}-pri-${self:custom.shortRegion}
+    DYNAMODB_CONFIG_TABLE: config-${self:custom.stage}-pri-${self:custom.shortRegion}
+    # TODO: Crear el parámetro SSM con el JSON del Service Account de Firebase Admin
+    FCM_SSM_PARAM: /pa/${self:custom.stage}/fcm-service-account
+    SEND_PUSH_REMINDER_ARN:
+      Fn::GetAtt: [SendPushReminderV1LambdaFunction, Arn]
+    SCHEDULER_INVOKE_ROLE_ARN:
+      Fn::GetAtt: [SchedulerInvokeRole, Arn]
     WS_MANAGEMENT_ENDPOINT:
       Fn::Join:
         - ''
@@ -66,6 +73,7 @@ provider:
     - ${file(../../aws/policies/lambda-policy-xray.yml)}
     - ${file(../../aws/policies/lambda-policy-ssm.yml)}
     - ${file(../../aws/policies/lambda-policy-kms-ssm.yml)}
+    - ${file(../../aws/policies/lambda-policy-dynamodb-config.yml)}
     - Effect: Allow
       Action:
         - dynamodb:Query
@@ -78,6 +86,18 @@ provider:
         - execute-api:ManageConnections
       Resource:
         - arn:aws:execute-api:${self:provider.region}:*:*/@connections/*
+    - Effect: Allow
+      Action:
+        - scheduler:CreateSchedule
+        - scheduler:UpdateSchedule
+        - scheduler:DeleteSchedule
+        - scheduler:GetSchedule
+      Resource: '*'
+    - Effect: Allow
+      Action:
+        - iam:PassRole
+      Resource:
+        Fn::GetAtt: [SchedulerInvokeRole, Arn]
 
 functions:
   create_meeting_v1:
@@ -131,3 +151,32 @@ functions:
           authorizer:
             id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
             type: request
+
+  send_push_reminder_v1:
+    handler: functions/send-push-reminder-v1.main
+    description: Envía recordatorio push vía FCM invocado por EventBridge Scheduler.
+    timeout: 29
+    memorySize: 256
+
+resources:
+  Resources:
+    SchedulerInvokeRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: scheduler-invoke-meet-${self:custom.stage}-pri-${self:custom.shortRegion}
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: scheduler.amazonaws.com
+              Action: sts:AssumeRole
+        Policies:
+          - PolicyName: InvokeSendPushReminderPolicy
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Effect: Allow
+                  Action: lambda:InvokeFunction
+                  Resource:
+                    Fn::GetAtt: [SendPushReminderV1LambdaFunction, Arn]

@@ -58,6 +58,7 @@ PARAM_WHATSAPP="/pa/${STAGE}/whatsapp-config"
 PARAM_GEMINI="/pa/${STAGE}/gemini-api-key"
 PARAM_GOOGLE_CALENDAR="/pa/${STAGE}/google-calendar-oauth"
 PARAM_CHATWOOT_TOKEN="/pa/${STAGE}/chatwoot-api-token"
+PARAM_FCM_SA="/pa/${STAGE}/fcm-service-account"
 
 # ─── Colores ──────────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
@@ -260,6 +261,11 @@ create_parameter \
   "$PARAM_CHATWOOT_TOKEN" \
   "API Access Token de Chatwoot para crear conversaciones derivadas — Portal Admin ${STAGE}" \
   'PLACEHOLDER'
+
+create_parameter \
+  "$PARAM_FCM_SA" \
+  "Service Account JSON de Firebase Admin SDK (FCM push notifications) — Portal Admin ${STAGE}" \
+  '{"type":"service_account","project_id":"PLACEHOLDER","private_key_id":"PLACEHOLDER","private_key":"PLACEHOLDER","client_email":"PLACEHOLDER","client_id":"PLACEHOLDER","auth_uri":"https://accounts.google.com/o/oauth2/auth","token_uri":"https://oauth2.googleapis.com/token"}'
 
 # =============================================================================
 # PASO 3 — TABLAS DYNAMODB
@@ -565,6 +571,7 @@ echo "    • ${PARAM_WHATSAPP}"
 echo "    • ${PARAM_GEMINI}"
 echo "    • ${PARAM_GOOGLE_CALENDAR}"
 echo "    • ${PARAM_CHATWOOT_TOKEN}"
+echo "    • ${PARAM_FCM_SA}"
 echo ""
 echo "  DynamoDB Tables:"
 echo "    • ${TABLE_PROGRAMS}  (GSI: gsiOne-index, gsiStartDate-index)"
@@ -582,6 +589,7 @@ echo "     aws ssm put-parameter --name ${PARAM_WHATSAPP} --value '{...}' --type
 echo "     aws ssm put-parameter --name ${PARAM_GEMINI} --value '{...}' --type SecureString --overwrite --profile ${PROFILE} --region ${REGION}"
 echo "     aws ssm put-parameter --name ${PARAM_GOOGLE_CALENDAR} --value '{...}' --type SecureString --overwrite --profile ${PROFILE} --region ${REGION}"
 echo "     aws ssm put-parameter --name ${PARAM_CHATWOOT_TOKEN} --value 'TOKEN' --type SecureString --overwrite --profile ${PROFILE} --region ${REGION}"
+echo "     aws ssm put-parameter --name ${PARAM_FCM_SA} --value '{...service-account-json...}' --type SecureString --overwrite --profile ${PROFILE} --region ${REGION}"
 echo ""
 echo "  2. Despliega la infraestructura compartida (API Gateway):"
 echo "     cd infrastructure && sls deploy --stage ${STAGE} --region ${REGION}"
