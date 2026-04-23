@@ -2,6 +2,7 @@ import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { parseEventBody } from '../../../helpers/event-parser.js';
 import { success, unsuccessful } from '../../../helpers/responses.js';
 import { broadcastToScope, SCOPES } from '../../../libs/websocket.js';
+import { normalizePhone } from '../mappers/map-conversacion-item.js';
 
 const ACTION = 'Actualizar contacto';
 
@@ -13,9 +14,10 @@ const ACTION = 'Actualizar contacto';
  */
 export const main = async (event) => {
   try {
-    const phone = event.pathParameters?.phone;
-    if (!phone) throw Object.assign(new Error('phone requerido'), { statusCode: 400 });
+    const rawPhone = event.pathParameters?.phone;
+    if (!rawPhone) throw Object.assign(new Error('phone requerido'), { statusCode: 400 });
 
+    const phone = normalizePhone(rawPhone);
     const { name } = parseEventBody(event);
     if (!name?.trim()) throw Object.assign(new Error('name es requerido'), { statusCode: 400 });
 

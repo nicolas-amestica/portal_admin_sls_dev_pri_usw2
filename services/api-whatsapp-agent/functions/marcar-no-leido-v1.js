@@ -1,29 +1,40 @@
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { success, unsuccessful } from '../../../helpers/responses.js';
 import { broadcastToScope, SCOPES } from '../../../libs/websocket.js';
+import { normalizePhone } from '../mappers/map-conversacion-item.js';
 
 const ACTION = 'Marcar como no leído';
 
 /**
  * @description Marca una conversación del inbox como no leída (unreadCount = 1).
- * Persiste en DynamoDB y hace broadcast WS a todos los portales conectados.
+ * Persiste en DynamoDB (INBOX y Sesión) y hace broadcast WS.
  *
  * @param {object} event - Evento HTTP de API Gateway con pathParameters.phone.
  */
 export const main = async (event) => {
   try {
-    const phone = event.pathParameters?.phone;
-    if (!phone) throw Object.assign(new Error('phone requerido'), { statusCode: 400 });
+    const rawPhone = event.pathParameters?.phone;
+    if (!rawPhone) throw Object.assign(new Error('phone requerido'), { statusCode: 400 });
 
+    const phone = normalizePhone(rawPhone);
     const { CONVERSATIONS_TABLE } = process.env;
 
-    await dynamoDbLib.update({
-      TableName: CONVERSATIONS_TABLE,
-      Key: { pk: 'INBOX', sk: `CONV#${phone}` },
-      UpdateExpression: 'SET unreadCount = :one',
-      ConditionExpression: 'attribute_exists(pk)',
-      ExpressionAttributeValues: { ':one': 1 },
-    });
+    // Actualizar unreadCount en ambos lugares para consistencia entre lista y detalle
+    await Promise.all([
+      dynamoDbLib.update({
+        TableName: CONVERSATIONS_TABLE,
+        Key: { pk: 'INBOX', sk: `CONV#${phone}` },
+        UpdateExpression: 'SET unreadCount = :one',
+        ConditionExpression: 'attribute_exists(pk)',
+        ExpressionAttributeValues: { ':one': 1 },
+      }).catch((err) => console.warn(`[${ACTION}] No se pudo actualizar INBOX: ${err.message}`)),
+      dynamoDbLib.update({
+        TableName: CONVERSATIONS_TABLE,
+        Key: { pk: `CONV#${phone}`, sk: `CONV#${phone}` },
+        UpdateExpression: 'SET unreadCount = :one',
+        ExpressionAttributeValues: { ':one': 1 },
+      }).catch((err) => console.warn(`[${ACTION}] No se pudo actualizar sesión: ${err.message}`)),
+    ]);
 
     await broadcastToScope(SCOPES.LIST, {
       type: 'conversation_updated', phone, unreadCount: 1,

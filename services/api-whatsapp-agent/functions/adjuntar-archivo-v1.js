@@ -5,7 +5,7 @@ import { success, unsuccessful } from '../../../helpers/responses.js';
 import { uploadMedia, sendDocumentById, sendImageById, sendAudioById } from '../helpers/whatsapp-api.js';
 import { getObjectBuffer, deleteObject } from '../../../libs/s3-v3.js';
 import { broadcastToScope, SCOPES } from '../../../libs/websocket.js';
-import { buildTurnItem } from '../mappers/map-conversacion-item.js';
+import { buildTurnItem, normalizePhone } from '../mappers/map-conversacion-item.js';
 
 const ACTION = 'Adjuntar archivo a conversación';
 const MAX_FILE_SIZE_MB = 7;
@@ -19,10 +19,12 @@ const MAX_FILE_SIZE_MB = 7;
  */
 export const main = async (event) => {
   try {
-    const phone = event.pathParameters?.phone;
-    if (!phone) {
+    const rawPhone = event.pathParameters?.phone;
+    if (!rawPhone) {
       return unsuccessful(400, Object.assign(new Error('phone es requerido'), { statusCode: 400 }), ACTION);
     }
+
+    const phone = normalizePhone(rawPhone);
 
     const { s3Key, fileName, mimeType, caption = '' } = parseEventBody(event);
     if (!s3Key || !fileName || !mimeType) {
