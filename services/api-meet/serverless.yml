@@ -48,12 +48,7 @@ provider:
     TIMEZONE: America/Santiago
     CONVERSATIONS_TABLE: conversations-${self:custom.stage}-pri-${self:custom.shortRegion}
     DYNAMODB_CONFIG_TABLE: config-${self:custom.stage}-pri-${self:custom.shortRegion}
-    # TODO: Crear el parámetro SSM con el JSON del Service Account de Firebase Admin
     FCM_SSM_PARAM: /pa/${self:custom.stage}/fcm-service-account
-    SEND_PUSH_REMINDER_ARN:
-      Fn::GetAtt: [SendPushReminderV1LambdaFunction, Arn]
-    SCHEDULER_INVOKE_ROLE_ARN:
-      Fn::GetAtt: [SchedulerInvokeRole, Arn]
     WS_MANAGEMENT_ENDPOINT:
       Fn::Join:
         - ''
@@ -105,6 +100,11 @@ functions:
     description: Crea un nuevo evento de Google Meet en el calendario del administrador.
     timeout: 29
     memorySize: 512
+    environment:
+      SEND_PUSH_REMINDER_ARN:
+        Fn::Sub: "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${self:service}-${self:custom.stage}-send_push_reminder_v1"
+      SCHEDULER_INVOKE_ROLE_ARN:
+        Fn::GetAtt: [SchedulerInvokeRole, Arn]
     events:
       - httpApi:
           path: /v1/reuniones
@@ -131,6 +131,11 @@ functions:
     description: Actualiza un evento de Google Meet existente.
     timeout: 29
     memorySize: 512
+    environment:
+      SEND_PUSH_REMINDER_ARN:
+        Fn::Sub: "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${self:service}-${self:custom.stage}-send_push_reminder_v1"
+      SCHEDULER_INVOKE_ROLE_ARN:
+        Fn::GetAtt: [SchedulerInvokeRole, Arn]
     events:
       - httpApi:
           path: /v1/reuniones/{eventId}
@@ -144,6 +149,11 @@ functions:
     description: Elimina un evento de Google Meet del calendario.
     timeout: 29
     memorySize: 512
+    environment:
+      SEND_PUSH_REMINDER_ARN:
+        Fn::Sub: "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${self:service}-${self:custom.stage}-send_push_reminder_v1"
+      SCHEDULER_INVOKE_ROLE_ARN:
+        Fn::GetAtt: [SchedulerInvokeRole, Arn]
     events:
       - httpApi:
           path: /v1/reuniones/{eventId}
@@ -179,4 +189,4 @@ resources:
                 - Effect: Allow
                   Action: lambda:InvokeFunction
                   Resource:
-                    Fn::GetAtt: [SendPushReminderV1LambdaFunction, Arn]
+                    Fn::Sub: "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${self:service}-${self:custom.stage}-send_push_reminder_v1"
