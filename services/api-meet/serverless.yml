@@ -46,17 +46,6 @@ provider:
     GOOGLE_MEET_HOST_OAUTH_SECRET_KEY: /pa/${self:custom.stage}/google-meet-host-oauth
     GOOGLE_CALENDAR_ID: c_22d82dc32bd2255c8e0a5de671df98c7338ca03b8528c26c9e091ea79bf4118c@group.calendar.google.com
     TIMEZONE: America/Santiago
-    CONVERSATIONS_TABLE: conversations-${self:custom.stage}-pri-${self:custom.shortRegion}
-    DYNAMODB_CONFIG_TABLE: config-${self:custom.stage}-pri-${self:custom.shortRegion}
-    FCM_SSM_PARAM: /pa/${self:custom.stage}/fcm-service-account
-    WS_MANAGEMENT_ENDPOINT:
-      Fn::Join:
-        - ''
-        - - 'https://'
-          - 'Fn::ImportValue': inbox-ws-${self:custom.stage}-id
-          - '.execute-api.'
-          - Ref: 'AWS::Region'
-          - '.amazonaws.com/${self:provider.stage}'
 
   tracing:
     lambda: true
@@ -68,31 +57,6 @@ provider:
     - ${file(../../aws/policies/lambda-policy-xray.yml)}
     - ${file(../../aws/policies/lambda-policy-ssm.yml)}
     - ${file(../../aws/policies/lambda-policy-kms-ssm.yml)}
-    - ${file(../../aws/policies/lambda-policy-dynamodb-config.yml)}
-    - Effect: Allow
-      Action:
-        - dynamodb:Query
-        - dynamodb:DeleteItem
-        - dynamodb:PutItem
-      Resource:
-        - arn:aws:dynamodb:${self:provider.region}:*:table/conversations-${self:custom.stage}-pri-${self:custom.shortRegion}
-    - Effect: Allow
-      Action:
-        - execute-api:ManageConnections
-      Resource:
-        - arn:aws:execute-api:${self:provider.region}:*:*/@connections/*
-    - Effect: Allow
-      Action:
-        - scheduler:CreateSchedule
-        - scheduler:UpdateSchedule
-        - scheduler:DeleteSchedule
-        - scheduler:GetSchedule
-      Resource: '*'
-    - Effect: Allow
-      Action:
-        - iam:PassRole
-      Resource:
-        Fn::GetAtt: [SchedulerInvokeRole, Arn]
 
 functions:
   create_meeting_v1:
@@ -100,11 +64,6 @@ functions:
     description: Crea un nuevo evento de Google Meet en el calendario del administrador.
     timeout: 29
     memorySize: 512
-    environment:
-      SEND_PUSH_REMINDER_ARN:
-        Fn::Sub: "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${self:service}-${self:custom.stage}-send_push_reminder_v1"
-      SCHEDULER_INVOKE_ROLE_ARN:
-        Fn::GetAtt: [SchedulerInvokeRole, Arn]
     events:
       - httpApi:
           path: /v1/reuniones
@@ -131,11 +90,6 @@ functions:
     description: Actualiza un evento de Google Meet existente.
     timeout: 29
     memorySize: 512
-    environment:
-      SEND_PUSH_REMINDER_ARN:
-        Fn::Sub: "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${self:service}-${self:custom.stage}-send_push_reminder_v1"
-      SCHEDULER_INVOKE_ROLE_ARN:
-        Fn::GetAtt: [SchedulerInvokeRole, Arn]
     events:
       - httpApi:
           path: /v1/reuniones/{eventId}
@@ -149,11 +103,6 @@ functions:
     description: Elimina un evento de Google Meet del calendario.
     timeout: 29
     memorySize: 512
-    environment:
-      SEND_PUSH_REMINDER_ARN:
-        Fn::Sub: "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${self:service}-${self:custom.stage}-send_push_reminder_v1"
-      SCHEDULER_INVOKE_ROLE_ARN:
-        Fn::GetAtt: [SchedulerInvokeRole, Arn]
     events:
       - httpApi:
           path: /v1/reuniones/{eventId}
@@ -162,31 +111,3 @@ functions:
             id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
             type: request
 
-  send_push_reminder_v1:
-    handler: functions/send-push-reminder-v1.main
-    description: Envía recordatorio push vía FCM invocado por EventBridge Scheduler.
-    timeout: 29
-    memorySize: 256
-
-resources:
-  Resources:
-    SchedulerInvokeRole:
-      Type: AWS::IAM::Role
-      Properties:
-        RoleName: scheduler-invoke-meet-${self:custom.stage}-pri-${self:custom.shortRegion}
-        AssumeRolePolicyDocument:
-          Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Principal:
-                Service: scheduler.amazonaws.com
-              Action: sts:AssumeRole
-        Policies:
-          - PolicyName: InvokeSendPushReminderPolicy
-            PolicyDocument:
-              Version: '2012-10-17'
-              Statement:
-                - Effect: Allow
-                  Action: lambda:InvokeFunction
-                  Resource:
-                    Fn::Sub: "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${self:service}-${self:custom.stage}-send_push_reminder_v1"

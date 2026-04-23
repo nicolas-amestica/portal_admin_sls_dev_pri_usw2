@@ -2,10 +2,7 @@ import axios from '../../../libs/axios.js';
 import { randomUUID } from '../../../libs/crypto.js';
 import { standardMiddleware } from '../../../libs/middleware/index.js';
 import { success, unsuccessful } from '../../../helpers/responses.js';
-import { broadcastToScope, SCOPES } from '../../../libs/websocket.js';
 import { getCalendarAccessToken, getMeetHostAccessToken, buildCalendarApiUrl, mapGoogleEventToMeetEvent, createMeetSpace } from '../../../helpers/google-calendar-auth.js';
-import { getAllFcmTokens, sendFcmPush } from '../helpers/send-fcm-push.js';
-import { createReminders } from '../helpers/manage-reminders.js';
 
 const ACTION = 'Crear reunión';
 const FLAMINGO_COLOR_ID = '4';
@@ -101,34 +98,6 @@ const baseHandler = async (event) => {
   }
 
   const meeting = mapGoogleEventToMeetEvent(createdEvent);
-
-  // Notificar por WebSocket
-  await broadcastToScope(SCOPES.CALENDAR, {
-    type: 'meeting_created',
-    meeting,
-  });
-
-  // Notificación push inmediata y programar recordatorios (no bloquea la respuesta)
-  try {
-    const tokens = await getAllFcmTokens();
-    if (tokens.length) {
-      await sendFcmPush({
-        tokens,
-        title: `Nueva reunión: ${meeting.title}`,
-        body: `${meeting.date} a las ${meeting.startTime}`,
-        data: { meetLink: meeting.googleMeetLink ?? '', eventId: meeting.id },
-      });
-    }
-    await createReminders({
-      eventId: meeting.id,
-      date: meeting.date,
-      startTime: meeting.startTime,
-      title: meeting.title,
-      meetLink: meeting.googleMeetLink,
-    });
-  } catch (err) {
-    console.error('[PUSH] Error al enviar notificación o programar recordatorio:', err.message);
-  }
 
   return success(201, { Item: meeting }, ACTION, {});
 };
