@@ -1,6 +1,7 @@
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { success, unsuccessful } from '../../../helpers/responses.js';
 import { broadcastToScope, SCOPES } from '../../../libs/websocket.js';
+import { normalizePhone } from '../mappers/map-conversacion-item.js';
 
 const ACTION = 'Eliminar conversación';
 
@@ -12,9 +13,10 @@ const ACTION = 'Eliminar conversación';
  */
 export const main = async (event) => {
   try {
-    const phone = event.pathParameters?.phone;
-    if (!phone) throw Object.assign(new Error('phone requerido'), { statusCode: 400 });
+    const rawPhone = event.pathParameters?.phone;
+    if (!rawPhone) throw Object.assign(new Error('phone requerido'), { statusCode: 400 });
 
+    const phone = normalizePhone(rawPhone);
     const { CONVERSATIONS_TABLE } = process.env;
 
     const deletePromises = [];

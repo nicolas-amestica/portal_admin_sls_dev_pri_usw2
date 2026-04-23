@@ -1,5 +1,6 @@
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { success, unsuccessful } from '../../../helpers/responses.js';
+import { normalizePhone } from '../mappers/map-conversacion-item.js';
 
 const ACTION = 'Obtener detalle de conversación';
 const PAGE_SIZE = 50;
@@ -46,7 +47,7 @@ async function loadMsgsPage(phone, cursor) {
   const rawItems = await dynamoDbLib.query({
     TableName: CONVERSATIONS_TABLE,
     KeyConditionExpression: 'pk = :pk AND sk BETWEEN :start AND :end',
-    ExpressionAttributeValues: { ':pk': pk, ':start': 'MSG#', ':end': cursor ?? MSG_SK_END },
+    ExpressionAttributeValues: { ':pk': pk, ':start': 'MSG#' , ':end': cursor ?? MSG_SK_END },
     ScanIndexForward: false,
     Limit: PAGE_SIZE + 1,
   }) ?? [];
@@ -85,16 +86,18 @@ function mapDynamoMessages(dynamoMsgs) {
  */
 export const main = async (event) => {
   try {
-    const phone = event.pathParameters?.phone;
-    if (!phone) {
+    const rawPhone = event.pathParameters?.phone;
+    if (!rawPhone) {
       return unsuccessful(400, Object.assign(new Error('phone es requerido'), { statusCode: 400 }), ACTION);
     }
 
+    const phone = normalizePhone(rawPhone);
     const { CONVERSATIONS_TABLE } = process.env;
     const since = event.queryStringParameters?.since ?? null;
     const cursor = event.queryStringParameters?.cursor ?? null;
     const isFullLoad = !since && !cursor;
 
+    // 1. Obtener datos actuales (Lectura)
     const [inboxItem, histResult, sessionItem] = await Promise.all([
       dynamoDbLib.getOne({ TableName: CONVERSATIONS_TABLE, Key: { pk: 'INBOX', sk: `CONV#${phone}` } }),
       since
@@ -103,25 +106,26 @@ export const main = async (event) => {
       isFullLoad
         ? dynamoDbLib.getOne({ TableName: CONVERSATIONS_TABLE, Key: { pk: `CONV#${phone}`, sk: `CONV#${phone}` } })
         : Promise.resolve(null),
-      isFullLoad
-        ? dynamoDbLib.update({
-            TableName: CONVERSATIONS_TABLE,
-            Key: { pk: 'INBOX', sk: `CONV#${phone}` },
-            UpdateExpression: 'SET unreadCount = :zero',
-            ConditionExpression: 'attribute_exists(pk)',
-            ExpressionAttributeValues: { ':zero': 0 },
-          }).catch(() => {})
-        : Promise.resolve(),
-      isFullLoad
-        ? dynamoDbLib.update({
-            TableName: CONVERSATIONS_TABLE,
-            Key: { pk: `CONV#${phone}`, sk: `CONV#${phone}` },
-            UpdateExpression: 'SET unreadCount = :zero',
-            ExpressionAttributeValues: { ':zero': 0 },
-            ReturnValues: 'NONE',
-          }).catch((err) => console.warn(`[${ACTION}] No se pudo resetear unreadCount sesión: ${err.message}`))
-        : Promise.resolve(),
     ]);
+
+    // 2. Si es carga completa, resetear contadores en segundo plano (Escritura post-lectura)
+    if (isFullLoad) {
+      Promise.all([
+        dynamoDbLib.update({
+          TableName: CONVERSATIONS_TABLE,
+          Key: { pk: 'INBOX', sk: `CONV#${phone}` },
+          UpdateExpression: 'SET unreadCount = :zero',
+          ConditionExpression: 'attribute_exists(pk)',
+          ExpressionAttributeValues: { ':zero': 0 },
+        }).catch(() => {}),
+        dynamoDbLib.update({
+          TableName: CONVERSATIONS_TABLE,
+          Key: { pk: `CONV#${phone}`, sk: `CONV#${phone}` },
+          UpdateExpression: 'SET unreadCount = :zero',
+          ExpressionAttributeValues: { ':zero': 0 },
+        }).catch((err) => console.warn(`[${ACTION}] No se pudo resetear unreadCount sesión: ${err.message}`)),
+      ]);
+    }
 
     const { msgs, hasMore, nextCursor } = histResult;
     const mensajes = mapDynamoMessages(msgs);
