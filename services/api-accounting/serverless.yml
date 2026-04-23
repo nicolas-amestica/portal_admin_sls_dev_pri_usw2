@@ -1,0 +1,243 @@
+service: contabilidad
+frameworkVersion: '4'
+
+configValidationMode: warn
+projectDir: ./../../
+
+plugins:
+  - serverless-offline
+
+custom: ${file(../../common/custom.yml)}
+
+build:
+  esbuild:
+    bundle: true
+    minify: true
+    sourcemap: true
+    exclude:
+      - 'aws-sdk'
+      - '@aws-sdk/*'
+    target: 'node20'
+    platform: 'node'
+    format: 'cjs'
+
+package:
+  individually: true
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-west-2'}
+  profile: pa-${self:custom.stage}
+  lambdaHashingVersion: 20201221
+
+  httpApi:
+    id: ${self:custom.apiGatewayId}
+
+  architecture: arm64
+
+  environment:
+    STAGE: ${self:custom.stage}
+    PROFILE: ${self:provider.profile}
+    NODE_OPTIONS: '--enable-source-maps'
+    DYNAMODB_ACCOUNTING_TABLE: accounting-${self:custom.stage}-pri-${self:custom.shortRegion}
+    BUCKET_INFO_GI: giras-indomito-${self:custom.stage}-info
+
+  tracing:
+    lambda: true
+
+  deploymentBucket:
+    name: sls-deploys-${self:custom.stage}-pri-${self:custom.shortRegion}
+
+  iamRoleStatements:
+    - ${file(../../aws/policies/lambda-policy-xray.yml)}
+    - ${file(../../aws/policies/lambda-policy-ssm.yml)}
+    - ${file(../../aws/policies/lambda-policy-kms-ssm.yml)}
+    - ${file(../../aws/policies/lambda-policy-dynamodb-accounting.yml)}
+    - ${file(../../aws/policies/lambda-policy-s3.yml)}
+
+functions:
+  upload_url_v1:
+    handler: functions/upload-url-v1.main
+    description: Genera presigned URL para subir comprobantes directamente a S3.
+    timeout: 10
+    memorySize: 128
+    events:
+      - httpApi:
+          path: /v1/contabilidad/subir-comprobante
+          method: POST
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  create_expense_v1:
+    handler: functions/create-expense-v1.main
+    description: Registra un gasto de empresa con su comprobante y justificación.
+    timeout: 10
+    memorySize: 128
+    events:
+      - httpApi:
+          path: /v1/contabilidad/gastos
+          method: POST
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  list_expenses_v1:
+    handler: functions/list-expenses-v1.main
+    description: Lista gastos por período, con filtro por usuario o vista admin.
+    timeout: 10
+    memorySize: 128
+    events:
+      - httpApi:
+          path: /v1/contabilidad/gastos
+          method: GET
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  get_expense_v1:
+    handler: functions/get-expense-v1.main
+    description: Obtiene el detalle de un gasto por su identificador.
+    timeout: 10
+    memorySize: 128
+    events:
+      - httpApi:
+          path: /v1/contabilidad/gastos/{sk}
+          method: GET
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  update_expense_v1:
+    handler: functions/update-expense-v1.main
+    description: Actualiza los campos de un gasto registrado.
+    timeout: 10
+    memorySize: 128
+    events:
+      - httpApi:
+          path: /v1/contabilidad/gastos/{sk}
+          method: PUT
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  delete_expense_v1:
+    handler: functions/delete-expense-v1.main
+    description: Elimina un gasto registrado.
+    timeout: 10
+    memorySize: 128
+    events:
+      - httpApi:
+          path: /v1/contabilidad/gastos/{sk}
+          method: DELETE
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  export_accounting_v1:
+    handler: functions/export-accounting-v1.main
+    description: Exporta gastos e ingresos de un período para el contador (CSV).
+    timeout: 15
+    memorySize: 128
+    events:
+      - httpApi:
+          path: /v1/contabilidad/exportar
+          method: GET
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  create_income_v1:
+    handler: functions/create-income-v1.main
+    description: Registra un ingreso recibido en la cuenta bancaria de la empresa.
+    timeout: 10
+    memorySize: 128
+    events:
+      - httpApi:
+          path: /v1/contabilidad/ingresos
+          method: POST
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  list_incomes_v1:
+    handler: functions/list-incomes-v1.main
+    description: Lista ingresos por período, con filtro por usuario o vista admin.
+    timeout: 10
+    memorySize: 128
+    events:
+      - httpApi:
+          path: /v1/contabilidad/ingresos
+          method: GET
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  get_income_v1:
+    handler: functions/get-income-v1.main
+    description: Obtiene el detalle de un ingreso por su identificador.
+    timeout: 10
+    memorySize: 128
+    events:
+      - httpApi:
+          path: /v1/contabilidad/ingresos/{sk}
+          method: GET
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  update_income_v1:
+    handler: functions/update-income-v1.main
+    description: Actualiza los campos de un ingreso registrado.
+    timeout: 10
+    memorySize: 128
+    events:
+      - httpApi:
+          path: /v1/contabilidad/ingresos/{sk}
+          method: PUT
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  delete_income_v1:
+    handler: functions/delete-income-v1.main
+    description: Elimina un ingreso registrado.
+    timeout: 10
+    memorySize: 128
+    events:
+      - httpApi:
+          path: /v1/contabilidad/ingresos/{sk}
+          method: DELETE
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+resources:
+  Resources:
+    AccountingTable:
+      Type: AWS::DynamoDB::Table
+      DeletionPolicy: Retain
+      Properties:
+        TableName: accounting-${self:custom.stage}-pri-${self:custom.shortRegion}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: pk
+            AttributeType: S
+          - AttributeName: sk
+            AttributeType: S
+          - AttributeName: gsiOne
+            AttributeType: S
+        KeySchema:
+          - AttributeName: pk
+            KeyType: HASH
+          - AttributeName: sk
+            KeyType: RANGE
+        GlobalSecondaryIndexes:
+          - IndexName: gsiOne-index
+            KeySchema:
+              - AttributeName: gsiOne
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
