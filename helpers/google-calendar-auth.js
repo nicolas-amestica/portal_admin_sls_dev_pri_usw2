@@ -149,6 +149,7 @@ export function mapGoogleEventToMeetEvent(event) {
   const dateTime = event.start?.dateTime || '';
   const endDateTime = event.end?.dateTime || '';
   const extProps = event.extendedProperties?.shared ?? {};
+  const privateProps = event.extendedProperties?.private ?? {};
 
   return {
     id: event.id,
@@ -168,5 +169,7 @@ export function mapGoogleEventToMeetEvent(event) {
     hostSk: extProps.hostSk ?? null,
     hostName: extProps.hostName ?? null,
     hostColor: extProps.hostColor ?? null,
+    agent: extProps.agent === 'true',
+    phoneNumber: privateProps.phoneNumber ?? null,
   };
 }

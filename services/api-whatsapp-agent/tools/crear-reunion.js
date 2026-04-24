@@ -94,7 +94,10 @@ export async function crearReunion({ nombreCliente, emailCliente, fechaSugerida,
     attendees: guests,
     colorId: FLAMINGO_COLOR_ID,
     reminders: { useDefault: false, overrides: NOTIFICATIONS },
-    ...(phoneNumber && { extendedProperties: { private: { phoneNumber } } }),
+    extendedProperties: {
+      ...(phoneNumber && { private: { phoneNumber } }),
+      shared: { agent: 'true' },
+    },
     conferenceData: {
       createRequest: {
         requestId: randomUUID(),
