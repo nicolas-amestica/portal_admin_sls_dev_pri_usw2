@@ -10,7 +10,7 @@ echo "🚀 Desplegando Portal Admin - Stage: $STAGE"
 echo ""
 
 # Infraestructura
-echo "📦 1/15 - Verificando infraestructura..."
+echo "📦 1/16 - Verificando infraestructura..."
 if aws cloudformation describe-stacks --stack-name "portal-admin-infrastructure-${STAGE}" --profile "pa-${STAGE}" --region us-west-2 >/dev/null 2>&1; then
     echo "   ✅ Infraestructura ya existe"
 else
@@ -34,6 +34,7 @@ services=(
     "api-favorites"
     "api-meet"
     "api-whatsapp-agent"
+    "api-accounting"
     "job-trigger"
 )
 

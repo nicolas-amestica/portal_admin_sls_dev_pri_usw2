@@ -43,6 +43,8 @@ provider:
     NODE_OPTIONS: '--enable-source-maps'
     DYNAMODB_ACCOUNTING_TABLE: accounting-${self:custom.stage}-pri-${self:custom.shortRegion}
     BUCKET_INFO_GI: giras-indomito-${self:custom.stage}-info
+    SSM_DTE_PATH: /dte/${self:custom.stage}
+    SII_HOST: ${self:custom.siiHost}
 
   tracing:
     lambda: true
@@ -210,6 +212,19 @@ functions:
       - httpApi:
           path: /v1/contabilidad/ingresos/{sk}
           method: DELETE
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  validate_dte_v1:
+    handler: functions/validate-dte-v1.main
+    description: Verifica si un DTE recibido (factura de proveedor) existe en el Registro de Compras del SII.
+    timeout: 29
+    memorySize: 128
+    events:
+      - httpApi:
+          path: /v1/contabilidad/dte/validar-factura
+          method: GET
           authorizer:
             id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
             type: request

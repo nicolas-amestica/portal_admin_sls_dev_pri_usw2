@@ -78,7 +78,7 @@ check_infrastructure() {
 }
 
 # Contador de servicios
-TOTAL_SERVICES=14
+TOTAL_SERVICES=15
 DEPLOYED=0
 FAILED=0
 FAILED_SERVICES=()
@@ -123,6 +123,7 @@ SERVICES=(
     "services/api-favorites"
     "services/api-meet"
     "services/api-whatsapp-agent"
+    "services/api-accounting"
     "services/job-trigger"
 )
 
