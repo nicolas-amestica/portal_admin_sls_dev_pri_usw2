@@ -11,9 +11,9 @@ Servicio para guardar datos de contratos y generar documentos PDF (contratos, de
 | Método | Ruta | Handler | Descripción |
 |---|---|---|---|
 | `POST` | `/v1/contratos/guardar` | `save-contract-data-v1` | Guardar datos del contrato en el programa |
-| `POST` | `/v1/documentos/pdf` | `build-pdf-document-by-form-v1` | Generar PDF desde formulario (base64) |
-| `GET` | `/v1/documentos/pdf` | `get-pdf-document-by-sk-v1` | Obtener contrato con metadatos por SK |
-| `GET` | `/v1/documentos/pdf/{sk}` | `build-pdf-document-by-sk-from-program-v1` | Obtener PDF en base64 desde programa por SK |
+| `POST` | `/v1/contratos/pdf` | `build-pdf-contract-by-form-v1` | Generar PDF, subir a S3 y retornar URL prefirmada |
+| `GET` | `/v1/contratos/pdf` | `get-pdf-contract-by-sk-v1` | Obtener PDFs asociados al programa (base64) |
+| `GET` | `/v1/contratos/pdf/{sk}` | `build-pdf-contract-by-sk-from-program-v1` | Generar PDF desde programa, subir a S3 y retornar URL prefirmada |
 
 ---
 
@@ -40,8 +40,8 @@ Guarda o actualiza los datos del contrato asociado a un programa en DynamoDB.
 
 > `memorySize: 512` · `timeout: 29s`
 
-### `build-pdf-document-by-form-v1`
-Genera un documento PDF a partir de los datos del contrato enviados en el body. Retorna el PDF codificado en **base64**.
+### `build-pdf-contract-by-form-v1`
+Genera un documento PDF a partir de los datos del contrato enviados en el body, lo sube a S3 y retorna una **URL prefirmada**.
 
 **Body:**
 ```json
@@ -70,7 +70,10 @@ Genera un documento PDF a partir de los datos del contrato enviados en el body. 
   "state": true,
   "metadata": { "statusCode": 200, "action": "Generar documento PDF." },
   "data": {
-    "base64": "JVBERi0xLjQK..."
+    "url": "https://...presigned...",
+    "bucket": "giras-indomito-<stage>-info",
+    "key": "contratos/on-demand/CTT/<uuid>.pdf",
+    "expiresIn": 900
   }
 }
 ```
@@ -103,14 +106,14 @@ GET /v1/documentos/pdf?sk=CTT%23<uuid-v7>
 
 > `memorySize: 1024` · `timeout: 29s`
 
-### `build-pdf-document-by-sk-from-program-v1`
-Obtiene los datos del contrato desde DynamoDB (por `sk`) y genera el PDF en base64, útil para regenerar o descargar el PDF final.
+### `build-pdf-contract-by-sk-from-program-v1`
+Obtiene los datos del contrato desde DynamoDB (por `sk`), genera el PDF, lo sube a S3 y retorna una **URL prefirmada**.
 
 **Path Parameter:**
 - `sk` (requerido, URL-encoded): Sort key del contrato
 
 ```
-GET /v1/documentos/pdf/CTT%23<uuid-v7>
+GET /v1/contratos/pdf/CTT%23<uuid-v7>
 ```
 
 **Respuesta:**
@@ -119,7 +122,12 @@ GET /v1/documentos/pdf/CTT%23<uuid-v7>
   "state": true,
   "metadata": { "statusCode": 200, "action": "Obtener documento PDF desde programa." },
   "data": {
-    "base64": "JVBERi0xLjQK..."
+    "url": "https://...presigned...",
+    "bucket": "giras-indomito-<stage>-info",
+    "key": "contratos/programas/PRG%23<uuid-v7>/CTT/<uuid>.pdf",
+    "expiresIn": 900,
+    "scope": "CTT",
+    "programSk": "PRG#<uuid-v7>"
   }
 }
 ```

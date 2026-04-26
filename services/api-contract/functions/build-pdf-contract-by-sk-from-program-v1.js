@@ -2,6 +2,8 @@ import { success } from "../../../helpers/responses.js";
 import { standardMiddleware } from "../../../libs/middleware/index.js";
 import { generateDocument } from '../../../libs/document-builders/generator.js';
 import { CachedDynamoDB, CacheKeys, cache } from '../../../libs/cache/index.js';
+import { uuidv7 } from 'uuidv7';
+import * as S3 from "../../../libs/s3-v3.js";
 
 const {
   PROGRAM_TABLE,
@@ -10,13 +12,13 @@ const {
 } = process.env;
 
 /**
- * Genera un documento PDF de contrato en formato base64 a partir de un SK de programa.
+ * Genera un documento PDF de contrato, lo sube a S3 y retorna una URL prefirmada.
  * Implementa caché en dos niveles:
- *   1. PDF completo (base64) — evita query + generación (TTL: 15 min)
+ *   1. URL prefirmada — evita query + generación + upload (TTL: 15 min)
  *   2. Query DynamoDB del programa (TTL: 10 min)
  */
 const handler = async (event) => {
-  const action = "Generar contrato pdf en base64.";
+  const action = "Generar contrato PDF y subir a S3.";
 
   const { sk } = event.pathParams;
   const decodedSk = decodeURIComponent(sk);
@@ -27,11 +29,11 @@ const handler = async (event) => {
     throw error;
   }
 
-  // Nivel 1: caché del PDF completo
+  // Nivel 1: caché de la URL prefirmada
   const pdfCacheKey = CacheKeys.contractPdf(decodedSk);
   const cachedPdf = cache.get(pdfCacheKey);
   if (cachedPdf !== null) {
-    return success(200, { base64: cachedPdf }, action);
+    return success(200, cachedPdf, action);
   }
 
   // Nivel 2: caché del query DynamoDB
@@ -89,10 +91,24 @@ const handler = async (event) => {
     bucket: BUCKET_INFO_GI
   });
 
-  // Retornar respuesta según resultado y guardar PDF en caché
+  // Subir a S3, retornar URL prefirmada y guardar respuesta en caché
   if (result.success) {
-    cache.set(pdfCacheKey, result.base64, CacheKeys.TTL.CONTRACT_PDF);
-    return success(200, { base64: result.base64 }, action);
+    const pdfBuffer = Buffer.from(result.base64, 'base64');
+    const key = `contratos/programas/${encodeURIComponent(decodedSk)}/${contractScope}/${uuidv7()}.pdf`;
+
+    await S3.putObject({
+      Bucket: BUCKET_INFO_GI,
+      Key: key,
+      Body: pdfBuffer,
+      ContentType: 'application/pdf',
+    });
+
+    const expiresIn = 900;
+    const url = await S3.getPresignedUrl({ Bucket: BUCKET_INFO_GI, Key: key }, expiresIn);
+    const payload = { url, bucket: BUCKET_INFO_GI, key, expiresIn, scope: contractScope, programSk: decodedSk };
+
+    cache.set(pdfCacheKey, payload, CacheKeys.TTL.CONTRACT_PDF);
+    return success(200, payload, action);
   } else {
     const error = new Error(result.error);
     error.statusCode = result.statusCode || 500;
