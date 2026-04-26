@@ -1,6 +1,6 @@
 import { success } from '../../../helpers/responses.js';
 import { standardMiddleware } from '../../../libs/middleware/index.js';
-import { generateHtmlTemplatePdf } from '../../../libs/html-pdf/index.js';
+import { generateHtmlTemplatePdfBuffer } from '../../../libs/html-pdf/index.js';
 import { uuidv7 } from 'uuidv7';
 import * as S3 from '../../../libs/s3-v3.js';
 import { validateHtmlDocumentPayload } from '../validators/validate-html-document-payload.js';
@@ -12,6 +12,7 @@ const { BUCKET_INFO_GI } = process.env;
  */
 const handler = async (event) => {
   const logAction = 'Generar PDF desde plantilla HTML y subir a S3.';
+  const t0 = Date.now();
 
   const { scope, document, action } = validateHtmlDocumentPayload(event.body);
 
@@ -21,7 +22,9 @@ const handler = async (event) => {
     throw error;
   }
 
-  const result = await generateHtmlTemplatePdf({ scope, document, action });
+  const tGenerateStart = Date.now();
+  const result = await generateHtmlTemplatePdfBuffer({ scope, document, action });
+  const generateMs = Date.now() - tGenerateStart;
 
   if (!result.success) {
     const error = new Error(result.error);
@@ -29,18 +32,32 @@ const handler = async (event) => {
     throw error;
   }
 
-  const pdfBuffer = Buffer.from(result.base64, 'base64');
+  const pdfBuffer = result.buffer;
   const key = `documentos/html/${scope}/${uuidv7()}.pdf`;
 
+  const tUploadStart = Date.now();
   await S3.putObject({
     Bucket: BUCKET_INFO_GI,
     Key: key,
     Body: pdfBuffer,
     ContentType: 'application/pdf',
   });
+  const uploadMs = Date.now() - tUploadStart;
 
+  const tUrlStart = Date.now();
   const expiresIn = 900;
   const url = await S3.getPresignedUrl({ Bucket: BUCKET_INFO_GI, Key: key }, expiresIn);
+  const presignMs = Date.now() - tUrlStart;
+  const totalMs = Date.now() - t0;
+
+  console.info('build_html_pdf_v1 timings', {
+    scope,
+    pdfBytes: pdfBuffer.length,
+    generateMs,
+    uploadMs,
+    presignMs,
+    totalMs,
+  });
 
   return success(200, { url, bucket: BUCKET_INFO_GI, key, expiresIn, scope }, logAction);
 };

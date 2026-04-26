@@ -24,9 +24,9 @@ export { buildHtmlDocument, renderHtmlToPdf };
  * @param {string} params.scope
  * @param {Object} params.document
  * @param {{ isPreview?: boolean }} [params.action]
- * @returns {Promise<{ success: true, base64: string } | { success: false, error: string, statusCode: number }>}
+ * @returns {Promise<{ success: true, buffer: Buffer } | { success: false, error: string, statusCode: number }>}
  */
-export const generateHtmlTemplatePdf = async ({ scope, document, action = {} }) => {
+export const generateHtmlTemplatePdfBuffer = async ({ scope, document, action = {} }) => {
   try {
     const documentForHtml = await resolveDocumentImageSources(document);
     const html = buildHtmlDocument(scope, documentForHtml, { isPreview: action.isPreview === true });
@@ -36,13 +36,28 @@ export const generateHtmlTemplatePdf = async ({ scope, document, action = {} }) 
       return { success: false, error: 'El PDF generado no es un buffer válido', statusCode: 500 };
     }
 
-    return { success: true, base64: buffer.toString('base64') };
+    return { success: true, buffer };
   } catch (error) {
-    console.error('generateHtmlTemplatePdf:', error);
+    console.error('generateHtmlTemplatePdfBuffer:', error);
     return {
       success: false,
       error: error.message || 'Error al generar el PDF desde HTML',
       statusCode: error.statusCode || 500,
     };
   }
+};
+
+/**
+ * @description Genera PDF desde payload scope + document y retorna base64.
+ * Mantiene compatibilidad con consumidores existentes.
+ * @param {Object} params
+ * @param {string} params.scope
+ * @param {Object} params.document
+ * @param {{ isPreview?: boolean }} [params.action]
+ * @returns {Promise<{ success: true, base64: string } | { success: false, error: string, statusCode: number }>}
+ */
+export const generateHtmlTemplatePdf = async (params) => {
+  const result = await generateHtmlTemplatePdfBuffer(params);
+  if (!result.success) return result;
+  return { success: true, base64: result.buffer.toString('base64') };
 };
