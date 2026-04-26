@@ -1,6 +1,7 @@
 /**
  * Helper de integración directa con el SII (Servicio de Impuestos Internos de Chile).
- * Implementado con APIs nativas de Node.js 20 — sin dependencias externas.
+ * Autenticación: APIs nativas de Node.js 20.
+ * Firma XMLDSIG de DTEs: xml-crypto (maneja C14N inclusive correctamente).
  *
  * Flujo de autenticación SII:
  *   GET /DTEWS/CrSeed.jws → semilla aleatoria
@@ -8,7 +9,8 @@
  *   POST /DTEWS/GetTokenFromSeed.jws → TOKEN (válido ~2 min)
  */
 
-import { createSign, createHash } from 'crypto';
+import { createSign, createHash, createPrivateKey } from 'crypto';
+import { SignedXml } from 'xml-crypto';
 
 const FETCH_TIMEOUT_MS = 10_000;
 const MAX_RETRIES = 3;
@@ -194,6 +196,266 @@ function parseRut(rut) {
   const lastDash = clean.lastIndexOf('-');
   if (lastDash === -1) throw new Error(`RUT inválido: ${rut}`);
   return { numero: clean.slice(0, lastDash), dv: clean.slice(lastDash + 1).toUpperCase() };
+}
+
+// ─── Funciones de emisión de DTEs ─────────────────────────────────────────────
+
+/**
+ * Construye y firma un DTE tipo 39 (boleta electrónica).
+ * Incluye el TED (Timbre Electrónico) firmado con la llave del CAF.
+ *
+ * @param {object} ingreso - Ingreso de DynamoDB (fecha, montoTotal, concepto).
+ * @param {number} folio - Folio autorizado por el CAF.
+ * @param {string} cafXml - Contenido XML del CAF descargado del SII.
+ * @param {object} config - Config del emisor (certPem, llavePem, rutEmpresa, razonSocial, giro, direccion, comuna, ciudad).
+ * @returns {Promise<string>} DTE XML con Signature embebida.
+ */
+export async function buildAndSignBoleta39(ingreso, folio, cafXml, config) {
+  const timestamp = isoTimestamp();
+  const ted = buildTed(ingreso, folio, cafXml, config, timestamp);
+  const dteXml = buildBoleta39Xml(ingreso, folio, config, ted, timestamp);
+  return signDteXml(dteXml, config.llavePem, config.certPem, folio, 39);
+}
+
+/**
+ * Envuelve un DTE firmado en el sobre EnvioDTE y lo firma con la llave de la empresa.
+ *
+ * @param {string} signedDteXml - DTE XML ya firmado (salida de buildAndSignBoleta39).
+ * @param {number} tipoDte - Tipo de DTE (39, 33, 34...).
+ * @param {object} config - Config del emisor + nroResolucion + fchResolucion.
+ * @returns {Promise<string>} EnvioDTE XML con Signature embebida.
+ */
+export async function buildAndSignEnvioDte(signedDteXml, tipoDte, config) {
+  const timestamp = isoTimestamp();
+  const envioDteXml = buildEnvioDteXml(signedDteXml, tipoDte, config, timestamp);
+  return signEnvioDteXml(envioDteXml, config.llavePem, config.certPem);
+}
+
+/**
+ * Envía un EnvioDTE firmado al SII vía multipart/form-data.
+ *
+ * @param {string} token - Token SII obtenido con getSiiToken().
+ * @param {string} signedEnvioDteXml - EnvioDTE XML firmado.
+ * @param {object} config - Config del emisor (rutEmpresa).
+ * @param {string} siiHost - Host del SII.
+ * @returns {Promise<{ trackId: string, estado: string }>}
+ */
+export async function sendDteToSii(token, signedEnvioDteXml, config, siiHost) {
+  const { numero, dv } = parseRut(config.rutEmpresa);
+  const form = new FormData();
+  form.append('rutSender', numero);
+  form.append('dvSender', dv);
+  form.append('rutCompany', numero);
+  form.append('dvCompany', dv);
+  form.append('archivo', new Blob([signedEnvioDteXml], { type: 'text/xml' }), 'dte.xml');
+
+  const responseText = await fetchWithRetry(
+    `https://${siiHost}/cgi_dte/UPL/DTEUpload`,
+    { method: 'POST', headers: { Cookie: `TOKEN=${token}` }, body: form }
+  );
+
+  const trackId = extractTag(responseText, 'TRACKID') ?? '';
+  const estado = extractTag(responseText, 'ESTADO') ?? '';
+  if (!trackId) throw new Error(`SII no retornó TRACKID. Respuesta: ${responseText}`);
+  return { trackId, estado };
+}
+
+/**
+ * Consulta el estado de un DTE emitido usando su folio y datos del ingreso.
+ *
+ * @returns {Promise<{ estado: string, glosa: string, dteStatus: string }>}
+ */
+export async function checkDteEmisionStatus({ token, rutEmpresa, tipoDte, folio, fecha, monto, siiHost }) {
+  const { numero, dv } = parseRut(rutEmpresa);
+  const fechaSii = String(fecha).replace(/-/g, '');
+
+  const soapBody = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/">',
+    '<SOAP-ENV:Body>',
+    '<getEstDte>',
+    `<Rut>${numero}</Rut>`,
+    `<Dv>${dv}</Dv>`,
+    `<RutEmisor>${numero}</RutEmisor>`,
+    `<DvEmisor>${dv}</DvEmisor>`,
+    `<TipoDte>${tipoDte}</TipoDte>`,
+    `<Folio>${folio}</Folio>`,
+    `<FechaEmisionDte>${fechaSii}</FechaEmisionDte>`,
+    `<MontoDte>${monto}</MontoDte>`,
+    '</getEstDte>',
+    '</SOAP-ENV:Body>',
+    '</SOAP-ENV:Envelope>',
+  ].join('');
+
+  const responseText = await fetchWithRetry(
+    `https://${siiHost}/DTEWS/QueryEstDte.jws`,
+    { method: 'POST', headers: { 'Content-Type': 'text/xml; charset=UTF-8', 'SOAPAction': '""', 'Cookie': `TOKEN=${token}` }, body: soapBody }
+  );
+
+  const estado = extractTag(responseText, 'ESTADO') ?? extractTag(responseText, 'Estado') ?? '';
+  const glosa = extractTag(responseText, 'GLOSA') ?? extractTag(responseText, 'Glosa') ?? '';
+  const dteStatus = mapEstadoSiiEmision(estado);
+  return { estado, glosa, dteStatus };
+}
+
+// ─── Helpers internos de emisión ──────────────────────────────────────────────
+
+function buildBoleta39Xml(ingreso, folio, config, tedXml, timestamp) {
+  const { numero, dv } = parseRut(config.rutEmpresa);
+  const rutConDv = `${numero}-${dv}`;
+  return [
+    `<DTE version="1.0" xmlns="http://www.sii.cl/SiiDte">`,
+    `<Documento ID="F${folio}T39">`,
+    '<Encabezado><IdDoc>',
+    '<TipoDTE>39</TipoDTE>',
+    `<Folio>${folio}</Folio>`,
+    `<FchEmis>${ingreso.fecha}</FchEmis>`,
+    '<IndServicio>1</IndServicio>',
+    '</IdDoc><Emisor>',
+    `<RUTEmisor>${rutConDv}</RUTEmisor>`,
+    `<RznSoc>${config.razonSocial}</RznSoc>`,
+    `<GiroEmis>${config.giro}</GiroEmis>`,
+    `<DirOrigen>${config.direccion}</DirOrigen>`,
+    `<CmnaOrigen>${config.comuna}</CmnaOrigen>`,
+    `<CiudadOrigen>${config.ciudad}</CiudadOrigen>`,
+    '</Emisor><Receptor>',
+    '<RUTRecep>66666666-6</RUTRecep>',
+    '<RznSocRecep>Consumidor Final</RznSocRecep>',
+    '</Receptor><Totales>',
+    `<MntTotal>${ingreso.montoTotal}</MntTotal>`,
+    '</Totales></Encabezado>',
+    '<Detalle>',
+    '<NroLinDet>1</NroLinDet>',
+    `<NmbItem>${String(ingreso.concepto).substring(0, 80)}</NmbItem>`,
+    `<MntItem>${ingreso.montoTotal}</MntItem>`,
+    '</Detalle>',
+    tedXml,
+    `<TmstFirma>${timestamp}</TmstFirma>`,
+    '</Documento>',
+    '</DTE>',
+  ].join('');
+}
+
+function buildTed(ingreso, folio, cafXml, config, timestamp) {
+  const { numero, dv } = parseRut(config.rutEmpresa);
+  const rutConDv = `${numero}-${dv}`;
+  const cafElement = extractCafElement(cafXml);
+  const ddXml = [
+    '<DD>',
+    `<RE>${rutConDv}</RE>`,
+    '<TD>39</TD>',
+    `<F>${folio}</F>`,
+    `<FE>${ingreso.fecha}</FE>`,
+    '<RR>66666666-6</RR>',
+    '<RSR>Consumidor Final</RSR>',
+    `<MNT>${ingreso.montoTotal}</MNT>`,
+    `<IT1>${String(ingreso.concepto).substring(0, 40)}</IT1>`,
+    cafElement,
+    `<TSTED>${timestamp}</TSTED>`,
+    '</DD>',
+  ].join('');
+
+  const cafKey = extractCafKey(cafXml);
+  const frma = createSign('SHA1').update(ddXml).sign(cafKey, 'base64');
+  return `<TED version="1.0">${ddXml}<FRMA algoritmo="SHA1withRSA">${frma}</FRMA></TED>`;
+}
+
+function buildEnvioDteXml(signedDteXml, tipoDte, config, timestamp) {
+  const { numero, dv } = parseRut(config.rutEmpresa);
+  const rutConDv = `${numero}-${dv}`;
+  return [
+    '<?xml version="1.0" encoding="ISO-8859-1"?>',
+    '<EnvioDTE version="1.0" xmlns="http://www.sii.cl/SiiDte"',
+    ' xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"',
+    ' xsi:schemaLocation="http://www.sii.cl/SiiDte EnvioDTE_v10.xsd">',
+    '<SetDTE ID="SetDoc">',
+    '<Caratula version="1.0">',
+    `<RutEmisor>${rutConDv}</RutEmisor>`,
+    `<RutEnvia>${rutConDv}</RutEnvia>`,
+    '<RutReceptor>60803000-K</RutReceptor>',
+    `<FchResol>${config.fchResolucion}</FchResol>`,
+    `<NroResol>${config.nroResolucion}</NroResol>`,
+    `<TmstFirmaEnv>${timestamp}</TmstFirmaEnv>`,
+    '<SubTotDTE>',
+    `<TpoDTE>${tipoDte}</TpoDTE>`,
+    '<NroDTE>1</NroDTE>',
+    '</SubTotDTE>',
+    '</Caratula>',
+    signedDteXml,
+    '</SetDTE>',
+    '</EnvioDTE>',
+  ].join('');
+}
+
+function signDteXml(dteXml, llavePem, certPem, folio, tipo) {
+  const certContent = certPem
+    .replace(/-----BEGIN CERTIFICATE-----/g, '')
+    .replace(/-----END CERTIFICATE-----/g, '')
+    .replace(/\r?\n/g, '');
+
+  const sig = new SignedXml({ privateKey: llavePem });
+  sig.addReference({
+    xpath: `//*[@ID='F${folio}T${tipo}']`,
+    transforms: ['http://www.w3.org/TR/2001/REC-xml-c14n-20010315'],
+    digestAlgorithm: 'http://www.w3.org/2000/09/xmldsig#sha1',
+  });
+  sig.canonicalizationAlgorithm = 'http://www.w3.org/TR/2001/REC-xml-c14n-20010315';
+  sig.signatureAlgorithm = 'http://www.w3.org/2000/09/xmldsig#rsa-sha1';
+  sig.keyInfoProvider = { getKeyInfo: () => `<X509Data><X509Certificate>${certContent}</X509Certificate></X509Data>` };
+  sig.computeSignature(dteXml, { location: { reference: `//*[@ID='F${folio}T${tipo}']`, action: 'after' } });
+  return sig.getSignedXml();
+}
+
+function signEnvioDteXml(envioDteXml, llavePem, certPem) {
+  const certContent = certPem
+    .replace(/-----BEGIN CERTIFICATE-----/g, '')
+    .replace(/-----END CERTIFICATE-----/g, '')
+    .replace(/\r?\n/g, '');
+
+  const sig = new SignedXml({ privateKey: llavePem });
+  sig.addReference({
+    xpath: `//*[@ID='SetDoc']`,
+    transforms: ['http://www.w3.org/TR/2001/REC-xml-c14n-20010315'],
+    digestAlgorithm: 'http://www.w3.org/2000/09/xmldsig#sha1',
+  });
+  sig.canonicalizationAlgorithm = 'http://www.w3.org/TR/2001/REC-xml-c14n-20010315';
+  sig.signatureAlgorithm = 'http://www.w3.org/2000/09/xmldsig#rsa-sha1';
+  sig.keyInfoProvider = { getKeyInfo: () => `<X509Data><X509Certificate>${certContent}</X509Certificate></X509Data>` };
+  sig.computeSignature(envioDteXml, { location: { reference: `//*[@ID='SetDoc']`, action: 'after' } });
+  return sig.getSignedXml();
+}
+
+/** Extrae el elemento <CAF version="1.0">...</CAF> del XML del CAF. */
+function extractCafElement(cafXml) {
+  const match = cafXml.match(/<CAF\b[^>]*>[\s\S]*?<\/CAF>/);
+  if (!match) throw new Error('No se encontró elemento <CAF> en el archivo del CAF');
+  return match[0];
+}
+
+/** Extrae la llave privada del CAF desde el elemento <RSASK>. Soporta PKCS#8 y PKCS#1 en base64. */
+function extractCafKey(cafXml) {
+  const rsaskB64 = extractTag(cafXml, 'RSASK');
+  if (!rsaskB64) throw new Error('No se encontró <RSASK> en el CAF');
+  const keyData = rsaskB64.trim();
+  if (keyData.includes('-----')) return createPrivateKey(keyData);
+  const der = Buffer.from(keyData, 'base64');
+  try {
+    return createPrivateKey({ key: der, format: 'der', type: 'pkcs8' });
+  } catch {
+    return createPrivateKey({ key: der, format: 'der', type: 'pkcs1' });
+  }
+}
+
+/** Mapea código de estado SII de emisión a nuestro enum interno. */
+function mapEstadoSiiEmision(estado) {
+  if (estado === 'DOK' || estado === 'RPR') return 'ACEPTADO';
+  if (estado === 'RCT' || estado === 'FAU' || estado === 'FNA') return 'RECHAZADO';
+  return 'PROCESANDO';
+}
+
+/** Retorna timestamp ISO sin milisegundos: "YYYY-MM-DDTHH:MM:SS". */
+function isoTimestamp() {
+  return new Date().toISOString().replace(/\.\d{3}Z$/, '');
 }
 
 /**
