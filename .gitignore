@@ -76,3 +76,6 @@ env.yml
 scripts/bootstrap.sh
 scripts/teardown.sh
 scripts/migrate-secrets-to-ssm.sh
+services/api-document-html/undefined/temp/chromium
+services/api-document-html/**/temp/chromium
+services/api-document-html/**/temp/*

@@ -1,0 +1,84 @@
+service: documentos-html
+frameworkVersion: '4'
+
+configValidationMode: warn
+projectDir: ./../../
+
+plugins:
+  - serverless-offline
+
+custom: ${file(../../common/custom.yml)}
+
+build:
+  esbuild:
+    bundle: true
+    minify: true
+    sourcemap: true
+    exclude:
+      - 'aws-sdk'
+      - '@aws-sdk/*'
+    external:
+      - '@sparticuz/chromium'
+      - 'puppeteer-core'
+    target: 'node20'
+    platform: 'node'
+    format: 'cjs'
+
+package:
+  individually: true
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-west-2'}
+  profile: pa-${self:custom.stage}
+  lambdaHashingVersion: 20201221
+  architecture: arm64
+
+  httpApi:
+    id: ${self:custom.apiGatewayId}
+
+  environment:
+    STAGE: ${self:custom.stage}
+    SECRET_KEY: /pa/${self:custom.stage}/jwt-key
+    PROFILE: ${self:provider.profile}
+    NODE_OPTIONS: '--enable-source-maps'
+    BUCKET_INFO_GI: giras-indomito-${self:custom.stage}-info
+    # Offline: serverless-offline solo inyecta AWS_* del proceso; el resto debe declararse aquí para llegar al handler.
+    CHROME_EXECUTABLE_PATH: ${env:CHROME_EXECUTABLE_PATH, ''}
+    PUPPETEER_EXECUTABLE_PATH: ${env:PUPPETEER_EXECUTABLE_PATH, ''}
+    # Puppeteer/Chrome en Windows necesitan TEMP/TMP/USERPROFILE; offline no los hereda del sistema.
+    TEMP: ${env:TEMP, ''}
+    TMP: ${env:TMP, ''}
+    USERPROFILE: ${env:USERPROFILE, ''}
+    LOCALAPPDATA: ${env:LOCALAPPDATA, ''}
+    HTML_PDF_HEADER_BANNER_URL: ${env:HTML_PDF_HEADER_BANNER_URL, ''}
+    HTML_PDF_SKIP_DEFAULT_HEADER_BANNER: ${env:HTML_PDF_SKIP_DEFAULT_HEADER_BANNER, ''}
+    HTML_PDF_SKIP_DEFAULT_BUDGET_ASSETS: ${env:HTML_PDF_SKIP_DEFAULT_BUDGET_ASSETS, ''}
+
+  tracing:
+    lambda: true
+
+  deploymentBucket:
+    name: sls-deploys-${self:custom.stage}-pri-${self:custom.shortRegion}
+
+  iamRoleStatements:
+    - ${file(../../aws/policies/lambda-policy-xray.yml)}
+    - ${file(../../aws/policies/lambda-policy-ssm.yml)}
+    - ${file(../../aws/policies/lambda-policy-kms-ssm.yml)}
+    - ${file(../../aws/policies/lambda-policy-s3.yml)}
+
+functions:
+  build_html_pdf_v1:
+    handler: functions/build-html-pdf-v1.main
+    description: Genera PDF desde plantilla HTML (CTM, CTT, DBA, DBR) y sube a S3.
+    timeout: 29
+    memorySize: 2048
+    events:
+      - httpApi:
+          path: /v1/documentos/html-pdf
+          method: POST
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request

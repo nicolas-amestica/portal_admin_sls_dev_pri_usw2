@@ -1,0 +1,95 @@
+{
+  "scope": "DBA",
+  "document": {
+    "title": "PATAGONIA SUR — EDICIÓN INVIERNO",
+    "dias": 8,
+    "noches": 7,
+    "diasAbordo": 2,
+    "zonaSalida": "PUERTO MONTT",
+    "items": {
+      "transporte": [
+        "Crucero o ferry según calendario náutico confirmado.",
+        "Buses locales para excursiones desde el puerto base.",
+        "Traslados terrestres con seguimiento de coordinación."
+      ],
+      "alimentacion": [
+        "Pensión completa en modalidad acordada con el establecimiento.",
+        "Refrigerios en salidas de día completo según cronograma."
+      ],
+      "alojamiento": [
+        "Habitaciones múltiples con baño privado o compartido según contrato.",
+        "Ropa de cama y toallas según normativa del alojamiento."
+      ],
+      "seguridad": [
+        "Coordinación con servicios locales ante condiciones climáticas adversas.",
+        "Lista de contactos de emergencia entregada al acompañante."
+      ],
+      "beneficiosExclusivos": [
+        "Charla introductoria sobre ecosistemas de la zona.",
+        "Registro fotográfico institucional (uso interno)."
+      ],
+      "staff": [
+        "Acompañante pedagógico y guías locales habilitados."
+      ]
+    },
+    "panoramas": [
+      "Navegación por fiordos con interpretación del paisaje.",
+      "Trekking de baja exigencia con miradores naturales.",
+      "Visita a centro de interpretación o museo regional.",
+      "Avistamiento de fauna con respeto a distancias mínimas.",
+      "Taller breve de fotografía paisaje (opcional según grupo)."
+    ],
+    "itinerario": [
+      { "day": 1, "text": "Concentración, revisión de equipaje y salida programada hacia el punto de embarque." },
+      { "day": 2, "text": "Tramo principal de navegación; entrega de briefing de seguridad a bordo." },
+      { "day": 3, "text": "Primera excursión terrestre; retorno al alojamiento y cena grupal." },
+      { "day": 4, "text": "Día libre acotado o actividad alternativa según clima." },
+      { "day": 5, "text": "Cierre de circuito y regreso; balance grupal con el staff." }
+    ],
+    "valores": [
+      {
+        "rangoPasajeros": "24 a 28 estudiantes",
+        "cuposDisponibles": 26,
+        "valorPorPersona": 245000,
+        "valorPorPersonaLight": 262000
+      }
+    ],
+    "footer": {
+      "instagram": "giras_indomito",
+      "facebook": "Giras Indómito",
+      "website": "https://www.girasindomito.cl/",
+      "whatsapp": "+56 9 6355 2893"
+    },
+    "images": [
+      {
+        "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+        "alt": "Paisaje de ejemplo para cabecera DBA",
+        "placement": "headerBanner"
+      },
+      {
+        "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+        "alt": "Franja decorativa pie de brochure",
+        "placement": "brochurePageFooter"
+      },
+      {
+        "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+        "alt": "Logo de ejemplo sobre pie (reemplazar en prod)",
+        "placement": "brochureSernaturLogo"
+      },
+      {
+        "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+        "alt": "Imagen post-salida",
+        "placement": "afterDeparture"
+      },
+      {
+        "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+        "alt": "Icono ítem transporte (ejemplo)",
+        "placement": "brochureItemTransporte",
+        "widthPx": 48
+      }
+    ]
+  },
+  "action": {
+    "isPreview": true
+  }
+}

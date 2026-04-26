@@ -1,0 +1,115 @@
+{
+  "scope": "CTM",
+  "document": {
+    "title": "NORTE GRANDE — ARQUEOLOGÍA Y DESIERTO",
+    "dias": 5,
+    "noches": 4,
+    "diasAbordo": 0,
+    "zonaSalida": "IQUIQUE",
+    "items": {
+      "transporte": [
+        "Bus privado con aire acondicionado entre ciudades y sitios.",
+        "Traslado aeropuerto–hotel ida y vuelta en horarios coordinados."
+      ],
+      "alimentacion": [
+        "Desayunos tipo hotel; almuerzos en restaurantes convenidos.",
+        "Hidratación y snacks en salidas largas (según plan)."
+      ],
+      "alojamiento": [
+        "Hospedaje en hoteles 3★ o equivalentes, habitación compartida.",
+        "Recepción 24h en establecimientos seleccionados."
+      ],
+      "seguridad": [
+        "Indicaciones de exposición solar y uso de elementos de protección.",
+        "Protocolo de primeros auxilios básicos con el acompañante."
+      ],
+      "beneficiosExclusivos": [
+        "Entrada incluida a sitio arqueológico principal del circuito.",
+        "Mapa impreso del recorrido para cada participante."
+      ],
+      "staff": [
+        "Coordinador Giras Indómito + guía local certificado."
+      ]
+    },
+    "panoramas": [
+      "Geoglifos y pampas del desierto con relato histórico.",
+      "Pueblo costero: paseo peatonal y tiempo libre acotado.",
+      "Observación astronómica nocturna (clima permitente)."
+    ],
+    "itinerario": [
+      { "day": 1, "text": "Llegada, traslado y check-in; reunión de bienvenida." },
+      { "day": 2, "text": "Salida temprano a zona arqueológica; almuerzo en ruta." },
+      { "day": 3, "text": "Día en costa: actividades ligeras y tiempo libre supervisado." },
+      { "day": 4, "text": "Regreso a ciudad base; preparación de cierre y maletas." }
+    ],
+    "valores": [
+      {
+        "rangoPasajeros": "28 a 32 estudiantes",
+        "cuposDisponibles": 30,
+        "valorPorPersona": 198000,
+        "valorPorPersonaLight": 210000
+      },
+      {
+        "rangoPasajeros": "33 a 38 estudiantes",
+        "cuposDisponibles": 36,
+        "valorPorPersona": 186000,
+        "valorPorPersonaLight": 199000
+      }
+    ],
+    "footer": {
+      "instagram": "giras_indomito",
+      "facebook": "Giras Indómito",
+      "website": "https://www.girasindomito.cl/",
+      "whatsapp": "+56 9 6355 2893"
+    },
+    "promoQr": {
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+      "caption": "Más programas CTM: escanea y revisa fechas disponibles."
+    },
+    "images": [
+      {
+        "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+        "alt": "Cabecera programa CTM",
+        "placement": "headerBanner"
+      },
+      {
+        "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+        "alt": "Antes de panoramas página 2",
+        "placement": "beforePanoramas"
+      },
+      {
+        "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+        "alt": "Antes del pie página 2",
+        "placement": "beforeFooter"
+      },
+      {
+        "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+        "alt": "Fondo valores y medios de pago",
+        "placement": "valoresPaymentBackground"
+      },
+      {
+        "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+        "alt": "Pie brochure con mochilas (ejemplo)",
+        "placement": "brochurePageFooter"
+      },
+      {
+        "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+        "alt": "Logo overlay pie (ejemplo)",
+        "placement": "brochureSernaturLogo"
+      },
+      {
+        "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+        "alt": "Sidebar página 2 — imagen 1",
+        "placement": "page2Sidebar1"
+      },
+      {
+        "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+        "alt": "Sidebar página 2 — imagen 2",
+        "placement": "page2Sidebar2"
+      }
+    ]
+  },
+  "action": {
+    "isPreview": false
+  }
+}

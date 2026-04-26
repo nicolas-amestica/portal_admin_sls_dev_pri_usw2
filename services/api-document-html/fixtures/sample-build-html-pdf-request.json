@@ -1,0 +1,84 @@
+{
+  "scope": "CTT",
+  "document": {
+    "title": "BARILOCHE FULL",
+    "dias": 6,
+    "noches": 5,
+    "diasAbordo": 1,
+    "zonaSalida": "ANTOFAGASTA",
+    "items": {
+      "transporte": [
+        "Bus privado con aire acondicionado en todos los tramos.",
+        "Traslados aeropuerto–hotel según programa.",
+        "Coordinación de horarios con el equipo docente.",
+        "Seguro asociado al transporte terrestre contratado.",
+        "Paradas programadas en ruta con apoyo del staff.",
+        "Equipaje: una maleta mediana por participante."
+      ],
+      "alimentacion": [
+        "Desayunos en alojamiento (modalidad buffet o menú fijo).",
+        "Almuerzos en restaurantes seleccionados según itinerario."
+      ],
+      "alojamiento": [
+        "Hospedaje en hoteles categorizados, habitación compartida.",
+        "Check-in coordinado con recepción del establecimiento.",
+        "Normas de convivencia y horarios informados al grupo."
+      ],
+      "seguridad": [
+        "Póliza de asistencia en viaje según condiciones del programa.",
+        "Protocolo de emergencias y contactos 24/7.",
+        "Briefing de seguridad al inicio de la gira."
+      ],
+      "beneficiosExclusivos": [
+        "Kit de bienvenida institucional.",
+        "Material digital complementario post-viaje.",
+        "Actividad de integración el primer día."
+      ],
+      "staff": [
+        "Guías y coordinadores Giras Indómito durante toda la estadía."
+      ]
+    },
+    "panoramas": [
+      "City tour y miradores con enfoque patrimonial.",
+      "Salida a cerro o parque nacional con guía local."
+    ],
+    "itinerario": [
+      { "day": 1, "text": "Salida desde Antofagasta, traslados y check-in. Bienvenida al grupo." },
+      { "day": 2, "text": "Actividades programadas en destino; cierre con retroalimentación." }
+    ],
+    "valores": [
+      {
+        "rangoPasajeros": "30 a 35 estudiantes",
+        "cuposDisponibles": 34,
+        "valorPorPersona": 185000,
+        "valorPorPersonaLight": 198000
+      },
+      {
+        "rangoPasajeros": "36 a 40 estudiantes",
+        "cuposDisponibles": 40,
+        "valorPorPersona": 172000,
+        "valorPorPersonaLight": 185000
+      }
+    ],
+    "footer": {
+      "instagram": "giras_indomito",
+      "facebook": "Giras Indómito",
+      "website": "https://www.girasindomito.cl/",
+      "whatsapp": "+56 9 6355 2893"
+    },
+    "promoQr": {
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+      "caption": "¿Quieres otras alternativas? Escanea el siguiente código y arma tu propio plan."
+    },
+    "images": [
+      {
+        "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+        "alt": "Paisaje montaña y lago (cabecera de ejemplo)",
+        "placement": "headerBanner"
+      }
+    ]
+  },
+  "action": {
+    "isPreview": false
+  }
+}
