@@ -229,6 +229,32 @@ functions:
             id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
             type: request
 
+  emit_dte_v1:
+    handler: functions/emit-dte-v1.main
+    description: Emite una boleta electrónica (tipo 39) al SII para un ingreso registrado.
+    timeout: 29
+    memorySize: 256
+    events:
+      - httpApi:
+          path: /v1/contabilidad/dte/emitir
+          method: POST
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  check_dte_status_v1:
+    handler: functions/check-dte-status-v1.main
+    description: Consulta el estado de un DTE emitido en el SII usando folio y datos del ingreso.
+    timeout: 29
+    memorySize: 128
+    events:
+      - httpApi:
+          path: /v1/contabilidad/dte/estado
+          method: GET
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
 resources:
   Resources:
     AccountingTable:
