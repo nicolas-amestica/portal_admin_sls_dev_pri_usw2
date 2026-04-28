@@ -4,6 +4,7 @@ import { addWatermark } from "./core/watermark.js";
 import { sanitizeRut } from "./helpers/formatters.js";
 import {
   splitTextIntoLines,
+  drawJustifiedText,
   addHeaderAndFooter,
   getContentWidth,
 } from "./core/layout.js";
@@ -148,96 +149,76 @@ export const generateContract = async (
     PDF_STYLES.generalData.size
   );
 
-  generalLines.forEach((line) => {
+  const textColor = rgb(0, 0, 0);
+  generalLines.forEach((line, lineIndex) => {
     checkPageBreak(PDF_STYLES.generalData.lineHeight);
-    page.drawText(line, {
-      x: MARGIN,
-      y: yPosition,
-      size: PDF_STYLES.generalData.size,
-      font: font,
-      color: rgb(0, 0, 0),
-    });
+    const isLastLine = lineIndex === generalLines.length - 1;
+    drawJustifiedText(
+      page,
+      line,
+      MARGIN,
+      yPosition,
+      contentWidth,
+      font,
+      PDF_STYLES.generalData.size,
+      textColor,
+      isLastLine
+    );
     yPosition -= PDF_STYLES.generalData.lineHeight;
   });
   yPosition -= 20;
 
-  // CLÁUSULAS
+  // CLÁUSULAS (título en negrita en línea propia; cuerpo justificado)
   documentData.clauses.forEach((clause) => {
     checkPageBreak(30);
 
-    const title = clause?.title || "";
-    const text = clause?.text || "";
+    const title = (clause?.title || "").trim();
+    const text = (clause?.text || "").trim();
 
-    // Combinar título + texto para calcular los saltos de línea
-    const fullText = `${title} ${text}`;
-    const lines = splitTextIntoLines(
-      fullText,
-      contentWidth,
-      font,
-      PDF_STYLES.clauseText.size
-    );
-
-    lines.forEach((line, lineIndex) => {
-      checkPageBreak(PDF_STYLES.clauseText.lineHeight);
-
-      let currentX = MARGIN;
-
-      // Si la línea contiene parte del título
-      if (lineIndex === 0 || line.includes(title.split(" ").slice(-1)[0])) {
-        const words = line.split(" ");
-        const titleWords = title.split(" ");
-
-        let titlePart = "";
-        let textPart = "";
-        let titleEnded = false;
-
-        words.forEach((word) => {
-          if (!titleEnded && titleWords.some((tw) => word.includes(tw))) {
-            titlePart += (titlePart ? " " : "") + word;
-          } else {
-            titleEnded = true;
-            textPart += (textPart ? " " : "") + word;
-          }
-        });
-
-        // Dibujar parte del título en negrita
-        if (titlePart) {
-          page.drawText(titlePart, {
-            x: currentX,
-            y: yPosition,
-            size: PDF_STYLES.clauseText.size,
-            font: fontBold,
-            color: rgb(0, 0, 0),
-          });
-          currentX += fontBold.widthOfTextAtSize(
-            titlePart + " ",
-            PDF_STYLES.clauseText.size
-          );
-        }
-
-        // Dibujar parte del texto en normal
-        if (textPart) {
-          page.drawText(textPart, {
-            x: currentX,
-            y: yPosition,
-            size: PDF_STYLES.clauseText.size,
-            font: font,
-            color: rgb(0, 0, 0),
-          });
-        }
-      } else {
-        // Líneas subsecuentes solo tienen texto normal
-        page.drawText(line, {
+    if (title) {
+      const titleLines = splitTextIntoLines(
+        title,
+        contentWidth,
+        fontBold,
+        PDF_STYLES.clauseText.size
+      );
+      titleLines.forEach((tline) => {
+        checkPageBreak(PDF_STYLES.clauseText.lineHeight);
+        page.drawText(tline, {
           x: MARGIN,
           y: yPosition,
           size: PDF_STYLES.clauseText.size,
-          font: font,
-          color: rgb(0, 0, 0),
+          font: fontBold,
+          color: textColor,
         });
-      }
+        yPosition -= PDF_STYLES.clauseText.lineHeight;
+      });
+    }
 
-      yPosition -= PDF_STYLES.clauseText.lineHeight;
-    });
+    if (text) {
+      const bodyLines = splitTextIntoLines(
+        text,
+        contentWidth,
+        font,
+        PDF_STYLES.clauseText.size
+      );
+      bodyLines.forEach((line, lineIndex) => {
+        checkPageBreak(PDF_STYLES.clauseText.lineHeight);
+        const isLastLine = lineIndex === bodyLines.length - 1;
+        drawJustifiedText(
+          page,
+          line,
+          MARGIN,
+          yPosition,
+          contentWidth,
+          font,
+          PDF_STYLES.clauseText.size,
+          textColor,
+          isLastLine
+        );
+        yPosition -= PDF_STYLES.clauseText.lineHeight;
+      });
+    }
 
     // Detalles (servicios incluidos)
     if (clause?.detail) {
@@ -249,7 +230,7 @@ export const generateContract = async (
         y: yPosition,
         size: PDF_STYLES.serviceTitle.size,
         font: fontBold,
-        color: rgb(0, 0, 0),
+        color: textColor,
       });
       yPosition -= PDF_STYLES.serviceTitle.marginBottom;
 
@@ -261,7 +242,7 @@ export const generateContract = async (
           y: yPosition,
           size: PDF_STYLES.clauseText.size,
           font: font,
-          color: rgb(0, 0, 0),
+          color: textColor,
         }
       );
       yPosition -= 20;
@@ -272,7 +253,7 @@ export const generateContract = async (
         y: yPosition,
         size: PDF_STYLES.clauseText.size,
         font: fontBold,
-        color: rgb(0, 0, 0),
+        color: textColor,
       });
       yPosition -= 15;
 
@@ -285,15 +266,22 @@ export const generateContract = async (
           PDF_STYLES.serviceItem.size
         );
 
-        serviceLines?.forEach((line) => {
+        const serviceBlockWidth = contentWidth - PDF_STYLES.serviceItem.indent;
+        const serviceX = MARGIN + PDF_STYLES.serviceItem.indent;
+        serviceLines?.forEach((line, lineIndex) => {
           checkPageBreak(PDF_STYLES.serviceItem.lineHeight);
-          page.drawText(line, {
-            x: MARGIN + PDF_STYLES.serviceItem.indent,
-            y: yPosition,
-            size: PDF_STYLES.serviceItem.size,
-            font: font,
-            color: rgb(0, 0, 0),
-          });
+          const isLastLine = lineIndex === serviceLines.length - 1;
+          drawJustifiedText(
+            page,
+            line,
+            serviceX,
+            yPosition,
+            serviceBlockWidth,
+            font,
+            PDF_STYLES.serviceItem.size,
+            textColor,
+            isLastLine
+          );
           yPosition -= PDF_STYLES.serviceItem.lineHeight;
         });
       });

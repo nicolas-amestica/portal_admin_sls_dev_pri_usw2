@@ -5,11 +5,11 @@ import { PDF_CONFIG } from './config.js';
  * Divide texto en líneas que caben en el ancho especificado
  */
 export const splitTextIntoLines = (text, maxWidth, font, fontSize) => {
-  const words = text.split(' ');
+  const words = text.split(/\s+/).filter((w) => w.length > 0);
   const lines = [];
   let currentLine = '';
 
-  words.forEach(word => {
+  words.forEach((word) => {
     const testLine = currentLine ? `${currentLine} ${word}` : word;
     const width = font.widthOfTextAtSize(testLine, fontSize);
 
@@ -29,33 +29,45 @@ export const splitTextIntoLines = (text, maxWidth, font, fontSize) => {
 };
 
 /**
- * Calcula el espaciado adicional entre palabras para justificar una línea de texto
+ * Calcula el espaciado adicional entre palabras para justificar una línea de texto.
+ * Debe partir del ancho natural (palabras + espacios normales); si no, el extra por hueco
+ * queda inflado y el texto se dibuja más allá del margen derecho.
  */
 export const calculateJustifiedSpacing = (line, maxWidth, font, fontSize) => {
-  const words = line.trim().split(' ');
-  if (words.length <= 1) return 0; // No justificar líneas con una sola palabra
+  const words = line.trim().split(/\s+/).filter((w) => w.length > 0);
+  if (words.length <= 1) return 0;
 
-  const textWithoutSpaces = words.join('');
-  const textWidth = font.widthOfTextAtSize(textWithoutSpaces, fontSize);
-  const totalSpaceNeeded = maxWidth - textWidth;
-  const numberOfSpaces = words.length - 1;
+  const spaceWidth = font.widthOfTextAtSize(' ', fontSize);
+  let wordsWidth = 0;
+  for (const w of words) {
+    wordsWidth += font.widthOfTextAtSize(w, fontSize);
+  }
+  const naturalWidth = wordsWidth + (words.length - 1) * spaceWidth;
+  const totalSpaceNeeded = maxWidth - naturalWidth;
+  if (totalSpaceNeeded <= 0) return 0;
 
-  return totalSpaceNeeded / numberOfSpaces;
+  return totalSpaceNeeded / (words.length - 1);
 };
 
 /**
  * Dibuja una línea de texto justificada
  */
 export const drawJustifiedText = (page, line, x, y, maxWidth, font, fontSize, color, isLastLine = false) => {
-  const words = line.trim().split(' ');
+  const words = line.trim().split(/\s+/).filter((w) => w.length > 0);
 
   // No justificar la última línea de un párrafo o líneas con una sola palabra
   if (isLastLine || words.length <= 1) {
-    page.drawText(line, { x, y, size: fontSize, font, color });
+    page.drawText(line.trim(), { x, y, size: fontSize, font, color });
     return;
   }
 
   const extraSpacing = calculateJustifiedSpacing(line, maxWidth, font, fontSize);
+  if (extraSpacing <= 0) {
+    page.drawText(line.trim(), { x, y, size: fontSize, font, color });
+    return;
+  }
+
+  const spaceWidth = font.widthOfTextAtSize(' ', fontSize);
   let currentX = x;
 
   words.forEach((word, index) => {
@@ -68,8 +80,9 @@ export const drawJustifiedText = (page, line, x, y, maxWidth, font, fontSize, co
     });
 
     const wordWidth = font.widthOfTextAtSize(word, fontSize);
-    const spaceWidth = font.widthOfTextAtSize(' ', fontSize);
-    currentX += wordWidth + spaceWidth + extraSpacing;
+    if (index < words.length - 1) {
+      currentX += wordWidth + spaceWidth + extraSpacing;
+    }
   });
 };
 
