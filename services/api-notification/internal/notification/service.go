@@ -2,7 +2,9 @@ package notification
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
+	"strings"
 
 	"github.com/indomito/portal-admin/api-notification/shared/apperr"
 	"go.uber.org/zap"
@@ -55,14 +57,31 @@ func NewSendNotificationService(
 
 		contract := program.Content[0].Contract
 		files := resolveContractFiles(contract)
-		if len(files) == 0 {
-			return nil, apperr.NotFound("No se encontraron archivos de contrato en el programa")
-		}
 
-		// 4. Descargar PDFs desde S3
-		pdfs, err := downloadPDFs(ctx, files)
-		if err != nil {
-			return nil, apperr.InternalServer("Error al descargar PDFs del contrato", err)
+		var pdfs []AttachedPDF
+
+		if len(files) > 0 {
+			var err error
+			pdfs, err = downloadPDFs(ctx, files)
+			if err != nil {
+				return nil, apperr.InternalServer("Error al descargar PDFs del contrato", err)
+			}
+		} else if rawB64 := strings.TrimSpace(req.AttachmentBase64); rawB64 != "" {
+			decoded, err := base64.StdEncoding.DecodeString(rawB64)
+			if err != nil {
+				return nil, apperr.BadRequest("El adjunto en base64 no es válido")
+			}
+			if len(decoded) == 0 {
+				return nil, apperr.BadRequest("El adjunto en base64 está vacío")
+			}
+			pdfs = []AttachedPDF{
+				{Filename: "borrador-contrato.pdf", Data: decoded},
+			}
+			log.Info("Usando PDF adjunto inline (sin archivos en programa)",
+				zap.Int("bytes", len(decoded)),
+			)
+		} else {
+			return nil, apperr.NotFound("No se encontraron archivos de contrato en el programa")
 		}
 
 		// 5. Construir contenido del email y enviar
