@@ -1,4 +1,5 @@
 import { formatDate, formatCurrency } from '../pdf-generator/helpers/formatters.js';
+import { joinSpanishEnumeration } from './join-spanish-enumeration.js';
 import { normalizeClientRepresentatives } from './normalize-client-representatives.js';
 
 /**
@@ -29,16 +30,24 @@ const buildClientRepresentativesText = (clientRepresentative = [], institutionNa
 
   if (sameCourse) {
     // Todos del mismo curso: listar nombres y DNIs, curso e institución al final
-    const namesWithDNI = clientRepresentative
-      .map(rep => `${rep.name || ':::SIN NOMBRE CLIENTE:::'}, cédula nacional de identidad número ${rep.dni || ':::SIN DNI CLIENTE:::'}`)
-      .join(', y ');
+    const namesWithDNI = joinSpanishEnumeration(
+      clientRepresentative.map(
+        (rep) =>
+          `${rep.name || ':::SIN NOMBRE CLIENTE:::'}, cédula nacional de identidad número ${rep.dni || ':::SIN DNI CLIENTE:::'}`
+      )
+    );
 
     return `${namesWithDNI}, en representación del curso ${courses[0] || ':::SIN CURSO ESPECIFICADO:::'} del ${institutionName || ':::SIN INSTITUCIÓN NO ESPECIFICADA:::'}`;
   } else {
     // Cursos diferentes: incluir curso con cada representante
-    return clientRepresentative
-      .map(rep => `${rep.name || ':::SIN NOMBRE CLIENTE:::'}, cédula nacional de identidad número ${rep.dni || ':::SIN DNI CLIENTE:::'}, en representación del curso ${rep.course || ':::SIN CURSO ESPECIFICADO:::'}`)
-      .join(', y ') + ` del ${institutionName || ':::SIN INSTITUCIÓN NO ESPECIFICADA:::'}`;
+    return (
+      joinSpanishEnumeration(
+        clientRepresentative.map(
+          (rep) =>
+            `${rep.name || ':::SIN NOMBRE CLIENTE:::'}, cédula nacional de identidad número ${rep.dni || ':::SIN DNI CLIENTE:::'}, en representación del curso ${rep.course || ':::SIN CURSO ESPECIFICADO:::'}`
+        )
+      ) + ` del ${institutionName || ':::SIN INSTITUCIÓN NO ESPECIFICADA:::'}`
+    );
   }
 };
 
@@ -74,16 +83,21 @@ export const buildDocumentData = (form = {}) => {
     groupBalance = 0,
     installments = {},
     maxExchangeRate = 0,
-    priceInUSD = 0,
     pricePerPerson = 0,
     totalPassengers = 0,
     freePassengers = 0
   } = payments;
 
   // Construir texto de representantes legales de Giras Indómito
-  const representativesText = representatives.length > 0
-    ? representatives.map(rep => `${rep.name || ':::SIN NOMBRE REPRESENTANTE:::'}, cédula nacional de identidad número ${rep.dni || ':::SIN DNI REPRESENTANTE:::'}`).join(', y ')
-    : ':::SIN REPRESENTANTE ESPECIFICADO:::';
+  const representativesText =
+    representatives.length > 0
+      ? joinSpanishEnumeration(
+          representatives.map(
+            (rep) =>
+              `${rep.name || ':::SIN NOMBRE REPRESENTANTE:::'}, cédula nacional de identidad número ${rep.dni || ':::SIN DNI REPRESENTANTE:::'}`
+          )
+        )
+      : ':::SIN REPRESENTANTE ESPECIFICADO:::';
 
   // Construir texto de representantes del cliente (optimizado para evitar redundancia)
   const clientRepresentativesText = buildClientRepresentativesText(
@@ -187,7 +201,7 @@ export const buildDocumentData = (form = {}) => {
       {
         number: 17,
         title: "DÉCIMO SÉPTIMO:",
-        text: `La cantidad inicial es de ${totalPassengers || ':::SIN TOTAL DE PASAJEROS:::'} pasajeros más ${freePassengers || ':::SIN PASAJEROS LIBERADOS:::'} liberados de pago. Para efectos de la realización del programa seleccionado, cada uno cancela la suma de ${pricePerPerson ? formatCurrency(pricePerPerson) : ':::SIN PRECIO POR PERSONA:::'} (precio del día: ${priceInUSD || ':::SIN PRECIO DEL DÍA:::'} USD), totalizando ${payments.totalGroup ? formatCurrency(payments.totalGroup) : ':::SIN TOTAL GRUPAL:::'} para el grupo. La firma de este contrato se realiza mediante la cancelación de un abono de ${downPayment ? formatCurrency(downPayment) : ':::SIN ABONO:::'}, quedando un saldo grupal de ${groupBalance ? formatCurrency(groupBalance) : ':::SIN SALDO GRUPAL:::'}, el cual se pagará en ${installments.quantity || ':::SIN CUOTAS:::'} cuotas mensuales a partir de ${installments.startMonth || ':::SIN FECHA DE INICIO DE PAGO:::'} de ${installments.groupInstallmentValue ? formatCurrency(installments.groupInstallmentValue) : ':::SIN VALOR DE CUOTA GRUPAL:::'}, o cuotas individuales de ${installments.individualInstallmentValue ? formatCurrency(installments.individualInstallmentValue) : ':::SIN VALOR DE CUOTA INDIVIDUAL:::'}. El viaje debe estar pagado en su totalidad como máximo ${payments.daysBeforePayment || ':::SIN DÍAS ANTES DE PAGO:::'} días antes de la fecha de salida. En caso de existir un alza excesiva en el dólar que supere los ${maxExchangeRate ? formatCurrency(maxExchangeRate) : ':::SIN VALOR DE TASA DE CAMBIO:::'}, el viaje deberá ser reprogramado (en caso de no querer pagar la diferencia) o bien pagar la diferencia por persona que pueda generar el alza, debido a que la mayoría de los servicios se paga en dólares americanos. Las formas de pago son las siguientes: transferencia o depósito bancario a la cuenta corriente número ${bankAccount.accountNumber || ':::SIN NÚMERO DE CUENTA:::'} (${bankAccount.accountHolder || ':::SIN TITULAR DE CUENTA:::'}, RUT ${bankAccount.holderDNI || ':::SIN RUT DE CUENTA:::'}, ${bankAccount.bank || ':::SIN BANCO DE CUENTA:::'}). Enviar confirmación de depósito o transferencia al correo: ${bankAccount.email || ':::SIN EMAIL DE CUENTA:::'}.`
+        text: `La cantidad inicial es de ${totalPassengers || ':::SIN TOTAL DE PASAJEROS:::'} pasajeros más ${freePassengers || ':::SIN PASAJEROS LIBERADOS:::'} liberados de pago. Para efectos de la realización del programa seleccionado, cada uno cancela la suma de ${pricePerPerson ? formatCurrency(pricePerPerson) : ':::SIN PRECIO POR PERSONA:::'}, totalizando ${payments.totalGroup ? formatCurrency(payments.totalGroup) : ':::SIN TOTAL GRUPAL:::'} para el grupo. La firma de este contrato se realiza mediante la cancelación de un abono de ${downPayment ? formatCurrency(downPayment) : ':::SIN ABONO:::'}, quedando un saldo grupal de ${groupBalance ? formatCurrency(groupBalance) : ':::SIN SALDO GRUPAL:::'}, el cual se pagará en ${installments.quantity || ':::SIN CUOTAS:::'} cuotas mensuales a partir de ${installments.startMonth || ':::SIN FECHA DE INICIO DE PAGO:::'} de ${installments.groupInstallmentValue ? formatCurrency(installments.groupInstallmentValue) : ':::SIN VALOR DE CUOTA GRUPAL:::'}. El viaje debe estar pagado en su totalidad como máximo ${payments.daysBeforePayment || ':::SIN DÍAS ANTES DE PAGO:::'} días antes de la fecha de salida. En caso de existir un alza excesiva en el dólar que supere los ${maxExchangeRate ? formatCurrency(maxExchangeRate) : ':::SIN VALOR DE TASA DE CAMBIO:::'}, el viaje deberá ser reprogramado (en caso de no querer pagar la diferencia) o bien pagar la diferencia por persona que pueda generar el alza, debido a que la mayoría de los servicios se paga en dólares americanos. Las formas de pago son las siguientes: transferencia o depósito bancario a la cuenta corriente número ${bankAccount.accountNumber || ':::SIN NÚMERO DE CUENTA:::'} (${bankAccount.accountHolder || ':::SIN TITULAR DE CUENTA:::'}, RUT ${bankAccount.holderDNI || ':::SIN RUT DE CUENTA:::'}, ${bankAccount.bank || ':::SIN BANCO DE CUENTA:::'}). Enviar confirmación de depósito o transferencia al correo: ${bankAccount.email || ':::SIN EMAIL DE CUENTA:::'}.`
       },
       {
         number: 18,
@@ -211,6 +225,11 @@ export const buildDocumentData = (form = {}) => {
       },
       {
         number: 22,
+        title: "VIGÉSIMO SEGUNDO:",
+        text: `El Operador habilitará a los Representantes o al Pasajero el acceso a un portal en línea para registrar y actualizar la lista de pasajeros del programa. Es responsabilidad exclusiva del Pasajero y de los Representantes mantener dicha lista completa, veraz y al día, con todos los datos exigidos. La lista registrada en el portal es la que se presentará en los pasos fronterizos y trámites aduaneros pertinentes y sirve para el cruce del grupo; cualquier omisión, dato faltante o desactualización puede impedir el ingreso o la salida del país, generar retenciones, multas o la denegación de tránsito, sin que ello genere responsabilidad para el Operador. Si la lista no está debidamente completada, falta algún pasajero o faltan antecedentes obligatorios al momento de ser requeridos por el Operador o por la autoridad, las consecuencias —incluidas demoras, imposibilidad de embarque o continuidad del viaje, gastos adicionales, pérdida de servicios no reembolsables y sanciones de terceros— serán de exclusiva responsabilidad del Pasajero y de los Representantes. El Operador solo se obliga a habilitar el acceso al portal y las instrucciones generales de uso, pudiendo colaborar de buena fe sin asumir obligación distinta.`
+      },
+      {
+        number: 23,
         text: `En comprobante, previa lectura, firman y ratifican como representantes.`
       }
     ],
