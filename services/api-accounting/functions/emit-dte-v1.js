@@ -4,6 +4,7 @@ import { getParameterValue } from '../../../libs/parameter-store.js';
 import { buildAndSignBoleta39, buildAndSignEnvioDte, sendDteToSii, getSiiToken } from '../../../libs/sii-dte.js';
 import { standardMiddleware } from '../../../libs/middleware/index.js';
 import { success } from '../../../helpers/responses.js';
+import { normalizeOwnerPk } from '../helpers/owner-pk.js';
 
 const { DYNAMODB_ACCOUNTING_TABLE, BUCKET_INFO_GI, SSM_DTE_PATH, SII_HOST } = process.env;
 const ACTION = 'Emitir DTE boleta electrónica';
@@ -69,19 +70,20 @@ async function obtenerFolioAtomico(tipoDte) {
  * Obtiene folio atómico → construye y firma DTE → envía al SII.
  *
  * POST /v1/contabilidad/dte/emitir
- * Body: { sk, userId }
+ * Body: { sk, pk }
  */
 const handler = async (event) => {
-  const { sk, userId } = event.body;
-  if (!sk || !userId) {
-    const error = new Error('Los parámetros sk y userId son requeridos.');
+  const { sk, pk } = event.body ?? {};
+  const owner = normalizeOwnerPk(pk);
+  if (!sk || !owner) {
+    const error = new Error('Los parámetros sk y pk (partition key USR#...) son requeridos.');
     error.statusCode = 400;
     throw error;
   }
 
   const ingreso = await dynamoDbLib.getOne({
     TableName: DYNAMODB_ACCOUNTING_TABLE,
-    Key: { pk: `USR#${userId}`, sk },
+    Key: { pk: owner.pk, sk },
   });
 
   if (!ingreso) {
@@ -111,7 +113,7 @@ const handler = async (event) => {
 
   await dynamoDbLib.update({
     TableName: DYNAMODB_ACCOUNTING_TABLE,
-    Key: { pk: `USR#${userId}`, sk },
+    Key: { pk: ingreso.pk, sk: ingreso.sk },
     UpdateExpression: 'SET dteStatus = :s, dteTrackId = :t, dteFolio = :f, dteTipo = :tp, dteTimestamp = :ts, updatedAt = :u',
     ExpressionAttributeValues: {
       ':s': dteStatus, ':t': trackId, ':f': folio,

@@ -73,6 +73,19 @@ functions:
             id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
             type: request
 
+  presign_comprobante_descarga_v1:
+    handler: functions/presign-comprobante-descarga-v1.main
+    description: URL prefirmada GET (10 min) para descargar comprobante contable en S3.
+    timeout: 10
+    memorySize: 128
+    events:
+      - httpApi:
+          path: /v1/contabilidad/descargar-comprobante
+          method: GET
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
   create_expense_v1:
     handler: functions/create-expense-v1.main
     description: Registra un gasto de empresa con su comprobante y justificación.

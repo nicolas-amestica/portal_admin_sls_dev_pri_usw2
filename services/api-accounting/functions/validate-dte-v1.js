@@ -3,6 +3,7 @@ import { getParameterValue } from '../../../libs/parameter-store.js';
 import { getSiiToken, queryDteRecibido } from '../../../libs/sii-dte.js';
 import { standardMiddleware } from '../../../libs/middleware/index.js';
 import { success } from '../../../helpers/responses.js';
+import { decodeAccountingPk } from '../helpers/resolve-partition-key.js';
 
 const { DYNAMODB_ACCOUNTING_TABLE, SSM_DTE_PATH, SII_HOST } = process.env;
 const ACTION = 'Validar DTE recibido';
@@ -25,21 +26,21 @@ async function getDteConfig() {
  * Verifica si un gasto registrado como FACTURA existe en el Registro de Compras del SII.
  * Si la validación es exitosa, actualiza el gasto con dteValidado = true.
  *
- * GET /v1/contabilidad/dte/validar-factura?sk=EXP%23...&userId=...
+ * GET /v1/contabilidad/dte/validar-factura?sk=EXP%23...&pk=USR%23...
  */
 const handler = async (event) => {
   const sk = decodeURIComponent(event.queryStringParameters?.sk ?? '');
-  const { userId } = event.queryStringParameters ?? {};
+  const partitionKey = decodeAccountingPk(event.queryStringParameters?.pk);
 
-  if (!sk || !userId) {
-    const error = new Error('Los parámetros sk y userId son requeridos.');
+  if (!sk || !partitionKey) {
+    const error = new Error('Los parámetros sk y pk (query) son requeridos.');
     error.statusCode = 400;
     throw error;
   }
 
   const gasto = await dynamoDbLib.getOne({
     TableName: DYNAMODB_ACCOUNTING_TABLE,
-    Key: { pk: `USR#${userId}`, sk },
+    Key: { pk: partitionKey, sk },
   });
 
   if (!gasto) {
@@ -75,7 +76,7 @@ const handler = async (event) => {
     const now = new Date().toISOString();
     await dynamoDbLib.update({
       TableName: DYNAMODB_ACCOUNTING_TABLE,
-      Key: { pk: `USR#${userId}`, sk },
+      Key: { pk: gasto.pk, sk: gasto.sk },
       UpdateExpression: 'SET dteValidado = :v, dteValidadoTimestamp = :t, updatedAt = :u',
       ExpressionAttributeValues: { ':v': true, ':t': now, ':u': now },
     });

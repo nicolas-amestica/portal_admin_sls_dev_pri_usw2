@@ -2,19 +2,36 @@ import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 
 /**
  * Obtiene todos los programas del periodo desde DynamoDB usando el GSI de fecha.
- * Sin SCAN: usa el índice `gsiStartDate-index`.
+ * Sin SCAN: Query paginada sobre `gsiStartDate-index`.
  *
- * @param {string} periodo - Año del periodo (ej: "2026")
- * @returns {Promise<Array|null>} Lista de programas del periodo, o null si no hay resultados.
+ * @param {string} periodo - Prefijo de startDate (ej: año "2026")
+ * @param {{ status?: string }} [options] - Si `status` está definido, filtra por ese estado (ej. approved).
+ * @returns {Promise<Array>} Lista de ítems (vacía si no hay resultados).
  */
-export const getProgramsByPeriod = (periodo) =>
-  dynamoDbLib.query({
+export const getProgramsByPeriod = async (periodo, options = {}) => {
+  const { status } = options;
+  const ExpressionAttributeValues = {
+    ':pk': process.env.PROGRAM_TABLE,
+    ':startDate': periodo,
+  };
+  const ExpressionAttributeNames = {
+    '#pk': 'pk',
+    '#startDate': 'startDate',
+  };
+  const params = {
     TableName: process.env.DYNAMODB_PROGRAM_TABLE,
     IndexName: 'gsiStartDate-index',
     KeyConditionExpression: '#pk = :pk AND begins_with(#startDate, :startDate)',
-    ExpressionAttributeValues: { ':pk': process.env.PROGRAM_TABLE, ':startDate': periodo },
-    ExpressionAttributeNames: { '#pk': 'pk', '#startDate': 'startDate' },
-  });
+    ExpressionAttributeValues,
+    ExpressionAttributeNames,
+  };
+  if (status) {
+    params.FilterExpression = '#st = :st';
+    ExpressionAttributeNames['#st'] = 'status';
+    ExpressionAttributeValues[':st'] = status;
+  }
+  return dynamoDbLib.iterativeQuery(params);
+};
 
 /**
  * Obtiene los pagos AUTHORIZED de un programa usando el GSI `sk-index`.

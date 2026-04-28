@@ -1,6 +1,7 @@
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { standardMiddleware } from '../../../libs/middleware/index.js';
 import { success } from '../../../helpers/responses.js';
+import { normalizeOwnerPk } from '../helpers/owner-pk.js';
 
 const { DYNAMODB_ACCOUNTING_TABLE } = process.env;
 const ACTION = 'Actualizar gasto';
@@ -9,23 +10,26 @@ const UPDATABLE_FIELDS = [
   'monto', 'montoNeto', 'montoIVA', 'categoria', 'subcategoria',
   'tipoDocumento', 'folio', 'rutEmisor', 'nombreEmisor',
   'motivoNegocio', 'tarjeta', 'personasInvitadas', 'receiptS3Key',
-  'conciliadoCartola', 'fecha',
+  'conciliadoCartola', 'fecha', 'programSk',
 ];
 
 /**
  * Handler: actualiza los campos editables de un gasto.
  * PUT /v1/contabilidad/gastos/{sk}
- * Body: { userId, ...camposActualizados }
+ * Body: { pk, ...camposActualizados }
  */
 const handler = async (event) => {
   const sk = decodeURIComponent(event.pathParameters?.sk ?? '');
-  const { userId, ...fields } = event.body ?? {};
+  const { pk, ...fields } = event.body ?? {};
+  const owner = normalizeOwnerPk(pk);
 
-  if (!sk || !userId) {
-    const error = new Error('El sk (path) y userId (body) son requeridos.');
+  if (!sk || !owner) {
+    const error = new Error('El sk (path) y pk (body, partition key USR#...) son requeridos.');
     error.statusCode = 400;
     throw error;
   }
+
+  const partitionKey = owner.pk;
 
   const updateParts = [];
   const expressionValues = { ':updatedAt': new Date().toISOString() };
@@ -47,7 +51,7 @@ const handler = async (event) => {
 
   const result = await dynamoDbLib.update({
     TableName: DYNAMODB_ACCOUNTING_TABLE,
-    Key: { pk: `USR#${userId}`, sk },
+    Key: { pk: partitionKey, sk },
     UpdateExpression: `SET ${updateParts.join(', ')}, updatedAt = :updatedAt`,
     ExpressionAttributeValues: expressionValues,
     ExpressionAttributeNames: expressionNames,
