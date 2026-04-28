@@ -1,4 +1,5 @@
 import { formatDate, formatCurrency } from '../pdf-generator/helpers/formatters.js';
+import { normalizeClientRepresentatives } from './normalize-client-representatives.js';
 
 /**
  * Builder para documentos de tipo CONTRATO CON PAGO MANUAL (CTM)
@@ -63,7 +64,7 @@ export const buildDocumentData = (form = {}) => {
     payments = {}
   } = form;
 
-  const clientRepresentative = clientRepData && Object.keys(clientRepData).length > 0 ? [clientRepData] : [];
+  const clientRepresentative = normalizeClientRepresentatives(clientRepData);
 
   // Fechas formateadas
   const contractDate = trip.contractDate ? formatDate(trip.contractDate) : { simple: '' };
