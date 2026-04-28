@@ -1,0 +1,144 @@
+service: job-instagram-poster
+frameworkVersion: '4'
+
+configValidationMode: warn
+projectDir: ./../../
+
+plugins:
+  - serverless-offline
+
+custom: ${file(../../common/custom.yml)}
+
+build:
+  esbuild:
+    bundle: true
+    minify: true
+    sourcemap: true
+    exclude:
+      - 'aws-sdk'
+      - '@aws-sdk/*'
+    target: 'node20'
+    platform: 'node'
+    format: 'cjs'
+
+package:
+  individually: true
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-west-2'}
+  profile: pa-${self:custom.stage}
+  lambdaHashingVersion: 20201221
+
+  architecture: arm64
+
+  environment:
+    STAGE: ${self:custom.stage}
+    PROFILE: ${self:provider.profile}
+    NODE_OPTIONS: '--enable-source-maps'
+    TIMEZONE: America/Santiago
+    # SSM paths (Gemini: mismo secreto JSON que api-whatsapp-agent — `{"api_key":"..."}`)
+    GEMINI_SECRET_KEY: /pa/${self:custom.stage}/gemini-api-key
+    IG_SECRET_KEY: /pa/${self:custom.stage}/instagram-config
+    # Recursos
+    IMAGES_TABLE: ig-images-${self:custom.stage}-pri-${self:custom.shortRegion}
+    POSTS_TABLE: ig-posts-${self:custom.stage}-pri-${self:custom.shortRegion}
+    BUCKET_INSTAGRAM: giras-indomito-${self:custom.stage}-info  # Reutiliza bucket existente
+
+  tracing:
+    lambda: true
+
+  deploymentBucket:
+    name: sls-deploys-${self:custom.stage}-pri-${self:custom.shortRegion}
+
+  iamRoleStatements:
+    - ${file(../../aws/policies/lambda-policy-xray.yml)}
+    - ${file(../../aws/policies/lambda-policy-ssm.yml)}
+    - ${file(../../aws/policies/lambda-policy-kms-ssm.yml)}
+    - ${file(../../aws/policies/lambda-policy-s3.yml)}
+    - Effect: Allow
+      Action:
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:Query
+        - dynamodb:Scan
+      Resource:
+        - arn:aws:dynamodb:${self:provider.region}:*:table/ig-images-${self:custom.stage}-pri-${self:custom.shortRegion}
+        - arn:aws:dynamodb:${self:provider.region}:*:table/ig-images-${self:custom.stage}-pri-${self:custom.shortRegion}/index/*
+        - arn:aws:dynamodb:${self:provider.region}:*:table/ig-posts-${self:custom.stage}-pri-${self:custom.shortRegion}
+
+functions:
+  publicar_post_v1:
+    handler: functions/publicar-post-v1.main
+    description: Genera y publica automáticamente un post en Instagram con caption generado por IA.
+    timeout: 60        # Meta Graph API puede ser lento
+    memorySize: 256    # Free tier: 400,000 GB-s/mes — 256MB x 60s = 0.015 GB-s por ejecución
+    events:
+      - schedule:
+          # Lunes, Miércoles, Viernes a las 14:00 UTC (11:00 AM hora Chile)
+          rate: cron(0 14 ? * MON,WED,FRI *)
+          enabled: true
+          description: "Publica en Instagram L/M/V a las 11:00 AM hora Chile"
+
+  refrescar_token_v1:
+    handler: functions/refrescar-token-v1.main
+    description: Refresca el Long-Lived Token de Instagram antes de que expire (cada 50 días).
+    timeout: 15
+    memorySize: 128
+    events:
+      - schedule:
+          rate: cron(0 10 1 * ? *)  # Día 1 de cada mes a las 10:00 UTC
+          enabled: true
+          description: "Refresca el IG Long-Lived Token mensualmente"
+
+resources:
+  Resources:
+    # Tabla de imágenes disponibles para publicar
+    IgImagesTable:
+      Type: AWS::DynamoDB::Table
+      DeletionPolicy: Retain
+      Properties:
+        TableName: ig-images-${self:custom.stage}-pri-${self:custom.shortRegion}
+        BillingMode: PAY_PER_REQUEST  # Free tier: 25 WCU/RCU + 25GB storage
+        AttributeDefinitions:
+          - AttributeName: pk
+            AttributeType: S
+          - AttributeName: sk
+            AttributeType: S
+          - AttributeName: status
+            AttributeType: S
+        KeySchema:
+          - AttributeName: pk
+            KeyType: HASH
+          - AttributeName: sk
+            KeyType: RANGE
+        GlobalSecondaryIndexes:
+          - IndexName: status-index
+            KeySchema:
+              - AttributeName: status
+                KeyType: HASH
+              - AttributeName: sk
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+
+    # Tabla de historial de posts publicados
+    IgPostsTable:
+      Type: AWS::DynamoDB::Table
+      DeletionPolicy: Retain
+      Properties:
+        TableName: ig-posts-${self:custom.stage}-pri-${self:custom.shortRegion}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: pk
+            AttributeType: S
+          - AttributeName: sk
+            AttributeType: S
+        KeySchema:
+          - AttributeName: pk
+            KeyType: HASH
+          - AttributeName: sk
+            KeyType: RANGE
