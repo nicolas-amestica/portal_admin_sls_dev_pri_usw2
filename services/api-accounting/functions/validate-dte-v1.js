@@ -3,7 +3,10 @@ import { getParameterValue } from '../../../libs/parameter-store.js';
 import { getSiiToken, queryDteRecibido } from '../../../libs/sii-dte.js';
 import { standardMiddleware } from '../../../libs/middleware/index.js';
 import { success } from '../../../helpers/responses.js';
-import { decodeAccountingPk } from '../helpers/resolve-partition-key.js';
+import {
+  expenseSiiQueryTipoRecibido,
+  getAccountingPartitionPk,
+} from '../helpers/accounting-keys.js';
 
 const { DYNAMODB_ACCOUNTING_TABLE, SSM_DTE_PATH, SII_HOST } = process.env;
 const ACTION = 'Validar DTE recibido';
@@ -26,14 +29,14 @@ async function getDteConfig() {
  * Verifica si un gasto registrado como FACTURA existe en el Registro de Compras del SII.
  * Si la validación es exitosa, actualiza el gasto con dteValidado = true.
  *
- * GET /v1/contabilidad/dte/validar-factura?sk=EXP%23...&pk=USR%23...
+ * GET /v1/contabilidad/dte/validar-factura?sk=...
  */
 const handler = async (event) => {
-  const sk = decodeURIComponent(event.queryStringParameters?.sk ?? '');
-  const partitionKey = decodeAccountingPk(event.queryStringParameters?.pk);
+  const sk = decodeURIComponent(event.queryParams?.sk ?? event.queryStringParameters?.sk ?? '');
+  const partitionKey = getAccountingPartitionPk();
 
-  if (!sk || !partitionKey) {
-    const error = new Error('Los parámetros sk y pk (query) son requeridos.');
+  if (!sk) {
+    const error = new Error('El parámetro sk (query) es requerido.');
     error.statusCode = 400;
     throw error;
   }
@@ -56,7 +59,7 @@ const handler = async (event) => {
     throw error;
   }
 
-  const tipo = gasto.tipoDocumento === 'FACTURA_EXENTA' ? '34' : '33';
+  const tipo = expenseSiiQueryTipoRecibido(gasto);
 
   const { certPem, llavePem, rutEmpresa } = await getDteConfig();
   const token = await getSiiToken(certPem, llavePem, SII_HOST);

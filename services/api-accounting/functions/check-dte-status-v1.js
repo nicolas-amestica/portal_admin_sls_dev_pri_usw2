@@ -3,7 +3,7 @@ import { getParameterValue } from '../../../libs/parameter-store.js';
 import { getSiiToken, checkDteEmisionStatus } from '../../../libs/sii-dte.js';
 import { standardMiddleware } from '../../../libs/middleware/index.js';
 import { success } from '../../../helpers/responses.js';
-import { decodeAccountingPk } from '../helpers/resolve-partition-key.js';
+import { getAccountingPartitionPk } from '../helpers/accounting-keys.js';
 
 const { DYNAMODB_ACCOUNTING_TABLE, SSM_DTE_PATH, SII_HOST } = process.env;
 const ACTION = 'Consultar estado DTE emitido';
@@ -25,14 +25,14 @@ async function getDteConfig() {
 /**
  * Consulta el estado de un DTE emitido en el SII y actualiza el ingreso si cambió.
  *
- * GET /v1/contabilidad/dte/estado?sk=ING%23...&pk=USR%23...
+ * GET /v1/contabilidad/dte/estado?sk=...
  */
 const handler = async (event) => {
-  const sk = decodeURIComponent(event.queryStringParameters?.sk ?? '');
-  const partitionKey = decodeAccountingPk(event.queryStringParameters?.pk);
+  const sk = decodeURIComponent(event.queryParams?.sk ?? event.queryStringParameters?.sk ?? '');
+  const partitionKey = getAccountingPartitionPk();
 
-  if (!sk || !partitionKey) {
-    const error = new Error('Los parámetros sk y pk (query) son requeridos.');
+  if (!sk) {
+    const error = new Error('El parámetro sk (query) es requerido.');
     error.statusCode = 400;
     throw error;
   }

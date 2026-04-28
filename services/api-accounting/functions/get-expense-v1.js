@@ -1,21 +1,21 @@
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { standardMiddleware } from '../../../libs/middleware/index.js';
 import { success } from '../../../helpers/responses.js';
-import { decodeAccountingPk } from '../helpers/resolve-partition-key.js';
+import { getAccountingPartitionPk } from '../helpers/accounting-keys.js';
 
 const { DYNAMODB_ACCOUNTING_TABLE } = process.env;
 const ACTION = 'Obtener gasto';
 
 /**
- * Handler: obtiene un gasto por sk y pk (query).
- * GET /v1/contabilidad/gastos/{sk}?pk=USR%23...
+ * Handler: obtiene un gasto por sk (path).
+ * GET /v1/contabilidad/gastos/{sk}
  */
 const handler = async (event) => {
   const sk = decodeURIComponent(event.pathParameters?.sk ?? '');
-  const partitionKey = decodeAccountingPk(event.queryStringParameters?.pk);
+  const partitionKey = getAccountingPartitionPk();
 
-  if (!sk || !partitionKey) {
-    const error = new Error('El sk (path) y pk (query, partition key USR#...) son requeridos.');
+  if (!sk) {
+    const error = new Error('El sk (path) es requerido.');
     error.statusCode = 400;
     throw error;
   }

@@ -27,5 +27,11 @@ siiHosts:
   prd: palena.sii.cl
 siiHost: ${self:custom.siiHosts.${self:custom.stage}}
 
+# Partición única tabla accounting (ACC + uuid fijo por stage). Usar el mismo valor en scripts de migración.
+accountingPartitionPk:
+  dev: ACC#01900001-8007-7000-8000-000000000001
+  qa: ACC#01900001-8007-7000-8000-000000000002
+  prd: ACC#01900001-8007-7000-8000-000000000003
+
 serverless-offline:
   httpPort: 3200

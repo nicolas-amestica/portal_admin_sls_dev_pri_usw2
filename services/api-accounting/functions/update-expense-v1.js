@@ -1,63 +1,31 @@
-import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { standardMiddleware } from '../../../libs/middleware/index.js';
 import { success } from '../../../helpers/responses.js';
-import { normalizeOwnerPk } from '../helpers/owner-pk.js';
+import { updateExpenseWithOptionalRelocate } from '../helpers/accounting-item-update.js';
 
 const { DYNAMODB_ACCOUNTING_TABLE } = process.env;
 const ACTION = 'Actualizar gasto';
 
-const UPDATABLE_FIELDS = [
-  'monto', 'montoNeto', 'montoIVA', 'categoria', 'subcategoria',
-  'tipoDocumento', 'folio', 'rutEmisor', 'nombreEmisor',
-  'motivoNegocio', 'tarjeta', 'personasInvitadas', 'receiptS3Key',
-  'conciliadoCartola', 'fecha', 'programSk',
-];
-
 /**
  * Handler: actualiza los campos editables de un gasto.
  * PUT /v1/contabilidad/gastos/{sk}
- * Body: { pk, ...camposActualizados }
  */
 const handler = async (event) => {
   const sk = decodeURIComponent(event.pathParameters?.sk ?? '');
-  const { pk, ...fields } = event.body ?? {};
-  const owner = normalizeOwnerPk(pk);
+  const updates = event.body ?? {};
 
-  if (!sk || !owner) {
-    const error = new Error('El sk (path) y pk (body, partition key USR#...) son requeridos.');
+  if (!sk) {
+    const error = new Error('El sk (path) es requerido.');
     error.statusCode = 400;
     throw error;
   }
 
-  const partitionKey = owner.pk;
-
-  const updateParts = [];
-  const expressionValues = { ':updatedAt': new Date().toISOString() };
-  const expressionNames = {};
-
-  UPDATABLE_FIELDS.forEach((field) => {
-    if (fields[field] !== undefined) {
-      updateParts.push(`#${field} = :${field}`);
-      expressionValues[`:${field}`] = fields[field];
-      expressionNames[`#${field}`] = field;
-    }
+  const item = await updateExpenseWithOptionalRelocate({
+    tableName: DYNAMODB_ACCOUNTING_TABLE,
+    sk,
+    updates,
   });
 
-  if (!updateParts.length) {
-    const error = new Error('No se proporcionaron campos para actualizar.');
-    error.statusCode = 400;
-    throw error;
-  }
-
-  const result = await dynamoDbLib.update({
-    TableName: DYNAMODB_ACCOUNTING_TABLE,
-    Key: { pk: partitionKey, sk },
-    UpdateExpression: `SET ${updateParts.join(', ')}, updatedAt = :updatedAt`,
-    ExpressionAttributeValues: expressionValues,
-    ExpressionAttributeNames: expressionNames,
-  });
-
-  return success(200, result, ACTION);
+  return success(200, { Item: item }, ACTION);
 };
 
 export const main = standardMiddleware(handler);

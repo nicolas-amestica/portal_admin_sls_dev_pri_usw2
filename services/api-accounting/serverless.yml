@@ -42,6 +42,7 @@ provider:
     PROFILE: ${self:provider.profile}
     NODE_OPTIONS: '--enable-source-maps'
     DYNAMODB_ACCOUNTING_TABLE: accounting-${self:custom.stage}-pri-${self:custom.shortRegion}
+    ACCOUNTING_PARTITION_PK: ${self:custom.accountingPartitionPk.${self:custom.stage}}
     BUCKET_INFO_GI: giras-indomito-${self:custom.stage}-info
     SSM_DTE_PATH: /dte/${self:custom.stage}
     SII_HOST: ${self:custom.siiHost}

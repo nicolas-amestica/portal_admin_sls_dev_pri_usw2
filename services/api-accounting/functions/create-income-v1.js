@@ -2,33 +2,45 @@ import { randomUUID } from '../../../libs/crypto.js';
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { standardMiddleware } from '../../../libs/middleware/index.js';
 import { success } from '../../../helpers/responses.js';
-import { normalizeOwnerPk } from '../helpers/owner-pk.js';
+import {
+  buildIncomeSortKey,
+  getAccountingPartitionPk,
+  gsiIncomePeriod,
+  normalizeAuditUserId,
+} from '../helpers/accounting-keys.js';
 
 const { DYNAMODB_ACCOUNTING_TABLE } = process.env;
 const ACTION = 'Registrar ingreso';
 const REQUIRED_FIELDS = [
-  'pk', 'fecha', 'montoTotal', 'tipoDocumento', 'nombreCliente', 'concepto',
+  'fecha', 'montoTotal', 'tipoDocumento', 'nombreCliente', 'concepto',
   'medioPago', 'cuentaBancaria', 'programSk',
 ];
 
 /**
- * Construye el item de ingreso para DynamoDB a partir del body validado.
+ * Construye el item de ingreso para DynamoDB.
  *
- * @param {object} body - Campos del ingreso recibidos del frontend.
- * @param {{ pk: string, userId: string }} owner - Partición y userId derivado.
- * @returns {object} Item listo para insertar en DynamoDB.
+ * @param {object} body
+ * @param {string} partitionKey
+ * @param {string} userId
+ * @returns {object}
  */
-const buildIncome = (body, owner) => {
+const buildIncome = (body, partitionKey, userId) => {
   const id = randomUUID();
   const periodo = body.fecha.slice(0, 7);
   const now = new Date().toISOString();
+  const sk = buildIncomeSortKey({
+    programSk: body.programSk,
+    periodo,
+    tipoDocumento: body.tipoDocumento,
+    id,
+  });
 
   return {
-    pk: owner.pk,
-    sk: `ING#${body.fecha}#${id}`,
-    gsiOne: `INCOME_PERIOD#${periodo}`,
+    pk: partitionKey,
+    sk,
+    gsiOne: gsiIncomePeriod(periodo),
     id,
-    userId: owner.userId,
+    userId: userId || '',
     tipo: 'INGRESO',
     fecha: body.fecha,
     periodo,
@@ -48,7 +60,7 @@ const buildIncome = (body, owner) => {
     origenPago: body.origenPago ?? 'EXTERNO',
     conciliadoBancario: false,
     comprobantePagoS3Key: body.comprobantePagoS3Key ?? '',
-    programSk: body.programSk ?? '',
+    programSk: body.programSk,
     status: 'REGISTRADO',
     createdAt: now,
     updatedAt: now,
@@ -57,7 +69,7 @@ const buildIncome = (body, owner) => {
 
 /**
  * Handler: registra un ingreso recibido en cuenta bancaria.
- * POST /v1/contabilidad/ingresos — body incluye pk (USR#...) del propietario del registro.
+ * POST /v1/contabilidad/ingresos — body opcional userId (auditoría).
  */
 const handler = async (event) => {
   const missing = REQUIRED_FIELDS.filter((f) => !event.body?.[f]);
@@ -67,22 +79,13 @@ const handler = async (event) => {
     throw error;
   }
 
-  const owner = normalizeOwnerPk(event.body.pk);
-  if (!owner) {
-    const error = new Error('El campo pk debe ser la partition key del usuario (ej. USR#<identificador>).');
-    error.statusCode = 400;
-    throw error;
-  }
+  const partitionKey = getAccountingPartitionPk();
+  const userId = normalizeAuditUserId(event.body?.userId);
 
   const programSkTrim = String(event.body.programSk ?? '').trim();
-  if (!programSkTrim) {
-    const error = new Error('El programa asociado (programSk) es requerido.');
-    error.statusCode = 400;
-    throw error;
-  }
   event.body.programSk = programSkTrim;
 
-  const item = buildIncome(event.body, owner);
+  const item = buildIncome(event.body, partitionKey, userId);
   const result = await dynamoDbLib.put({ TableName: DYNAMODB_ACCOUNTING_TABLE, Item: item });
   return success(201, result, ACTION);
 };
