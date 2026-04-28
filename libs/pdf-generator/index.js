@@ -333,6 +333,30 @@ export const generateContract = async (
     });
   };
 
+  /**
+   * Dibuja siempre la línea de firma; si existe PNG en S3, lo superpone justo encima.
+   * Antes solo se dibujaba la línea cuando no había imagen (p. ej. operador con firma en S3 vs clientes sin archivo).
+   */
+  const drawSignatureSlot = (pageRef, x, lineY, representativeDni) => {
+    const sig = findSignature(representativeDni);
+    pageRef.drawLine({
+      start: { x, y: lineY },
+      end: { x: x + SIGNATURE_LINE_LENGTH, y: lineY },
+      thickness: 1,
+      color: rgb(0, 0, 0),
+    });
+    if (sig && sig.image) {
+      const signatureDims = sig.image.scale(0.075);
+      pageRef.drawImage(sig.image, {
+        x,
+        y: lineY + 2,
+        width: signatureDims.width,
+        height: signatureDims.height,
+      });
+    }
+    return lineY - 15;
+  };
+
   const totalSignatures = operators.length + clients.length;
   const useDoubleColumn = totalSignatures <= 4;
 
@@ -358,29 +382,7 @@ export const generateContract = async (
         operatorY = PAGE_HEIGHT - HEADER_HEIGHT - 150;
       }
 
-      // Buscar firma del operador
-      const operatorSignature = findSignature(operator.dni);
-
-      // Dibujar imagen de firma si existe
-      if (operatorSignature && operatorSignature.image) {
-        const signatureDims = operatorSignature.image.scale(0.075);
-        page.drawImage(operatorSignature.image, {
-          x: col1X,
-          y: operatorY - signatureDims.height + 10,
-          width: signatureDims.width,
-          height: signatureDims.height,
-        });
-        operatorY -= signatureDims.height + 5;
-      } else {
-        // Si no hay firma, dibujar línea tradicional
-        page.drawLine({
-          start: { x: col1X, y: operatorY },
-          end: { x: col1X + SIGNATURE_LINE_LENGTH, y: operatorY },
-          thickness: 1,
-          color: rgb(0, 0, 0),
-        });
-        operatorY -= 15;
-      }
+      operatorY = drawSignatureSlot(page, col1X, operatorY, operator.dni);
 
       page.drawText("El Operador", {
         x: col1X,
@@ -423,29 +425,7 @@ export const generateContract = async (
         clientY = PAGE_HEIGHT - HEADER_HEIGHT - 150;
       }
 
-      // Buscar firma del cliente
-      const clientSignature = findSignature(client.dni);
-
-      // Dibujar imagen de firma si existe
-      if (clientSignature && clientSignature.image) {
-        const signatureDims = clientSignature.image.scale(0.075);
-        page.drawImage(clientSignature.image, {
-          x: col2X,
-          y: clientY - signatureDims.height + 10,
-          width: signatureDims.width,
-          height: signatureDims.height,
-        });
-        clientY -= signatureDims.height + 5;
-      } else {
-        // Si no hay firma, dibujar línea tradicional
-        page.drawLine({
-          start: { x: col2X, y: clientY },
-          end: { x: col2X + SIGNATURE_LINE_LENGTH, y: clientY },
-          thickness: 1,
-          color: rgb(0, 0, 0),
-        });
-        clientY -= 15;
-      }
+      clientY = drawSignatureSlot(page, col2X, clientY, client.dni);
 
       page.drawText("El Representante", {
         x: col2X,
@@ -508,29 +488,7 @@ export const generateContract = async (
           yPosition = PAGE_HEIGHT - HEADER_HEIGHT - 150;
         }
 
-        // Buscar firma del operador
-        const operatorSignature = findSignature(operator.rut);
-
-        // Dibujar imagen de firma si existe
-        if (operatorSignature && operatorSignature.image) {
-          const signatureDims = operatorSignature.image.scale(0.075);
-          page.drawImage(operatorSignature.image, {
-            x: centerX,
-            y: yPosition - signatureDims.height + 10,
-            width: signatureDims.width,
-            height: signatureDims.height,
-          });
-          yPosition -= signatureDims.height + 5;
-        } else {
-          // Si no hay firma, dibujar línea tradicional
-          page.drawLine({
-            start: { x: centerX, y: yPosition },
-            end: { x: centerX + SIGNATURE_LINE_LENGTH, y: yPosition },
-            thickness: 1,
-            color: rgb(0, 0, 0),
-          });
-          yPosition -= 15;
-        }
+        yPosition = drawSignatureSlot(page, centerX, yPosition, operator.dni);
 
         page.drawText(operator.name, {
           x: centerX,
@@ -587,29 +545,7 @@ export const generateContract = async (
           yPosition = PAGE_HEIGHT - HEADER_HEIGHT - 150;
         }
 
-        // Buscar firma del cliente
-        const clientSignature = findSignature(client.rut);
-
-        // Dibujar imagen de firma si existe
-        if (clientSignature && clientSignature.image) {
-          const signatureDims = clientSignature.image.scale(0.075);
-          page.drawImage(clientSignature.image, {
-            x: centerX,
-            y: yPosition - signatureDims.height + 10,
-            width: signatureDims.width,
-            height: signatureDims.height,
-          });
-          yPosition -= signatureDims.height + 5;
-        } else {
-          // Si no hay firma, dibujar línea tradicional
-          page.drawLine({
-            start: { x: centerX, y: yPosition },
-            end: { x: centerX + SIGNATURE_LINE_LENGTH, y: yPosition },
-            thickness: 1,
-            color: rgb(0, 0, 0),
-          });
-          yPosition -= 15;
-        }
+        yPosition = drawSignatureSlot(page, centerX, yPosition, client.dni);
 
         page.drawText(client.name, {
           x: centerX,
