@@ -1,5 +1,6 @@
 import { formatDate, formatCurrency } from '../pdf-generator/helpers/formatters.js';
 import { normalizeClientRepresentatives } from './normalize-client-representatives.js';
+import { OPERATOR_LEGAL_RUT } from './operator-constants.js';
 
 /**
  * Builder para documentos de tipo CONTRATO CON PAGO MANUAL (CTM)
@@ -73,7 +74,6 @@ export const buildDocumentData = (form = {}) => {
 
   // Datos de pago
   const {
-    bankAccount = {},
     conditions = {},
     downPayment = 0,
     groupBalance = 0,
@@ -100,7 +100,7 @@ export const buildDocumentData = (form = {}) => {
   const contractData = {
     title: "CONTRATO DE PRESTACIÓN DE SERVICIOS TURÍSTICOS",
 
-    generalData: `En ${trip.city || ':::SIN CIUDAD:::'}, ${contractDate.simple || ':::SIN FECHA:::'}, entre GIRAS INDÓMITO LIMITADA, RUT ${bankAccount.holderDNI || ':::SIN RUT:::'}, representada legalmente por ${representativesText || ':::SIN EMPRESA:::'}, según se acredita, en adelante "El Operador", por una parte; y por otra, ${clientRepresentativesText || ':::SIN REPRESENTANTES:::'}, en adelante "El Pasajero" o "Los Representantes".`,
+    generalData: `En ${trip.city || ':::SIN CIUDAD:::'}, ${contractDate.simple || ':::SIN FECHA:::'}, entre GIRAS INDÓMITO LIMITADA, RUT ${OPERATOR_LEGAL_RUT}, representada legalmente por ${representativesText || ':::SIN EMPRESA:::'}, según se acredita, en adelante "El Operador", por una parte; y por otra, ${clientRepresentativesText || ':::SIN REPRESENTANTES:::'}, en adelante "El Pasajero" o "Los Representantes".`,
 
     clauses: [
       {
@@ -192,7 +192,7 @@ export const buildDocumentData = (form = {}) => {
       {
         number: 17,
         title: "DÉCIMO SÉPTIMO:",
-        text: `La cantidad inicial es de ${totalPassengers || ':::SIN TOTAL DE PASAJEROS:::'} pasajeros más ${freePassengers || ':::SIN PASAJEROS LIBERADOS:::'} liberados de pago. Para efectos de la realización del programa seleccionado, cada uno cancela la suma de ${pricePerPerson ? formatCurrency(pricePerPerson) : ':::SIN PRECIO POR PERSONA:::'} (precio del día: ${priceInUSD || ':::SIN PRECIO DEL DÍA:::'} USD), totalizando ${payments.totalGroup ? formatCurrency(payments.totalGroup) : ':::SIN TOTAL GRUPAL:::'} para el grupo. La firma de este contrato se realiza mediante la cancelación de un abono de ${downPayment ? formatCurrency(downPayment) : ':::SIN ABONO:::'}, quedando un saldo grupal de ${groupBalance ? formatCurrency(groupBalance) : ':::SIN SALDO GRUPAL:::'}, el cual se pagará en ${installments.quantity || ':::SIN CUOTAS:::'} cuotas mensuales a partir de ${installments.startMonth || ':::SIN FECHA DE INICIO DE PAGO:::'} de ${installments.groupInstallmentValue ? formatCurrency(installments.groupInstallmentValue) : ':::SIN VALOR DE CUOTA GRUPAL:::'}, o cuotas individuales de ${installments.individualInstallmentValue ? formatCurrency(installments.individualInstallmentValue) : ':::SIN VALOR DE CUOTA INDIVIDUAL:::'}. El viaje debe estar pagado en su totalidad como máximo ${payments.daysBeforePayment || ':::SIN DÍAS ANTES DE PAGO:::'} días antes de la fecha de salida. En caso de existir un alza excesiva en el dólar que supere los ${maxExchangeRate ? formatCurrency(maxExchangeRate) : ':::SIN VALOR DE TASA DE CAMBIO:::'}, el viaje deberá ser reprogramado (en caso de no querer pagar la diferencia) o bien pagar la diferencia por persona que pueda generar el alza, debido a que la mayoría de los servicios se paga en dólares americanos. La forma de pago acordada es en efectivo. En caso de que el Pasajero decida cancelar mediante cualquier otro método de pago (transferencia bancaria, depósito u otro), se aplicará un recargo del 10% sobre el monto de la cuota que se esté pagando.`
+        text: `La cantidad inicial es de ${totalPassengers || ':::SIN TOTAL DE PASAJEROS:::'} pasajeros más ${freePassengers || ':::SIN PASAJEROS LIBERADOS:::'} liberados de pago. Para efectos de la realización del programa seleccionado, cada uno cancela la suma de ${pricePerPerson ? formatCurrency(pricePerPerson) : ':::SIN PRECIO POR PERSONA:::'} (precio del día: ${priceInUSD || ':::SIN PRECIO DEL DÍA:::'} USD), totalizando ${payments.totalGroup ? formatCurrency(payments.totalGroup) : ':::SIN TOTAL GRUPAL:::'} para el grupo. La firma de este contrato se realiza mediante la cancelación de un abono de ${downPayment ? formatCurrency(downPayment) : ':::SIN ABONO:::'}, quedando un saldo grupal de ${groupBalance ? formatCurrency(groupBalance) : ':::SIN SALDO GRUPAL:::'}, el cual se pagará en ${installments.quantity || ':::SIN CUOTAS:::'} cuotas mensuales a partir de ${installments.startMonth || ':::SIN FECHA DE INICIO DE PAGO:::'} de ${installments.groupInstallmentValue ? formatCurrency(installments.groupInstallmentValue) : ':::SIN VALOR DE CUOTA GRUPAL:::'}, o cuotas individuales de ${installments.individualInstallmentValue ? formatCurrency(installments.individualInstallmentValue) : ':::SIN VALOR DE CUOTA INDIVIDUAL:::'}. El viaje debe estar pagado en su totalidad como máximo ${payments.daysBeforePayment || ':::SIN DÍAS ANTES DE PAGO:::'} días antes de la fecha de salida. En caso de existir un alza excesiva en el dólar que supere los ${maxExchangeRate ? formatCurrency(maxExchangeRate) : ':::SIN VALOR DE TASA DE CAMBIO:::'}, el viaje deberá ser reprogramado (en caso de no querer pagar la diferencia) o bien pagar la diferencia por persona que pueda generar el alza, debido a que la mayoría de los servicios se paga en dólares americanos. La forma de pago pactada entre las partes es en efectivo ante el Operador. En caso de que el Pasajero decida cancelar mediante cualquier otro método de pago (transferencia bancaria, depósito u otro), se aplicará un recargo del 10% sobre el monto de la cuota que se esté pagando.`
       },
       {
         number: 18,
@@ -235,7 +235,7 @@ export const buildDocumentData = (form = {}) => {
           }))
         : [],
       companyName: 'GIRAS INDÓMITO LIMITADA',
-      companyRut: bankAccount.holderDNI || ':::SIN RUT DE CUENTA:::'
+      companyRut: OPERATOR_LEGAL_RUT
     }
   };
 
