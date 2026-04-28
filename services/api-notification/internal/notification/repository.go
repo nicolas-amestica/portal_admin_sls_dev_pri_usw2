@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"regexp"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
@@ -12,6 +14,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"go.uber.org/zap"
 )
+
+// Debe alinearse con libs/document-builders/publish-contract-preview.js (CONTRACT_PREVIEW_S3_PREFIX + UUID).
+var contractPreviewObjectKeyPattern = regexp.MustCompile(`^contracts/preview/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.pdf$`)
+
+// DownloadPreviewContractFromKeyFunc descarga un borrador PDF desde una clave acotada en el bucket de info.
+type DownloadPreviewContractFromKeyFunc func(ctx context.Context, objectKey string) ([]AttachedPDF, error)
 
 // GetProgramFunc es el tipo de función para obtener un programa desde DynamoDB.
 type GetProgramFunc func(ctx context.Context, sk string) (*ProgramItem, error)
@@ -101,5 +109,39 @@ func NewDownloadContractPDFs(client *s3.Client, log *zap.Logger) DownloadContrac
 		}
 
 		return pdfs, nil
+	}
+}
+
+// NewDownloadPreviewContractFromKey crea una función que obtiene un PDF de contracts/preview/ por clave validada.
+func NewDownloadPreviewContractFromKey(client *s3.Client, bucket string, log *zap.Logger) DownloadPreviewContractFromKeyFunc {
+	return func(ctx context.Context, objectKey string) ([]AttachedPDF, error) {
+		key := strings.TrimSpace(objectKey)
+		if !contractPreviewObjectKeyPattern.MatchString(key) {
+			return nil, fmt.Errorf("clave de adjunto de vista previa no permitida")
+		}
+
+		log.Info("Descargando borrador PDF desde S3",
+			zap.String("bucket", bucket),
+			zap.String("key", key),
+		)
+
+		out, err := client.GetObject(ctx, &s3.GetObjectInput{
+			Bucket: aws.String(bucket),
+			Key:    aws.String(key),
+		})
+		if err != nil {
+			log.Error("Error al descargar borrador de S3", zap.String("key", key), zap.Error(err))
+			return nil, fmt.Errorf("error al descargar borrador: %w", err)
+		}
+		defer out.Body.Close()
+
+		data, err := io.ReadAll(out.Body)
+		if err != nil {
+			return nil, fmt.Errorf("error al leer borrador: %w", err)
+		}
+
+		return []AttachedPDF{
+			{Filename: "borrador-contrato.pdf", Data: data},
+		}, nil
 	}
 }

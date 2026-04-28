@@ -49,6 +49,11 @@ func init() {
 		log.Fatal("Variable de entorno EMAIL_CONFIG_SECRET_KEY es requerida")
 	}
 
+	bucketInfo := os.Getenv("BUCKET_INFO_GI")
+	if bucketInfo == "" {
+		log.Fatal("Variable de entorno BUCKET_INFO_GI es requerida")
+	}
+
 	ctx := context.Background()
 
 	dynamoClient := database.MustDynamoClient(ctx, log)
@@ -58,15 +63,17 @@ func init() {
 	// Composición funcional: Repository → Service
 	getProgram := notification.NewGetProgram(dynamoClient, programTable, programPK, log)
 	downloadPDFs := notification.NewDownloadContractPDFs(s3Client, log)
+	downloadPreview := notification.NewDownloadPreviewContractFromKey(s3Client, bucketInfo, log)
 	getEmailConfig := notification.NewGetEmailConfig(ssmClient, emailConfigKey, log)
 	sendEmail := notification.NewSendEmail(getEmailConfig, stage, log)
 
-	service = notification.NewSendNotificationService(getProgram, downloadPDFs, sendEmail, stage, log)
+	service = notification.NewSendNotificationService(getProgram, downloadPDFs, downloadPreview, sendEmail, stage, log)
 
 	log.Info("Lambda inicializada correctamente",
 		zap.String("handler", "send-notification"),
 		zap.String("stage", stage),
 		zap.String("programTable", programTable),
+		zap.String("bucketInfo", bucketInfo),
 	)
 }
 

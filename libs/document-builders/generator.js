@@ -14,27 +14,19 @@ import { getDocumentBuilder, isValidScope, getSupportedScopes } from './index.js
  * @typedef {Object} GenerateDocumentResult
  * @property {boolean} success - Indica si la generación fue exitosa
  * @property {string} [base64] - PDF generado en base64 (solo si success = true)
+ * @property {Buffer} [buffer] - PDF como buffer (solo en resultado intermedio de generateDocumentBuffer)
  * @property {string} [error] - Mensaje de error (solo si success = false)
  * @property {number} [statusCode] - Código de error HTTP (solo si success = false)
  * @property {Array<string>} [supportedScopes] - Lista de scopes soportados (solo en errores de validación)
  */
 
 /**
- * Genera un documento PDF genérico en formato base64.
+ * Genera el PDF como Buffer (única implementación de la lógica de generación).
  *
- * Esta función centraliza toda la lógica de generación de documentos PDF
- * y puede ser utilizada desde cualquier lambda del proyecto.
- *
- * @async
- * @param {Object} params - Parámetros de generación
- * @param {string} params.scope - Tipo de documento (CTT, DBA, DBR)
- * @param {Object} params.form - Datos del formulario para generar el documento
- * @param {DocumentAction} [params.action] - Opciones de generación del documento
- * @param {string} params.bucket - Nombre del bucket S3 para assets y firmas
- *
- * @returns {Promise<GenerateDocumentResult>} Resultado de la generación
+ * @param {Object} params - Mismos parámetros que {@link generateDocument}.
+ * @returns {Promise<GenerateDocumentResult>} success + buffer, o error
  */
-export const generateDocument = async ({ scope, form, action = {}, bucket }) => {
+export const generateDocumentBuffer = async ({ scope, form, action = {}, bucket }) => {
   try {
     // 1. Validar parámetros requeridos
     if (!scope) {
@@ -151,19 +143,33 @@ export const generateDocument = async ({ scope, form, action = {}, bucket }) => 
       };
     }
 
-    // 10. Retornar resultado exitoso
     return {
       success: true,
-      base64: pdfBuffer.toString('base64')
+      buffer: pdfBuffer,
     };
-
   } catch (error) {
-    console.error('Error en generateDocument:', error);
+    console.error('Error en generateDocumentBuffer:', error);
     return {
       success: false,
       error: error.message || 'Error desconocido al generar el documento',
-      statusCode: error.statusCode || 500
+      statusCode: error.statusCode || 500,
     };
   }
 };
 
+/**
+ * Genera un documento PDF genérico en formato base64.
+ *
+ * @param {Object} params - Parámetros de generación
+ * @returns {Promise<GenerateDocumentResult>}
+ */
+export const generateDocument = async (params) => {
+  const result = await generateDocumentBuffer(params);
+  if (!result.success) {
+    return result;
+  }
+  return {
+    success: true,
+    base64: result.buffer.toString('base64'),
+  };
+};

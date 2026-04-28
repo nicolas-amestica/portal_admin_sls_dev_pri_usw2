@@ -22,6 +22,7 @@ type SendNotificationFunc func(ctx context.Context, req *SendRequest) (*SendResp
 func NewSendNotificationService(
 	getProgram GetProgramFunc,
 	downloadPDFs DownloadContractPDFsFunc,
+	downloadPreview DownloadPreviewContractFromKeyFunc,
 	sendEmail SendEmailFunc,
 	stage string,
 	log *zap.Logger,
@@ -66,6 +67,19 @@ func NewSendNotificationService(
 			if err != nil {
 				return nil, apperr.InternalServer("Error al descargar PDFs del contrato", err)
 			}
+		} else if k := strings.TrimSpace(req.AttachmentS3Key); k != "" {
+			var err error
+			pdfs, err = downloadPreview(ctx, k)
+			if err != nil {
+				if strings.Contains(err.Error(), "no permitida") {
+					return nil, apperr.BadRequest(err.Error())
+				}
+				return nil, apperr.InternalServer("Error al descargar borrador del contrato", err)
+			}
+			log.Info("Usando borrador PDF desde S3 (vista previa)",
+				zap.String("key", k),
+				zap.Int("bytes", len(pdfs[0].Data)),
+			)
 		} else if rawB64 := strings.TrimSpace(req.AttachmentBase64); rawB64 != "" {
 			decoded, err := base64.StdEncoding.DecodeString(rawB64)
 			if err != nil {

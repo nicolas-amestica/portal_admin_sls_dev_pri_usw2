@@ -11,6 +11,8 @@ type SendRequest struct {
 	// AttachmentBase64 es un PDF en base64 (p. ej. borrador recién generado en el portal).
 	// Se usa cuando el programa aún no tiene contract.files en DynamoDB/S3.
 	AttachmentBase64 string `json:"attachmentBase64"`
+	// AttachmentS3Key es la clave S3 de un borrador bajo contracts/preview/ (generada al previsualizar).
+	AttachmentS3Key string `json:"attachmentS3Key"`
 }
 
 // SendResponse es la respuesta exitosa del handler.

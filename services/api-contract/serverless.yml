@@ -76,7 +76,7 @@ functions:
 
   build_document_by_form_v1:
     handler: functions/build-pdf-contract-by-form-v1.main
-    description: Genera contratos en base64 desde un formulario.
+    description: Genera contrato PDF, lo guarda en S3 y devuelve URL GET prefirmada para vista previa.
     timeout: 29
     memorySize: 1024
     events:

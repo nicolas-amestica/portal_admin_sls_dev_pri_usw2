@@ -1,16 +1,17 @@
 import { success } from "../../../helpers/responses.js";
 import { standardMiddleware } from "../../../libs/middleware/index.js";
-import { generateDocument } from '../../../libs/document-builders/generator.js';
+import { generateDocumentBuffer } from '../../../libs/document-builders/generator.js';
+import { publishContractPreviewPdf } from '../../../libs/document-builders/publish-contract-preview.js';
 
 const {
   BUCKET_INFO_GI
 } = process.env;
 
 /**
- * Lambda handler que genera un documento PDF genérico en formato base64.
+ * Lambda handler que genera un documento PDF, lo sube a S3 y devuelve URL GET prefirmada para el visor.
  */
 const handler = async (event) => {
-  const logAction = "Generar documento PDF en base64";
+  const logAction = "Generar documento PDF (URL prefirmada)";
 
   // 1. Obtener datos del body (ya parseado por middleware)
   const { scope, document, action } = event.body;
@@ -22,25 +23,27 @@ const handler = async (event) => {
     throw error;
   }
 
-  // 3. Generar documento usando el módulo central
-  const result = await generateDocument({
+  // 3. Generar buffer y publicar vista previa (reutiliza getPresignedUrl / putObject de s3-v3)
+  const generated = await generateDocumentBuffer({
     scope,
     form: document.contract,
     action,
     bucket: BUCKET_INFO_GI
   });
 
-  // 4. Retornar respuesta según resultado
-  if (result.success) {
-    return success(200, {
-      base64: result.base64
-    }, logAction);
-  } else {
-    const error = new Error(result.error);
-    error.statusCode = result.statusCode || 500;
-    error.supportedScopes = result.supportedScopes;
+  if (!generated.success) {
+    const error = new Error(generated.error);
+    error.statusCode = generated.statusCode || 500;
+    error.supportedScopes = generated.supportedScopes;
     throw error;
   }
+
+  const preview = await publishContractPreviewPdf({
+    bucket: BUCKET_INFO_GI,
+    buffer: generated.buffer,
+  });
+
+  return success(200, preview, logAction);
 };
 
 export const main = standardMiddleware(handler);
