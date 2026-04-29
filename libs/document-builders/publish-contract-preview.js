@@ -4,7 +4,7 @@ import { putObject, getPresignedUrl } from '../s3-v3.js';
 export const CONTRACT_PREVIEW_S3_PREFIX = 'contracts/preview';
 
 /** Validez de la URL GET prefirmada (segundos). Misma convención que presign-comprobante-descarga. */
-export const CONTRACT_PREVIEW_URL_EXPIRES_SECONDS = 600;
+export const CONTRACT_PREVIEW_URL_EXPIRES_SECONDS = 900;
 
 /**
  * @description Sube un PDF de vista previa al bucket y devuelve URL GET prefirmada usando `getPresignedUrl` de s3-v3.

@@ -1,8 +1,10 @@
-import { getObject } from "../../../libs/s3-v3.js";
+import { getPresignedUrl } from "../../../libs/s3-v3.js";
 import { success } from "../../../helpers/responses.js";
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { cache, CacheKeys } from '../../../libs/cache/index.js';
 import { standardMiddleware } from "../../../libs/middleware/index.js";
+
+const CONTRACT_FILE_PRESIGN_SECONDS = 900;
 
 const {
   PROGRAM_TABLE,
@@ -10,18 +12,7 @@ const {
 } = process.env;
 
 /**
- * Convierte un stream a Buffer
- */
-const streamToBuffer = async (stream) => {
-  const chunks = [];
-  for await (const chunk of stream) {
-    chunks.push(chunk);
-  }
-  return Buffer.concat(chunks);
-};
-
-/**
- * Obtiene archivos PDF de un documento desde DynamoDB y S3, convirtiéndolos a base64.
+ * Obtiene metadatos de archivos PDF de un contrato desde DynamoDB y URL GET prefirmada por archivo (sin cargar bytes en Lambda).
  */
 const handler = async (event) => {
   const action = "Obtener archivos PDF del documento.";
@@ -73,10 +64,8 @@ const handler = async (event) => {
     throw error;
   }
 
-  // Intentar obtener archivos del array files (nuevo formato)
   let files = contract.files;
 
-  // Fallback: si no existe el array files, usar el objeto file singular (formato antiguo)
   if (!files || files.length === 0) {
     if (contract.file) {
       files = [contract.file];
@@ -87,7 +76,9 @@ const handler = async (event) => {
     }
   }
 
-  // Descargar todos los archivos PDF desde S3 y convertirlos a base64
+  const legacy = event.queryParams?.legacy === '1' || event.queryParams?.legacy === 'true';
+
+  /** @typedef {{ getObject?: Function }} FileRow */
   const pdfDocuments = await Promise.all(
     files.map(async (file) => {
       const s3Params = {
@@ -95,12 +86,23 @@ const handler = async (event) => {
         Key: `${file.path}/${file.Key}`
       };
 
-      const pdfObject = await getObject(s3Params);
-      const pdfBuffer = await streamToBuffer(pdfObject.Body);
-      const base64PDF = pdfBuffer.toString('base64');
+      let base64PDF = '';
+      if (legacy) {
+        const { getObject } = await import('../../../libs/s3-v3.js');
+        const pdfObject = await getObject(s3Params);
+        const chunks = [];
+        for await (const chunk of pdfObject.Body) {
+          chunks.push(chunk);
+        }
+        base64PDF = Buffer.concat(chunks).toString('base64');
+      }
+
+      const previewUrl = await getPresignedUrl(s3Params, CONTRACT_FILE_PRESIGN_SECONDS);
 
       return {
-        base64: base64PDF,
+        ...(legacy ? { base64: base64PDF } : {}),
+        previewUrl,
+        expiresIn: CONTRACT_FILE_PRESIGN_SECONDS,
         fileName: file.Key,
         uploadDate: file.uploadDate,
         type: file.type || 'unknown',

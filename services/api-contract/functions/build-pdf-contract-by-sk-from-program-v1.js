@@ -1,6 +1,7 @@
 import { success } from "../../../helpers/responses.js";
 import { standardMiddleware } from "../../../libs/middleware/index.js";
-import { generateDocument } from '../../../libs/document-builders/generator.js';
+import { generateDocumentBuffer } from '../../../libs/document-builders/generator.js';
+import { publishContractPreviewPdf } from '../../../libs/document-builders/publish-contract-preview.js';
 import { CachedDynamoDB, CacheKeys, cache } from '../../../libs/cache/index.js';
 
 const {
@@ -10,13 +11,11 @@ const {
 } = process.env;
 
 /**
- * Genera un documento PDF de contrato en formato base64 a partir de un SK de programa.
- * Implementa caché en dos niveles:
- *   1. PDF completo (base64) — evita query + generación (TTL: 15 min)
- *   2. Query DynamoDB del programa (TTL: 10 min)
+ * Genera un PDF de contrato desde el programa (SK), lo publica en S3 y devuelve URL GET prefirmada.
+ * Mantiene caché en dos niveles: respuesta completa (prefirmada) y query DynamoDB del programa.
  */
 const handler = async (event) => {
-  const action = "Generar contrato pdf en base64.";
+  const action = "Generar contrato PDF (URL prefirmada desde programa).";
 
   const { sk } = event.pathParams;
   const decodedSk = decodeURIComponent(sk);
@@ -27,14 +26,19 @@ const handler = async (event) => {
     throw error;
   }
 
-  // Nivel 1: caché del PDF completo
   const pdfCacheKey = CacheKeys.contractPdf(decodedSk);
-  const cachedPdf = cache.get(pdfCacheKey);
-  if (cachedPdf !== null) {
-    return success(200, { base64: cachedPdf }, action);
+  const cachedPayload = cache.get(pdfCacheKey);
+  if (cachedPayload !== null) {
+    try {
+      const parsed = typeof cachedPayload === 'string' ? JSON.parse(cachedPayload) : cachedPayload;
+      if (parsed?.previewUrl) {
+        return success(200, parsed, action);
+      }
+    } catch {
+      // caché legacy en base64: regenerar
+    }
   }
 
-  // Nivel 2: caché del query DynamoDB
   const queryParams = {
     TableName: DYNAMODB_PROGRAM_TABLE,
     ReturnConsumedCapacity: 'TOTAL',
@@ -66,38 +70,47 @@ const handler = async (event) => {
     throw error;
   }
 
-  // Validar configuración de bucket S3
   if (!BUCKET_INFO_GI) {
     const error = new Error('Configuración de bucket S3 no disponible.');
     error.statusCode = 500;
     throw error;
   }
 
-  // Seleccionar tipo de contrato según modalidad de pago:
-  // CTM (pago en efectivo) cuando sii === false, CTT (transferencia/depósito) en caso contrario
   const contractScope = sii === false ? 'CTM' : 'CTT';
 
-  // Generar documento usando el módulo central
-  const result = await generateDocument({
+  const generated = await generateDocumentBuffer({
     scope: contractScope,
     form: contract,
     action: {
-      isPreview: true,        // Con marca de agua (borrador)
-      hasSigned: false,       // Con firmas digitales desde S3
-      hasHeaderFooter: true   // Con header y footer
+      isPreview: true,
+      hasSigned: false,
+      hasHeaderFooter: true
     },
     bucket: BUCKET_INFO_GI
   });
 
-  // Retornar respuesta según resultado y guardar PDF en caché
-  if (result.success) {
-    cache.set(pdfCacheKey, result.base64, CacheKeys.TTL.CONTRACT_PDF);
-    return success(200, { base64: result.base64 }, action);
-  } else {
-    const error = new Error(result.error);
-    error.statusCode = result.statusCode || 500;
+  if (!generated.success) {
+    const error = new Error(generated.error);
+    error.statusCode = generated.statusCode || 500;
     throw error;
   }
+
+  const preview = await publishContractPreviewPdf({
+    bucket: BUCKET_INFO_GI,
+    buffer: generated.buffer,
+  });
+
+  /** Compat opcional con clientes que aún lean `base64` (no recomendado en API Gateway). */
+  const legacyQuery = event.queryParams?.legacy === '1' || event.queryParams?.legacy === 'true';
+  const responsePayload = legacyQuery
+    ? {
+        ...preview,
+        base64: generated.buffer.toString('base64'),
+      }
+    : preview;
+
+  cache.set(pdfCacheKey, JSON.stringify(responsePayload), CacheKeys.TTL.CONTRACT_PDF);
+  return success(200, responsePayload, action);
 };
 
 export const main = standardMiddleware(handler);
