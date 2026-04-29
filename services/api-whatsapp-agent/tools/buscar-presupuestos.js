@@ -1,4 +1,5 @@
 import { listObjects } from '../../../libs/s3-v3.js';
+import { codigoRegionPorCiudad } from './region-presupuesto-ciudad.js';
 
 /**
  * @description Verifica si el nombre de archivo contiene el destino como segmento.
@@ -11,7 +12,6 @@ import { listObjects } from '../../../libs/s3-v3.js';
 function archivoContieneDestino(filename, destinoNorm) {
   const nombre = filename.replace('.pdf', '');
   const partes = nombre.split('-');
-  // El último segmento es el número correlativo; los anteriores son los destinos del tour.
   const destinos = partes.slice(0, -1);
   return destinos.includes(destinoNorm);
 }
@@ -29,7 +29,6 @@ async function listKeys(bucket, prefix) {
 
 /**
  * @description Normaliza un nombre de ciudad para comparar con el nombre de carpeta en S3.
- * Convierte a minúsculas, elimina tildes y reemplaza espacios por guión bajo.
  * @param {string} ciudad - Nombre de la ciudad (ej: "Salamanca", "Puerto Montt").
  * @returns {string}
  */
@@ -42,32 +41,42 @@ function normalizarCiudad(ciudad) {
 }
 
 /**
+ * @description Lista keys PDF filtradas por destino bajo presupuestos/{region}/.
+ * @param {string} bucket
+ * @param {string} regionNorm
+ * @param {string} destinoNorm
+ * @returns {Promise<string[]>}
+ */
+async function keysPorRegionYDestino(bucket, regionNorm, destinoNorm) {
+  const prefijo = `presupuestos/${regionNorm}/`;
+  const keys = await listKeys(bucket, prefijo);
+  return keys.filter((key) => archivoContieneDestino(key.split('/').pop(), destinoNorm));
+}
+
+/**
  * @description Busca los PDFs de presupuesto en S3 para un destino y región del cliente.
- * Si se proporciona una ciudad, primero busca en presupuestos/excepciones/{ciudad}/.
- * Si hay archivos en la excepción, los retorna directamente (precio especial para esa ciudad).
- * Si no hay excepción, cae en la carpeta regional presupuestos/{region}/.
- *
- * Estructura S3:
- * - presupuestos/{region}/{destinos}-{numero}.pdf  (precio general por región)
- * - presupuestos/excepciones/{ciudad}/{destinos}-{numero}.pdf  (precio especial por ciudad)
+ * Camboriú usa siempre carpeta presupuestos/brasil/ y segmento brasil en nombre de archivo.
+ * Si no hay resultados en la región que pasó el modelo y hay ciudad conocida en el mapa, reintenta con esa región.
  *
  * @param {object} params
- * @param {string} params.destino - Destino del viaje (ej: 'bariloche', 'pucon', 'puerto_varas').
- * @param {string} params.codigoRegion - Código de región de Chile (ej: 'rm', 'ix', 'x').
+ * @param {string} params.destino - Destino del viaje (ej: 'bariloche', 'camboriu').
+ * @param {string} params.codigoRegion - Código de región de Chile o 'brasil' para Camboriú.
  * @param {string} [params.ciudad] - Ciudad o comuna del colegio (ej: 'Salamanca'). Opcional.
  * @returns {Promise<{encontrados: boolean, archivos: Array<{nombre: string, key: string}>}>}
  */
 export async function buscarPresupuestos({ destino, codigoRegion, ciudad }) {
   const bucket = process.env.BUCKET_INFO_GI;
-  // Los espacios se normalizan a guión bajo para coincidir con la convención del nombre de archivo.
-  const destinoNorm = destino.toLowerCase().replace(/\s+/g, '_');
+  const destinoRaw = destino.toLowerCase().replace(/\s+/g, '_');
+  const isCamboriu = destinoRaw === 'camboriu';
+  let destinoNorm = destinoRaw === 'camboriu' ? 'brasil' : destinoRaw;
 
-  // Verificar si la ciudad tiene presupuesto de excepción antes de usar el regional.
   if (ciudad) {
     const ciudadNorm = normalizarCiudad(ciudad);
     const prefijoExcepcion = `presupuestos/excepciones/${ciudadNorm}/`;
     const keysExcepcion = await listKeys(bucket, prefijoExcepcion);
-    const keysFiltradosExcepcion = keysExcepcion.filter((key) => archivoContieneDestino(key.split('/').pop(), destinoNorm));
+    const keysFiltradosExcepcion = keysExcepcion.filter((key) =>
+      archivoContieneDestino(key.split('/').pop(), destinoNorm)
+    );
 
     if (keysFiltradosExcepcion.length > 0) {
       const archivos = keysFiltradosExcepcion.map((key) => ({ nombre: key.split('/').pop(), key }));
@@ -75,12 +84,17 @@ export async function buscarPresupuestos({ destino, codigoRegion, ciudad }) {
     }
   }
 
-  // Sin excepción: usar la carpeta regional.
-  const regionNorm = codigoRegion.toLowerCase();
-  const prefijo = `presupuestos/${regionNorm}/`;
-  const keys = await listKeys(bucket, prefijo);
+  let regionNorm = codigoRegion.toLowerCase();
+  if (isCamboriu) regionNorm = 'brasil';
 
-  const keysFiltrados = keys.filter((key) => archivoContieneDestino(key.split('/').pop(), destinoNorm));
+  let keysFiltrados = await keysPorRegionYDestino(bucket, regionNorm, destinoNorm);
+
+  if (keysFiltrados.length === 0 && ciudad && !isCamboriu) {
+    const hint = codigoRegionPorCiudad(ciudad);
+    if (hint && hint !== regionNorm) {
+      keysFiltrados = await keysPorRegionYDestino(bucket, hint, destinoNorm);
+    }
+  }
 
   if (keysFiltrados.length === 0) return { encontrados: false, archivos: [] };
 

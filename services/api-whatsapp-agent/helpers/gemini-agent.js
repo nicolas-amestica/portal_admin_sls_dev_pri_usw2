@@ -12,13 +12,19 @@ import { getCalendarAccessToken } from '../../../helpers/google-calendar-auth.js
 let _geminiClient = null;
 
 /**
- * @description Obtiene o inicializa el cliente de Gemini con la API key desde Parameter Store.
+ * @description Obtiene o inicializa el cliente de Gemini con API key desde Parameter Store,
+ * salvo que exista GEMINI_API_KEY_EVAL (solo evaluaciones locales/CI; no configurar en Lambda producción).
  * @returns {Promise<GoogleGenerativeAI>}
  */
 async function getGeminiClient() {
   if (_geminiClient) return _geminiClient;
-  const secretJson = await getParameterValue(process.env.GEMINI_SECRET_KEY);
-  const { api_key } = JSON.parse(secretJson);
+  let api_key;
+  if (process.env.GEMINI_API_KEY_EVAL) {
+    api_key = process.env.GEMINI_API_KEY_EVAL;
+  } else {
+    const secretJson = await getParameterValue(process.env.GEMINI_SECRET_KEY);
+    ({ api_key } = JSON.parse(secretJson));
+  }
   _geminiClient = new GoogleGenerativeAI(api_key);
   return _geminiClient;
 }
@@ -30,14 +36,14 @@ const TOOLS = [
       {
         name: 'buscar_presupuestos',
         description:
-          'Busca los PDFs de presupuesto disponibles en S3 para un destino y región del cliente. Un archivo puede incluir varios destinos en su nombre (ej: pucon-bariloche-valdivia-camboriu-brasil-1.pdf). Llamar cuando se tengan destino y codigoRegion confirmados. Si el cliente mencionó su ciudad o comuna específica o camboriú (brasil), incluirla también.',
+          'Busca PDFs de presupuesto en S3. Para Camboriú (Brasil) usa destino camboriu y codigoRegion brasil; los archivos reales se llaman brasil-1.pdf, brasil-2.pdf (el sistema los encuentra por destino camboriu). Para Bariloche usa la región chilena real del colegio (no uses brasil). Llamar cuando haya destino y codigoRegion confirmados. Si el cliente mencionó ciudad/comuna, incluirla en ciudad.',
         parameters: {
           type: 'OBJECT',
           properties: {
             destino: {
               type: 'STRING',
               description:
-                "Destino principal del viaje en minúsculas. Valores válidos actualmente: 'bariloche', 'camboriu'.",
+                "Destino principal del viaje en minúsculas. 'bariloche' (Argentina/Bariloche). 'camboriu' para Camboriú-Brasil (los PDF en S3 usan nombre brasil-N.pdf; no cambiar el valor del argumento).",
               enum: ['bariloche', 'camboriu'],
             },
             codigoRegion: {
@@ -163,7 +169,7 @@ const TOOLS = [
       {
         name: 'cancelar_reunion',
         description:
-          'Cancela la reunión del cliente. OBLIGATORIO: primero preguntar explícitamente "¿Confirmas que deseas cancelar tu reunión? Esta acción no se puede deshacer." y esperar que el cliente responda afirmativamente. Solo entonces llamar esta función con confirmado=true.',
+          'Cancela la reunión del cliente. OBLIGATORIO: primero preguntar explícitamente si confirma cancelar la reunión y que la acción no se puede deshacer (sin usar caracteres de apertura ¿ ni ¡), esperar respuesta afirmativa del cliente. Solo entonces llamar esta función con confirmado=true.',
         parameters: {
           type: 'OBJECT',
           properties: {
@@ -178,7 +184,7 @@ const TOOLS = [
       {
         name: 'sin_respuesta',
         description:
-          'Llamar SOLO cuando el cliente realice consultas administrativas muy específicas que no puedas responder con tu conocimiento base (ej: estados de pago, problemas técnicos, reclamos complejos). No generar ningún texto de respuesta al cliente si usas esta herramienta.',
+          'Último recurso: solo pagos/reclamos ya cursados en sistemas internos, datos bancarios privados no públicos, o situaciones legales/administrativas fuera del conocimiento base. NO usar para documentación de viaje, cuotas, equipaje, talonarios, grupos grandes, Bariloche, Camboriú ni pedida de PDFs. IMPORTANTE: Si llamas esta herramienta, tu salida para este turno debe ser ÚNICAMENTE la llamada a sin_respuesta sin ningún texto conversacional al cliente (ni despedida ni excusa ni promesa de contacto). El equipo atiende periódicamente las conversaciones pendientes.',
         parameters: {
           type: 'OBJECT',
           properties: {
@@ -201,7 +207,7 @@ const TOOLS = [
  * @param {string} channel - Canal de origen ('whatsapp', 'messenger', 'instagram').
  * @returns {string}
  */
-function buildSystemPrompt(phoneNumber, collectedData, channel, hasHistory = false) {
+export function buildSystemPrompt(phoneNumber, collectedData, channel, hasHistory = false) {
   const now = new Date();
 
   const today = now.toLocaleDateString('es-CL', {
@@ -224,6 +230,11 @@ function buildSystemPrompt(phoneNumber, collectedData, channel, hasHistory = fal
   const datosPendientes = pending && Object.keys(pending).length > 0
     ? `\n  Datos de reunión ya recopilados (NO volver a solicitar): ${JSON.stringify(pending)}`
     : '';
+
+  const estadoPresupuestosPdf =
+    collectedData?.presupuestosPdfEnviados === true
+      ? '\n  Cotizaciones PDF: Ya se enviaron presupuestos en PDF en esta conversación. Aplica la regla del flujo: no repitas el párrafo literal largo de descuentos y rifa en envíos posteriores.'
+      : '';
 
   return `
 
@@ -256,28 +267,46 @@ function buildSystemPrompt(phoneNumber, collectedData, channel, hasHistory = fal
     - *Brasil:* No hay e indicar las de Bariloche y Sur de Chile.
     - *Bariloche:* Paintball, Cuadrimotos, actividades en puentes colgantes.
     - *Sur de Chile:* Canopy, Rafting, Paintball.
-  - **Precios por persona:** Existen 2 escenarios. Escenario 1: Antes de enviarle los programas/cotizaciones, debes solicitar la región de la que sale el grupo y el destino, luego sigue el flujo normal. Escenario 2: Después de haberle entregado las cotizaciones, debes indicarle que en la parte de abajo de los programas sale una tabla de precios según la cantidad de pasajeros.
-  - **Transporte:** Dependiendo del destino, combinamos vuelos con buses de alto estándar para los tramos terrestres.
+  - **Precios por persona:** Escenario 1: Antes de enviar cotizaciones, debes conocer región de salida y destino; si ya figuran en el historial de esta conversación para el pedido actual, no vuelvas a pedirlos. Escenario 2: Después de haberle entregado los programas, indica que al final de cada uno hay tabla de precios según cantidad de pasajeros.
+  - **Transporte:** Dependiendo del destino, combinamos vuelos con buses de alto estándar para los tramos terrestres. Si el cliente indica que el tramo terrestre es muy corto (ej: cercano a paso fronterizo) y cuestiona que el programa mencione avión, reconoce la observación y ofrece reunión online para revisar coordinación operativa según el programa sin inventar rutas que no estén en la cotización.
   - **Adultos/Acompañantes:** Consideramos un número base de liberados (profesores/apoderados) dependiendo del tamaño del grupo.
+
+  ## Consultas frecuentes (responder aquí; NO usar sin_respuesta)
+  - **Grupos mayores a 40 personas:** Sí se puede evaluar. Los valores siguen la tabla de cotización; cuando la tabla llega hasta 40 pasajeros, aplica la misma referencia de precio para grupos mayores salvo que el programa indique otra cosa.
+  - **Documentación para viajar:** Mayores de 18 años: carnet de identidad vigente y en buen estado. Menores de edad: permiso notarial autorizado por ambos padres, certificado de nacimiento y carnet de identidad vigente en buen estado. Si un padre está fallecido, se solicita certificado de defunción. Si un padre no puede comparecer por causas justificadas, en tribunal de familia puede gestionarse permiso para salir del país.
+  - **Talonarios / rifa beneficio:** Hay 3 talonarios por persona que se entregan al firmar contrato o en los días siguientes a la firma. Cada número vale $1000 CLP; el dinero recaudado puede destinarse a costear el viaje u otros fines que el curso defina. Los premios los pone Giras Indómito y ustedes solo venden los números (coherente con el beneficio rifa ya mencionado en cotizaciones).
+  - **Cuotas:** Las cuotas las define el curso y son sin interés. Si pagan una cuota en efectivo, aplica 10% de descuento sobre esa cuota (coherente con el descuento por efectivo ya mencionado).
+  - **Equipaje (referencia aéreo):** Tarifa Zero: solo bolso de mano hasta 10 kg. Tarifa Light: bolso de mano hasta 10 kg más un equipaje de cabina hasta 10 kg.
+  - **Plazos para reservar o vigencia de cotización:** Dependen del programa y temporada. Ofrece reunión online para revisarlo sin inventar fechas límite. Para disponibilidad de horarios de reunión puedes usar listar_reuniones.
+
+  ## Ayuda memoria región Chile (codigoRegion para Bariloche)
+  Ejemplos comunes: Tarapacá (Alto Hospicio, Iquique): i. Antofagasta: ii. Metropolitana (Puente Alto, Santiago): rm. Valparaíso: v. Ñuble: xvi. Biobío: viii. Araucanía: ix. Los Ríos (Valdivia, etc.): xiv. Los Lagos (Puerto Montt, etc.): x. Aysén: xi. Magallanes: xii. Arica y Parinacota: xv. Maule: vii. O'Higgins: vi. Atacama: iii. Coquimbo: iv.
 
   ## Reglas de Respuesta
   - Si el cliente pregunta algo que conoces (destinos, qué ofrecemos, etc.), responde amablemente y luego intenta guiarlo hacia el envío de un presupuesto o el agendamiento de una reunión.
-  - Si el cliente menciona un destino como Brasil, Camboriú o el Sur de Chile, y no tienes un PDF específico en "buscar_presupuestos", infórmale que sí trabajamos esos destinos y ofrécele agendar una reunión informativa para darle todos los detalles o que dentro de un momento se le enviará la información detallada (flujo "sin_respuesta").
-  - **Derivación a Humano:** Llama a la herramienta "sin_respuesta" SOLO cuando la pregunta sea algo administrativo muy específico (ej: estado de un pago ya realizado, reclamos legales, no tienes los presupuestos solicitados o preguntas técnicas que no están en este conocimiento base). Para todo lo demás, intenta responder tú.
+  - **Brasil/Camboriú:** Siempre que pidan Camboriú o Brasil en esa ciudad, primero llama buscar_presupuestos con destino camboriu y codigoRegion brasil (sirve para todas las regiones de Chile). No digas que no tienes documentos si aún no ejecutaste la herramienta.
+  - **Argentina en cotización escolar:** Para el lado argentino lo habitual para giras de estudio es Bariloche (patagonia argentina).
+  - **Argentina vs Brasil:** Si piden cotizar "Argentina" y "Brasil" por separado, aclara que la alternativa argentina típica para giras es Bariloche: ejecuta buscar_presupuestos para bariloche con la región chilena del colegio y otra llamada para camboriu con codigoRegion brasil; responde con UN solo mensaje que mencione ambos envíos (sin duplicar introducción).
+  - **Dos destinos mismo pedido:** Tras dos llamadas buscar_presupuestos (ej: Bariloche + Camboriú), un único mensaje cohesivo y una sola invitación a reunión.
+  - **Sur de Chile / otros destinos:** El envío automático de PDF en esta herramienta es principalmente Bariloche (por región) y Camboriú (carpeta brasil). Para otros circuitos del Sur u ofertas sin PDF automático, explica que sí trabajan esos destinos cuando aplique, ofrece reunión informativa y orienta sin ejecutar sin_respuesta salvo que sea un tema fuera de alcance comercial.
+  - **Derivación a humano (sin_respuesta):** Solo para temas que no puedas resolver con lo anterior ni con buscar_presupuestos ni con reuniones (ej: estado puntual de un pago ya registrado en sistemas internos que no tienes, reclamos legales muy específicos). No uses sin_respuesta para preguntas cubiertas en "Consultas frecuentes". Ver sección "Silencio total al derivar".
 
-  ## Destinos disponibles para envío automático
-  - Bariloche
-  - Brasil (Camboriú)
+  ## Silencio total al derivar (sin_respuesta)
+  - Si debes llamar sin_respuesta: este turno debe consistir SOLO en esa llamada a herramienta. No escribas ningún texto al cliente (ni despedida, ni disculpa, ni "te contactará alguien", ni excusa breve). La conversación queda sin respuesta automática para que un integrante del equipo la revise en la bandeja.
+  - Motivo: evitar mensajes vacíos de contenido útil y que el humano sea quien responda cuando corresponda.
 
-  Nota: Solo puedes enviar PDFs automáticamente para Bariloche y Brasil (Camboriú). Para otros destinos, informa, ofrece la reunión y por último ejecuta "sin_respuesta".
+  ## Destinos con PDF automático (WhatsApp)
+  - Bariloche: carpeta presupuestos/{codigoRegion}/ archivos bariloche-N.pdf según región del colegio.
+  - Camboriú (Brasil): carpeta presupuestos/brasil/ con archivos brasil-N.pdf; para buscar_presupuestos usa destino camboriu y codigoRegion brasil siempre.
 
   ## Flujo para entregar presupuestos
   ${channel === 'messenger' || channel === 'instagram' ?
   `IMPORTANTE: Esta conversación llega por ${channel === 'messenger' ? 'Messenger' : 'Instagram'}. NO uses buscar_presupuestos. Cuando el cliente pida presupuestos o información de viajes, responde exactamente: "Para recibir toda la información y presupuestos de nuestras giras, te invitamos a contactarnos por WhatsApp al +56 9 8609 8787, donde te atenderemos con todos los detalles."` :
-  `1. Identifica el destino de interés.
-  2. Pregunta desde qué región del país salen (Para Brasil, los presupuestos sirven para todas las regiones de Chile, usa 'brasil' como codigoRegion).
-  3. Con destino y región, llama a buscar_presupuestos.
-  4. Después de enviar los presupuestos/planes/cotizaciones, DEBES indicar exactamente lo siguiente: "Existen 2 descuentos; 10% descuento si cancelan en efectivo y 10% descuento al alumno que tenga un hermano que haya viajado con nosotros anteriormente, además tenemos un beneficio que sería una rifa pro-fondos donde los premios los ponemos nosotros y ustedes solo deben vender los números y el dinero recaudado lo pueden utilizar para costear el viaje o en lo que estimen conveniente".
+  `1. Identifica el destino de interés. Si el cliente menciona Argentina en una cotización escolar, aclara en una frase que del lado argentino lo habitual para giras es Bariloche.
+  2. Pregunta desde qué región del país salen SOLO si en el historial de esta conversación aún no quedó clara la región para el pedido actual (Para Brasil/Camboriú al llamar la herramienta usa codigoRegion brasil). Si el cliente ya dio región y destino y no cambió de tema, no repitas la pregunta.
+  3. Con destino y región, llama a buscar_presupuestos. Si en un mismo pedido quieren dos destinos (ej: Bariloche y Camboriú), llama buscar_presupuestos dos veces y responde con UN solo mensaje corto que mencione ambos envíos de PDF y una sola invitación a reunión (sin repetir presentación ni párrafos duplicados).
+  4. Texto descuentos y rifa: Indica el siguiente párrafo literal solo la PRIMERA vez en esta conversación que envías PDFs de presupuesto (primera entrega de cotizaciones en el hilo). Si ya enviaste PDFs en mensajes anteriores y en este turno envías otros PDFs adicionales, NO repitas el párrafo completo; como máximo una línea breve del tipo "Los descuentos y la rifa siguen siendo los indicados en los programas que te enviamos" u omítelo si es redundante.
+  Párrafo solo en primera entrega de cotizaciones por PDF: "Existen 2 descuentos; 10% descuento si cancelan en efectivo y 10% descuento al alumno que tenga un hermano que haya viajado con nosotros anteriormente, además tenemos un beneficio que sería una rifa pro-fondos donde los premios los ponemos nosotros y ustedes solo deben vender los números y el dinero recaudado lo pueden utilizar para costear el viaje o en lo que estimen conveniente".
   5. Finalmente, ofrece agendar la reunión online para entregar más detalles y esclarecer dudas. NO seas insistente, con ofrecerla 1 o 2 veces en toda la conversación es suficiente.`
   }
 
@@ -301,12 +330,13 @@ function buildSystemPrompt(phoneNumber, collectedData, channel, hasHistory = fal
   ## Reglas estrictas
   - No inventes precios. Guía siempre al envío del PDF o a la reunión informativa.
   - Respuestas siempre breves y directas.
+  - No vuelvas a pedir región de salida ni destino si el cliente ya los indicó en esta conversación para el tema actual, salvo que cambien de pedido o contradigan lo anterior.
   - NUNCA uses los caracteres ¿ ni ¡. Usa solo ? y !.
 
   ## Contexto actual
   Fecha: ${today}
   Número WhatsApp del cliente: ${phoneNumber}
-  Estado de reunión: ${estadoReunion}${datosPendientes}`;
+  Estado de reunión: ${estadoReunion}${datosPendientes}${estadoPresupuestosPdf}`;
   }
 
 /**
@@ -413,6 +443,10 @@ export async function runConversationTurn(history, newMessage, phoneNumber, coll
     model: 'gemini-3.1-pro-preview-customtools',
     systemInstruction: buildSystemPrompt(phoneNumber, collectedData, channel, hasHistory),
     tools: TOOLS,
+    generationConfig: {
+      temperature: 0.35,
+      topP: 0.95,
+    },
   });
 
   const chat = model.startChat({ history });
@@ -451,6 +485,9 @@ export async function runConversationTurn(history, newMessage, phoneNumber, coll
     response = await chat.sendMessage(responses);
   }
 
-  const responseText = response.response.text();
+  let responseText = response.response.text();
+  if (toolsExecuted.some((t) => t.name === 'sin_respuesta')) {
+    responseText = '';
+  }
   return { responseText, toolsExecuted };
 }

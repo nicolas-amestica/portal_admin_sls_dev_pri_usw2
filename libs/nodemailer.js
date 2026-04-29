@@ -1,5 +1,5 @@
 import nodemailer from 'nodemailer';
-import { getAWSConfigs } from './configs';
+import { getAWSConfigs } from './configs.js';
 import { getParameterValue } from './parameter-store.js';
 
 let transporter;

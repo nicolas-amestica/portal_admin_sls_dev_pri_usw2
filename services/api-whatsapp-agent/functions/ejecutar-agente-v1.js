@@ -37,6 +37,20 @@ function calculateTypingDelay(text) {
 }
 
 /**
+ * @description Evita enviar al cliente texto que parezca marcador interno de derivación o error del modelo.
+ * @param {string} text
+ * @returns {boolean}
+ */
+function shouldBlockOutboundAgentResponse(text) {
+  if (!text?.trim()) return false;
+  const s = text.trim();
+  if (/derivaci[oó]n\s*:/i.test(s)) return true;
+  if (/sin_presupuesto\b/i.test(s)) return true;
+  if (/sin_respuesta\b/i.test(s)) return true;
+  return false;
+}
+
+/**
  * @description Verifica si el número de teléfono superó el límite de mensajes por minuto.
  * Usa DynamoDB con TTL para mantener el contador dentro de la ventana de tiempo.
  * @param {string} phoneNumber
@@ -358,6 +372,9 @@ export const main = async (event) => {
   let responseText, toolsExecuted;
   try {
     ({ responseText, toolsExecuted } = await runConversationTurn(history, text, phoneNumber, collectedData, channel, hasHistory));
+    if (toolsExecuted.some((t) => t.name === 'sin_respuesta')) {
+      responseText = '';
+    }
   } catch (error) {
     console.error(`[${ACTION}] Error en Gemini para ${phoneNumber}:`, error.message, error.stack);
     // Await en paralelo para garantizar que el write en DynamoDB termina antes de retornar
@@ -387,11 +404,14 @@ export const main = async (event) => {
   if (derivado || sinPresupuesto) {
     const reason = sinPresupuesto ? 'sin_presupuesto' : 'sin_respuesta';
     const motivoTool = toolsExecuted.find((t) => t.name === 'sin_respuesta')?.args?.motivo || 'N/A';
-    console.log(`[${ACTION}] Mensaje derivado (${reason}) para ${phoneNumber}. Motivo: ${motivoTool}. Sin respuesta al cliente.`);
+    const sinBudgetTool = toolsExecuted.find((t) => t.name === 'buscar_presupuestos' && !t.result?.encontrados);
+    const extrasSinBudget = sinBudgetTool ? ` Args presupuesto: ${JSON.stringify(sinBudgetTool.args)}` : '';
+    console.log(`[${ACTION}] Mensaje derivado (${reason}) para ${phoneNumber}. Motivo: ${motivoTool}.${extrasSinBudget} Sin respuesta al cliente.`);
     const updatedData = mergeCollectedData(collectedData, toolsExecuted);
     // Await en paralelo: sin esto, Lambda puede retornar antes de que el UpdateItem termine.
     const [, phone] = await Promise.all([
-      saveConversation(phoneNumber, text, responseText || `(Derivación: ${reason})`, updatedData).catch((e) =>
+      // Solo persistir el mensaje del usuario; no crear burbuja del modelo con marcadores internos.
+      saveConversation(phoneNumber, text, '', updatedData).catch((e) =>
         console.error(`[${ACTION}] Error guardando turno al derivar:`, e.message)
       ),
       derivarConversacion(phoneNumber, text, reason, channel, collectedData).catch((e) => {
@@ -417,26 +437,37 @@ export const main = async (event) => {
 
   // Fallback: Si Gemini no devolvió texto pero ejecutó herramientas, forzar un mensaje informativo.
   if (!responseText?.trim() && toolsExecuted.length > 0) {
-    responseText = "He procesado tu solicitud. ¿En qué más puedo ayudarte?";
+    responseText = 'He procesado tu solicitud. En que más puedo ayudarte?';
   }
 
   await new Promise((resolve) => setTimeout(resolve, calculateTypingDelay(responseText || '')));
 
   // 5. Enviar documentos PDF y luego el texto de respuesta según el canal.
   await sendPresupuestoDocuments(channel, phoneNumber, toolsExecuted);
-  if (responseText?.trim()) {
+  let outboundText = responseText?.trim() ?? '';
+  if (shouldBlockOutboundAgentResponse(outboundText)) {
+    console.warn(`[${ACTION}] Texto de respuesta bloqueado (patrón interno). phone=${phoneNumber}`);
+    outboundText = '';
+  }
+  if (outboundText) {
     if (channel === 'whatsapp') {
-      await sendTextMessage(phoneNumber, responseText);
+      await sendTextMessage(phoneNumber, outboundText);
     } else {
-      await sendMetaTextMessage(phoneNumber, responseText);
+      await sendMetaTextMessage(phoneNumber, outboundText);
     }
+  } else if (responseText?.trim()) {
+    console.warn(`[${ACTION}] No se envió mensaje de texto (vacío o bloqueado). phone=${phoneNumber}`);
   } else {
     console.warn(`[${ACTION}] [${phoneNumber}] responseText vacío tras Gemini. Tools: ${toolsExecuted.map(t => t.name).join(', ')}`);
   }
 
-  // 6. Persistir el turno en DynamoDB.
-  const updatedData = mergeCollectedData(collectedData, toolsExecuted);
-  await saveConversation(phoneNumber, text, responseText, updatedData);
+  // 6. Persistir el turno en DynamoDB (solo texto ya saneado; nunca marcadores internos).
+  let updatedData = mergeCollectedData(collectedData, toolsExecuted);
+  const pdfListoParaCliente = toolsExecuted.some((t) => t.name === 'buscar_presupuestos' && t.result?.encontrados);
+  if (pdfListoParaCliente) {
+    updatedData = { ...updatedData, presupuestosPdfEnviados: true };
+  }
+  await saveConversation(phoneNumber, text, outboundText, updatedData);
 
   console.log(`[${ACTION}] [${channel}] Turno completado para ${phoneNumber}`);
 };
