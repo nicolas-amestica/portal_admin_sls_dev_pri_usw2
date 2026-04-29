@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { randomUUID, randomBytes } from 'crypto';
 import { getCalendarAccessToken, buildCalendarApiUrl, mapGoogleEventToMeetEvent } from '../../../helpers/google-calendar-auth.js';
+import { buildAttendeesForNewMeet } from './meet-default-guest-attendees.js';
 
 const FLAMINGO_COLOR_ID = '4';
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Sin caracteres ambiguos (I, O, 0, 1)
@@ -82,7 +83,7 @@ export async function crearReunion({ nombreCliente, emailCliente, fechaSugerida,
   const accessToken = await getCalendarAccessToken();
   const codigoEvento = generarCodigoEvento();
 
-  const guests = emailCliente ? [{ email: emailCliente }] : [];
+  const guests = buildAttendeesForNewMeet(emailCliente);
   const destinoLabel = destino ? (DESTINO_LABEL[destino] ?? destino) : null;
   const summaryDestino = destinoLabel ? ` | ${destinoLabel}` : '';
 
@@ -96,7 +97,10 @@ export async function crearReunion({ nombreCliente, emailCliente, fechaSugerida,
     reminders: { useDefault: false, overrides: NOTIFICATIONS },
     extendedProperties: {
       ...(phoneNumber && { private: { phoneNumber } }),
-      shared: { agent: 'true' },
+      shared: {
+        agent: 'true',
+        ...(phoneNumber && { phoneNumber }),
+      },
     },
     conferenceData: {
       createRequest: {

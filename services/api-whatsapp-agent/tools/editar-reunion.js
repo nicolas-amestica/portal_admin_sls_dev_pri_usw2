@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { getCalendarAccessToken, buildCalendarApiUrl, mapGoogleEventToMeetEvent } from '../../../helpers/google-calendar-auth.js';
 import { buscarEventosPorTelefono } from './crear-reunion.js';
+import { mergeAttendeesEnsuringDefaults } from './meet-default-guest-attendees.js';
 
 const TIMEZONE = 'America/Santiago';
 
@@ -104,11 +105,8 @@ export async function editarReunion({ codigoEvento, eventId, nuevaFecha, nuevaHo
 
   const tz = eventoExistente.start?.timeZone || TIMEZONE;
 
-  // Asegurar que el email del cliente esté en los attendees para que reciba la invitación.
-  const attendees = eventoExistente.attendees || [];
-  if (emailCliente && !attendees.some((a) => a.email === emailCliente)) {
-    attendees.push({ email: emailCliente });
-  }
+  // Institucionales + cliente; conserva registros ya existentes (invitaciones de Google Calendar).
+  const attendees = mergeAttendeesEnsuringDefaults(eventoExistente.attendees, emailCliente);
 
   const updatedBody = {
     ...eventoExistente,

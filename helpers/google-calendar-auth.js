@@ -139,8 +139,8 @@ export function buildCalendarApiUrl(calendarId, eventId, queryParams = {}) {
 
 /**
  * Mapea un evento de Google Calendar al formato interno MeetEvent.
- * Los campos `hostSk` y `hostName` se leen desde `extendedProperties.shared`
- * donde se almacenan al crear/actualizar la reunión.
+ * Los campos `hostSk` y `hostName` se leen desde `extendedProperties.shared`.
+ * El teléfono del cliente (agente IA) puede estar en `private` o también en `shared` como respaldo.
  *
  * @param {object} event - Evento de Google Calendar API.
  * @returns {object} Evento en formato MeetEvent.
@@ -170,6 +170,6 @@ export function mapGoogleEventToMeetEvent(event) {
     hostName: extProps.hostName ?? null,
     hostColor: extProps.hostColor ?? null,
     agent: extProps.agent === 'true',
-    phoneNumber: privateProps.phoneNumber ?? null,
+    phoneNumber: privateProps.phoneNumber ?? extProps.phoneNumber ?? null,
   };
 }

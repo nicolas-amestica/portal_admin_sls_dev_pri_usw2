@@ -1,5 +1,6 @@
 import * as httpClient from '../../../libs/axios.js';
 import { getCalendarAccessToken, buildCalendarApiUrl, mapGoogleEventToMeetEvent } from '../../../helpers/google-calendar-auth.js';
+import { mergeAttendeesEnsuringDefaults } from './meet-default-guest-attendees.js';
 
 const FLAMINGO_COLOR_ID = '4';
 const NOTIFICATIONS = [
@@ -54,6 +55,7 @@ export async function reagendarReunion({ eventId, nuevaFecha, nuevaHora }) {
 
   const updatedBody = {
     ...currentEvent,
+    attendees: mergeAttendeesEnsuringDefaults(currentEvent.attendees),
     start: { dateTime: `${nuevaFecha}T${nuevaHora}:00`, timeZone: TIMEZONE },
     end: { dateTime: buildEndDateTime(nuevaFecha, nuevaHora), timeZone: TIMEZONE },
     colorId: FLAMINGO_COLOR_ID,

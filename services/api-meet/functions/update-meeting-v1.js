@@ -11,6 +11,48 @@ const NOTIFICATIONS = [
 ];
 
 /**
+ * @description Combina propiedades extendidas del evento existente con los datos del portal.
+ * Evita borrar `private` (p. ej. teléfono del agente IA) ni `shared.agent` al actualizar anfitrión.
+ * @param {object|undefined} existingExt - `extendedProperties` del evento en Google Calendar.
+ * @param {string|null} hostSk
+ * @param {string|null} hostName
+ * @param {string|null} hostColor
+ * @returns {object} Objeto `extendedProperties` para el cuerpo del update o `{}` si no aplica.
+ */
+function mergeMeetingExtendedProperties(existingExt, hostSk, hostName, hostColor) {
+  const prev = existingExt && typeof existingExt === 'object' ? existingExt : {};
+  /** @type {Record<string, string>} */
+  let prevPrivate = {};
+  if (prev.private && typeof prev.private === 'object') {
+    prevPrivate = { ...prev.private };
+  }
+
+  /** @type {Record<string, string>} */
+  const prevShared = prev.shared && typeof prev.shared === 'object' ? { ...prev.shared } : {};
+
+  const shared =
+    hostSk != null && hostSk !== ''
+      ? {
+          ...prevShared,
+          hostSk,
+          hostName: hostName ?? '',
+          hostColor: hostColor ?? '',
+        }
+      : { ...prevShared };
+
+  /** @type {object} */
+  const out = {};
+  if (Object.keys(prevPrivate).length > 0) {
+    out.private = prevPrivate;
+  }
+  if (Object.keys(shared).length > 0) {
+    out.shared = shared;
+  }
+
+  return out;
+}
+
+/**
  * Suma tres horas a la fecha+hora dadas.
  */
 function buildEndDateTime(date, time) {
@@ -47,6 +89,20 @@ const baseHandler = async (event) => {
 
   const accessToken = await getCalendarAccessToken();
 
+  const getExistingUrl = buildCalendarApiUrl(GOOGLE_CALENDAR_ID, eventId);
+  let existingEvent;
+  try {
+    const existingRes = await axios.get(getExistingUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    existingEvent = existingRes.data;
+  } catch (err) {
+    const msg = err.response?.status === 404 ? 'La reunión no existe o ya fue eliminada.' : 'No se pudo obtener la reunión en Google Calendar.';
+    return unsuccessful(err.response?.status === 404 ? 404 : 502, { message: `${msg} ${err.message || ''}` }, ACTION);
+  }
+
+  const extendedPropertiesMerged = mergeMeetingExtendedProperties(existingEvent.extendedProperties, hostSk, hostName, hostColor);
+
   const eventBody = {
     summary: title,
     description,
@@ -55,7 +111,7 @@ const baseHandler = async (event) => {
     attendees: guests.map((email) => ({ email })),
     colorId: FLAMINGO_COLOR_ID,
     reminders: { useDefault: false, overrides: NOTIFICATIONS },
-    ...(hostSk && { extendedProperties: { shared: { hostSk, hostName: hostName ?? '', hostColor: hostColor ?? '' } } }),
+    ...(Object.keys(extendedPropertiesMerged).length > 0 ? { extendedProperties: extendedPropertiesMerged } : {}),
   };
 
   const url = buildCalendarApiUrl(GOOGLE_CALENDAR_ID, eventId, { sendUpdates: 'all' });
