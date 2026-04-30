@@ -54,7 +54,7 @@ Genera un token JWT firmado para un usuario autenticado. Usado internamente por 
 | Librería | `jsonwebtoken` |
 | Hash de contraseña | `bcryptjs` |
 | TTL del authorizer | `0` segundos (sin caché) |
-| Secret | AWS Secrets Manager (`SECRET_KEY`) |
+| Secret | SSM Parameter Store: `SECRET_KEY` es la **ruta** del parámetro (p. ej. `/pa/<stage>/jwt-key`); el valor se lee con `getParameterValue` |
 
 > El `resultTtlInSeconds: 0` evita que API Gateway cachee respuestas de autorización, previniendo inconsistencias al cambiar permisos.
 
@@ -101,7 +101,7 @@ resources:
 
 | Variable | Descripción |
 |---|---|
-| `SECRET_KEY` | Nombre del secreto en Secrets Manager con la clave JWT |
+| `SECRET_KEY` | Ruta del parámetro SSM que contiene la clave JWT (p. ej. `/pa/${stage}/jwt-key`) |
 | `STAGE` | Entorno de ejecución |
 
 ---
@@ -147,4 +147,4 @@ serverless logs --function auth --stage dev
 
 ---
 
-**Última actualización:** 2026-02-23
+**Última actualización:** 2026-04-29

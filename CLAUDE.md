@@ -159,8 +159,8 @@ export const main = standardMiddleware(handler);
 | --- | --- |
 | `libs/dynamodb-v3.js` | CRUD DynamoDB (`query`, `getOne`, `put`, `update`, `remove`, `scan`, `iterativeQuery`) |
 | `libs/s3-v3.js` | Operaciones S3 |
-| `libs/secret-manager.js` | AWS Secrets Manager |
-| `libs/parameter-store.js` | SSM Parameter Store con fallback a `.env` local |
+| `libs/secret-manager.js` | **Legado** — no usar en código nuevo; leer secretos vía **`parameter-store.js`** (p. ej. parámetros `SecureString`) |
+| `libs/parameter-store.js` | **SSM Parameter Store** (incl. valores sensibles como `SecureString`) con fallback a `.env` local |
 | `libs/middleware/index.js` | `standardMiddleware()` — stack Middy completo |
 | `libs/cache/cached-dynamodb.js` | Cache en memoria con respaldo DynamoDB |
 | `libs/document-builders/` | Constructores PDF: CTT, DBA, DBR, CPR |
@@ -245,7 +245,7 @@ Servicio más complejo del repositorio. Orquesta Gemini AI con herramientas (too
 | Google Gemini AI | `api-whatsapp-agent` | `/pa/{stage}/gemini-api-key` |
 | WhatsApp Cloud API | `api-whatsapp-agent` | `/pa/{stage}/whatsapp-secret` |
 | Meta (FB/Instagram) | `api-whatsapp-agent` | `/pa/{stage}/meta-page-secret` |
-| Transbank Webpay Plus | `api-payment` | Secrets Manager |
+| Transbank Webpay Plus | `api-payment` | `/pa/{stage}/transbank-api-key` (y parámetros `/transbank/...` según `serverless.yml`) |
 
 ---
 
@@ -277,8 +277,8 @@ shared/apperr/ database/ logger/
 
 ### Ambos
 
-- Secretos en AWS Secrets Manager (`libs/secret-manager.js`) — nunca hardcodeados
-- Variables de configuración no sensible en SSM Parameter Store (`libs/parameter-store.js`)
+- **Secretos y credenciales únicamente en SSM Parameter Store** (`libs/parameter-store.js`, p. ej. `SecureString`) — nunca hardcodeados; **no** introducir AWS Secrets Manager ni nuevos usos de `libs/secret-manager.js`
+- Parámetros de configuración no sensibles también vía SSM (`libs/parameter-store.js`)
 - AWS X-Ray habilitado en todos los servicios
 - Código en inglés, JSDoc/comentarios en español
 

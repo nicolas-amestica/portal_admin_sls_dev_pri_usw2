@@ -1,0 +1,93 @@
+---
+description: Serverless AWS — Free Tier, DynamoDB sin Scan, SSM únicamente (sin Secrets Manager)
+alwaysApply: true
+---
+
+# Backend — Portal Admin (Serverless AWS)
+
+Prioridad normativa: **`CLAUDE.md`** en la raíz de este repo. Esta regla resume arquitectura y **restricciones imperativas** para asistencia en código e infraestructura.
+
+## Arquitectura global
+
+```text
+API Gateway HTTP v2 (infrastructure/) + Authorizer JWT (job-authorizer/)
+  → Lambdas (services/api-*, job-*)
+      → DynamoDB (single-table, pk/sk, GSIs donde aplique)
+      → S3 · SSM Parameter Store · (integraciones: Transbank, SMTP, Google, Chatwoot, etc.)
+  → API Gateway WebSocket (api-whatsapp-agent) cuando aplique
+```
+
+- **Región:** `us-west-2`. **Runtime:** Node.js 20 (mayoría) y Go 1.24 (`api-configuration`, `api-notification`). **Arquitectura Lambda:** ARM64.
+- **Naming recursos:** `<recurso>-<stage>-pri-<shortRegion>` (ej. `programs-dev-pri-usw2`).
+- **Deploy multi-servicio:** orden `infrastructure/` → `job-authorizer/` → `api-configuration/` → resto (ver `scripts/deploy-all.sh`).
+
+## Servicios (referencia rápida)
+
+| Carpeta / servicio | Rol breve |
+| --- | --- |
+| `infrastructure/` | API HTTP compartido, routing |
+| `job-authorizer/` | Authorizer JWT |
+| `services/api-program` | Programas |
+| `services/api-payment` | Pagos Webpay |
+| `services/api-entity` | Usuarios / sesiones |
+| `services/api-contract` | Contratos PDF |
+| `services/api-balance` | Balances / cuotas |
+| `services/api-extraction` | Descargas S3 |
+| `services/api-maintainer` | Mantenedor |
+| `services/api-meet` | Google Calendar / Meet |
+| `services/api-whatsapp-agent` | Inbox / agente / WebSocket |
+| `services/api-favorites` | Favoritos |
+| `services/api-configuration` | Config (Go) |
+| `services/api-notification` | Notificaciones email (Go) |
+| `job-trigger` | Disparadores |
+
+## Estructura estándar — handler Node.js
+
+```text
+services/api-<recurso>/
+├── functions/<acción>-v1.js    # exports.main tras standardMiddleware
+├── validators/
+├── mappers/
+├── serverless.yml
+└── README.md
+```
+
+- **Handlers:** envolver con **`standardMiddleware()`** (`libs/middleware/index.js`). Cuerpo: `event.body` ya parseado; errores con `error.statusCode`; respuestas solo **`success()`** / **`unsuccessful()`** (`helpers/responses.js`).
+- **Código en inglés; JSDoc `@description` en español** (obligatorio en handlers y libs públicas).
+- **IO DynamoDB:** `libs/dynamodb-v3.js` — preferir **`query`**, **`getOne`**, **`iterativeQuery`**, **`put`**, **`update`**, **`remove`** según caso.
+
+## Estructura — servicios Go
+
+Echo, handlers bajo `cmd/<handler>/`, lógica en `internal/api/<feature>/`, logging zap, validación con tags `validator`.
+
+---
+
+## Reglas imperativas (no opcionales)
+
+### 1. Costos y AWS Free Tier
+
+- **Preferir siempre diseños compatibles con Free Tier** (Lambda invocaciones/mb-ms dentro de lo razonable, DynamoDB on-demand sin patrones caros, evitar provisionado, evitar servicios innecesarios).
+- **Antes de proponer o implementar** creación de recursos **de pago recurrente**, límites que salgan claramente de Free Tier, o nuevas cuentas/servicios facturables: **detener y validar con el usuario** (explicar qué recurso, por qué, y costo estimado / riesgo). No dar por hecho que se acepta el costo.
+
+### 2. DynamoDB: prohibido `Scan` en lógica nueva
+
+- **No usar operaciones `Scan`** para nuevas funcionalidades ni ampliar uso de tablas completas.
+- Acceso únicamente con **clave de partición / sort key**, **`Query`** sobre la tabla o **GSI** (`begins_with`, condiciones de clave), **`GetItem`**, o **`iterativeQuery`** cuando corresponda paginar un `Query`.
+- Si el código existente expone `scan` en `libs/dynamodb-v3.js` o `libs/cache/cached-dynamodb.js`, **no reutilizarlo para nuevos flujos**; si hay que tocar legado que escanee, **marcar deuda** y migrar a modelo por GSI / pk cuando sea posible.
+
+### 3. Claves y configuración: solo SSM — sin AWS Secrets Manager
+
+- **Único almacén permitido para secretos y parámetros:** **AWS Systems Manager Parameter Store** (`SecureString` / `String` según corresponda, rutas p. ej. `/pa/<stage>/...`), usando **`libs/parameter-store.js`** y los patrones ya establecidos en el repo.
+- **Prohibido** usar **AWS Secrets Manager** en código nuevo: no añadir llamadas a **`libs/secret-manager.js`**, no crear secretos ni ARNs de Secrets Manager en `serverless.yml`, y no orientar la documentación hacia ese servicio.
+- **Prohibido** hardcodear secretos en código o `serverless.yml` en claro, y guardar credenciales en **DynamoDB** como almacén de secretos.
+- Si al editar archivos aparece legado que aún usa Secrets Manager, **migrar a SSM** en la misma tarea cuando sea razonable; si el alcance es mayor, **detener y coordinar** — en ningún caso **ampliar** el uso de Secrets Manager.
+
+### 4. Coherencia con librerías compartidas
+
+- Reutilizar **`libs/`** existentes (middleware, DynamoDB, S3, axios, `parameter-store.js`, etc.) en lugar de duplicar integraciones.
+- **No** reutilizar **`libs/secret-manager.js`** en funcionalidad nueva; desplazar lecturas a **Parameter Store** (`SecureString` donde haga falta).
+- Tablas DynamoDB: **PAY_PER_REQUEST** y convenciones de ítems del single-table (`pk`, `sk`, `gsiOne`, etc.) según `CLAUDE.md`.
+
+---
+
+Acciones del asistente: al crear o modificar backend, aplicar estas reglas por defecto; si un requisito choca con ellas (p. ej. Scan, guardar claves en DynamoDB o **usar Secrets Manager**), **rechazar el patrón** y proponer alternativa con **SSM** u otra vía acorde.

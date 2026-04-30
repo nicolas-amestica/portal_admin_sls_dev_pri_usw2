@@ -115,7 +115,7 @@ Este backend es consumido por el **portal administrativo Angular**. El portal p�
 |---|---|
 | `dynamodb-v3.js` | CRUD DynamoDB (`query`, `getOne`, `put`, `update`, `remove`, `scan`, `iterativeQuery`) |
 | `s3-v3.js` | Operaciones S3 |
-| `secret-manager.js` | AWS Secrets Manager |
+| `secret-manager.js` | **Legado** — no usar en código nuevo; secretos vía **`parameter-store.js`** (SSM, `SecureString`) |
 | `nodemailer.js` | Envío de emails configurado |
 | `document-generator.js` | API unificada para generación de documentos PDF |
 | `pdf-generator/` | Sistema de generación de PDFs con `pdf-lib` |
@@ -130,7 +130,7 @@ Este backend es consumido por el **portal administrativo Angular**. El portal p�
 
 ### `aws/policies/` — Políticas IAM reutilizables
 
-Políticas granulares por recurso: DynamoDB, S3, SSM, Secrets Manager, SES, CloudWatch, X-Ray, Lambda.
+Políticas granulares por recurso: DynamoDB, S3, SSM Parameter Store, SES, CloudWatch, X-Ray, Lambda (y políticas legadas solo donde aún existan).
 
 ---
 
@@ -394,9 +394,8 @@ const config = await getGlobalConfig('PAYMENT_CONFIG');
 ### Secretos y variables sensibles
 
 - Nunca hardcodear secretos en código
-- Usar **AWS Secrets Manager** (`libs/secret-manager.js`) para secretos
-- Usar **AWS SSM Parameter Store** para configuración no sensible (resuelto por Serverless Framework vía `{{ssm:/...}}`)
-- Variables de entorno para configuración por stage
+- **Secretos y credenciales:** **AWS Systems Manager Parameter Store** (`libs/parameter-store.js`, p. ej. parámetros `SecureString`; rutas `/pa/<stage>/...`). **No** ampliar **AWS Secrets Manager** ni `libs/secret-manager.js` en código nuevo
+- Configuración no sensible también vía SSM u otras variables por stage según el servicio
 
 ### Autorización y autenticación
 
@@ -404,7 +403,7 @@ const config = await getGlobalConfig('PAYMENT_CONFIG');
 - **Token**: JWT firmado con bcryptjs
 - **TTL**: `resultTtlInSeconds: 0` (sin caché para evitar inconsistencias)
 - **Contexto inyectado**: `userId`, `role`, `profile`
-- **Secret**: desde AWS Secrets Manager (`SECRET_KEY`)
+- **Secret**: JWT y claves desde **SSM Parameter Store** (p. ej. `/pa/<stage>/jwt-key` vía env `SECRET_KEY` que almacena la **ruta** del parámetro)
 
 ---
 
@@ -499,7 +498,7 @@ func GetConfig(c echo.Context) error {
 
 **Ambos:**
 - [ ] `.gitignore` actualizado si es necesario
-- [ ] Variables sensibles en Secrets Manager
+- [ ] Variables sensibles en SSM Parameter Store (`SecureString` / rutas documentadas)
 - [ ] Logs mínimos y controlados
 - [ ] AWS X-Ray habilitado
 
