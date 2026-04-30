@@ -26,13 +26,16 @@ const getProgramById = (programId) =>
  */
 const handler = async (event) => {
   const action = "Obtener programa.";
-  const { programId } = event.pathParams || {};
+  const { programId: rawProgramId } = event.pathParams || {};
 
-  if (!programId) {
+  if (!rawProgramId) {
     const error = new Error('Identificador de programa no encontrado en request.');
     error.statusCode = 400;
     throw error;
   }
+
+  // Decodificar el path param para garantizar compatibilidad con API Gateway HTTP API
+  const programId = decodeURIComponent(rawProgramId);
 
   const results = await getProgramById(programId);
   const result = results?.[0] ?? null;

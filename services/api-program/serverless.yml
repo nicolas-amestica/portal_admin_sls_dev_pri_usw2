@@ -217,3 +217,15 @@ functions:
           authorizer:
             id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
             type: request
+
+  save_passengers_v1:
+    handler: functions/save-passengers-v1.main
+    description: Guarda la nómina completa de pasajeros de un programa.
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/pasajeros
+          method: POST
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request

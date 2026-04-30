@@ -128,13 +128,16 @@ const buildAssignedInstallments = (program, payments) => {
  */
 const handler = async (event) => {
   const action = "Obtener cuotas del programa.";
-  const programId = event.queryParams?.programId;
+  const rawProgramId = event.queryParams?.programId;
 
-  if (!programId) {
+  if (!rawProgramId) {
     const error = new Error('El programId es requerido como query parameter.');
     error.statusCode = 400;
     throw error;
   }
+
+  // API Gateway HTTP API no garantiza decodificación de query params; forzar decode
+  const programId = decodeURIComponent(rawProgramId);
 
   // Obtener programa y pagos en paralelo para minimizar latencia
   const [program, payments] = await Promise.all([
