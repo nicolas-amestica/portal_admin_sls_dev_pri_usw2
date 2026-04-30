@@ -186,8 +186,10 @@ const handler = async (event) => {
 
   const approvedProgram = await dynamoDbLib.put({ TableName: DYNAMODB_PROGRAM_TABLE, Item: program });
 
-  const clientRepresentative = program.content[0].contract.clientRepresentative;
   const representative = program.content[0].representative;
+  const clientRepsList = program.content[0].contract.clientRepresentative;
+  const clientRepresentative =
+    clientRepsList?.find((rep) => String(rep?.dni ?? '').trim().length > 0) ?? clientRepsList?.[0];
 
   if (!clientRepresentative?.dni) {
     const error = new Error('Falta información del representante del cliente.');
