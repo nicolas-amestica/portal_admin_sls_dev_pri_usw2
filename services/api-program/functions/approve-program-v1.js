@@ -19,6 +19,18 @@ const {
 const ACTION = "Aprobar programa.";
 const MESSAGE = STAGE === 'dev' ? APPROVED_PROGRAM.dev : APPROVED_PROGRAM.prd;
 
+const PENDING_SIGNED_CONTRACT_PREFIX = 'contratos/pending/';
+const MAX_SIGNED_PDF_BYTES = 10 * 1024 * 1024;
+
+/**
+ * Valida que la clave pertenezca al prefijo temporal de contratos firmados subidos por presign PUT.
+ */
+const isAllowedPendingSignedContractKey = (key) =>
+  typeof key === 'string' &&
+  key.startsWith(PENDING_SIGNED_CONTRACT_PREFIX) &&
+  !key.includes('..') &&
+  key.endsWith('.pdf');
+
 /**
  * Obtiene un programa desde DynamoDB usando una clave de ordenación como prefijo.
  */
@@ -160,7 +172,11 @@ const handler = async (event) => {
     throw error;
   }
 
-  if (!formContact.signedContract?.base64) {
+  const signed = formContact.signedContract;
+  const s3KeyPending = signed?.s3Key?.trim();
+  const base64Payload = signed?.base64?.trim();
+
+  if (!s3KeyPending && !base64Payload) {
     const error = new Error('Falta el contrato firmado en la solicitud.');
     error.statusCode = 400;
     throw error;
@@ -175,8 +191,47 @@ const handler = async (event) => {
   }
 
   const program = programs[0];
-  const signedContractBuffer = Buffer.from(formContact.signedContract.base64, 'base64');
+
+  let signedContractBuffer;
+  if (s3KeyPending) {
+    if (!isAllowedPendingSignedContractKey(s3KeyPending)) {
+      const error = new Error('Clave del contrato firmado no válida.');
+      error.statusCode = 400;
+      throw error;
+    }
+    try {
+      signedContractBuffer = await S3.getObjectBuffer({
+        Bucket: BUCKET_INFO_GI,
+        Key: s3KeyPending,
+      });
+    } catch (err) {
+      const error = new Error('No se pudo leer el contrato firmado desde el almacenamiento.');
+      error.statusCode = 400;
+      throw error;
+    }
+    if (signedContractBuffer.length > MAX_SIGNED_PDF_BYTES) {
+      const error = new Error('El contrato firmado supera el tamaño máximo permitido (10 MB).');
+      error.statusCode = 400;
+      throw error;
+    }
+  } else {
+    signedContractBuffer = Buffer.from(base64Payload, 'base64');
+    if (signedContractBuffer.length > MAX_SIGNED_PDF_BYTES) {
+      const error = new Error('El contrato firmado supera el tamaño máximo permitido (10 MB).');
+      error.statusCode = 400;
+      throw error;
+    }
+  }
+
   const uploadedFile = await uploadPdfToS3(signedContractBuffer);
+
+  if (s3KeyPending) {
+    try {
+      await S3.deleteObject({ Bucket: BUCKET_INFO_GI, Key: s3KeyPending });
+    } catch (err) {
+      console.warn(`No se pudo eliminar objeto temporal ${s3KeyPending}:`, err.message);
+    }
+  }
 
   program.status = 'approved';
   program.priority = 3;

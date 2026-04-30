@@ -157,6 +157,18 @@ functions:
             id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
             type: request
 
+  presign_signed_contract_upload_v1:
+    handler: functions/presign-signed-contract-upload-v1.main
+    description: URL prefirmada PUT para subir el PDF del contrato firmado sin base64 (S3 directo).
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/programas/contratos-firmados/presign
+          method: POST
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
   confirm_program_v1:
     handler: functions/confirm-program-v1.main
     description: Confirma el programa generando el pdf.
