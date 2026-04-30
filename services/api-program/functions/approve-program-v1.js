@@ -7,6 +7,7 @@ import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { APPROVED_PROGRAM } from '../helpers/approve-program-email.js';
 import { standardMiddleware } from "../../../libs/middleware/index.js";
 import { sendEmailWithAttachments, generateEmailHTML } from '../../../libs/nodemailer.js';
+import { ensureClienteProfileForPortalUser } from '../helpers/assign-cliente-profile.js';
 
 const {
   STAGE,
@@ -280,6 +281,8 @@ const handler = async (event) => {
       dynamoDbLib.put({ TableName: DYNAMODB_USER_TABLE, Item: dirRecord }),
     ]);
   }
+
+  await ensureClienteProfileForPortalUser(DYNAMODB_USER_TABLE, clientEmail);
 
   const emailSet = new Set();
   formContact?.email?.split(',').map(e => e.trim()).filter(Boolean).forEach(e => emailSet.add(e.toLowerCase()));
