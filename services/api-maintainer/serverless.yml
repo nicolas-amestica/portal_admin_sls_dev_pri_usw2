@@ -39,8 +39,10 @@ provider:
   environment:
     STAGE: ${self:custom.stage}
     PROFILE: ${self:provider.profile}
+    SECRET_KEY: /pa/${self:custom.stage}/jwt-key
     DYNAMODB_MAINTAINER_TABLE: maintainer-${self:custom.stage}-pri-${self:custom.shortRegion}
     DYNAMODB_PK_MAINTAINER_TABLE: BNK#ACCOUNT
+    BUCKET_INFO_GI: giras-indomito-${self:custom.stage}-info
 
   # Configurar seguimiento mediante aws x-ray para identificar y resolver problemas y errores de rendimiento.
   tracing:
@@ -56,6 +58,7 @@ provider:
     - ${file(../../aws/policies/lambda-policy-kms-ssm.yml)}
     - ${file(../../aws/policies/lambda-policy-cloudwatch.yml)}
     - ${file(../../aws/policies/lambda-policy-dynamodb-maintainer.yml)}
+    - ${file(../../aws/policies/lambda-policy-s3.yml)}
 
 functions:
   get_banks_v1:
@@ -173,6 +176,78 @@ functions:
     events:
       - httpApi:
           path: /v1/mantenedor/presentadores
+          method: DELETE
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  get_informative_media_client_v1:
+    handler: functions/get-informative-media-client-v1.main
+    description: Lista medios informativos activos por ámbito (portal cliente).
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/mantenedor/medios-informativos
+          method: GET
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  list_informative_media_admin_v1:
+    handler: functions/list-informative-media-admin-v1.main
+    description: Lista todos los medios informativos por ámbito (administración).
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/mantenedor/medios-informativos/admin
+          method: GET
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  presign_informative_media_v1:
+    handler: functions/presign-informative-media-v1.main
+    description: URL prefirmada PUT para subir imagen o video de medio informativo.
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/mantenedor/medios-informativos/presign
+          method: POST
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  create_informative_media_v1:
+    handler: functions/create-informative-media-v1.main
+    description: Crea un registro de medio informativo en DynamoDB.
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/mantenedor/medios-informativos
+          method: POST
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  update_informative_media_v1:
+    handler: functions/update-informative-media-v1.main
+    description: Actualiza metadatos de un medio informativo.
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/mantenedor/medios-informativos
+          method: PUT
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  delete_informative_media_v1:
+    handler: functions/delete-informative-media-v1.main
+    description: Elimina un medio informativo y su archivo en S3.
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/mantenedor/medios-informativos
           method: DELETE
           authorizer:
             id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
