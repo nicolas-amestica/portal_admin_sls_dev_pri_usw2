@@ -1,32 +1,16 @@
 import { success } from '../../../helpers/responses.js';
 import { getPresignedUrl } from '../../../libs/s3-v3.js';
+import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { standardMiddleware } from '../../../libs/middleware/index.js';
+import {
+  isAllowedPassengerUploadedKey,
+  passengerListHasMedicalFormKey,
+} from '../helpers/passenger-medical-form.js';
 
 const EXPIRES_IN = 300;
 const ACTION = 'Generar URL de descarga de ficha médica de pasajero.';
 
-const { BUCKET_INFO_GI } = process.env;
-
-/** Prefijo donde el presign de subida coloca fichas individuales. */
-const PREFIX = 'fichas-medicas';
-
-/**
- * Solo fichas subidas por presign (`fichas-medicas/<nombre>` sin subcarpetas).
- * Plantilla `fichas-medicas/formato-base/...` queda fuera → usar GET …/plantilla.
- *
- * @description Evita uso del endpoint como lector arbitrario del bucket.
- * @param {string} key Clave decodificada ya sin espacios externos sobrantes.
- */
-const isAllowedPassengerUploadedKey = (key) => {
-  const trimmed = key.trim();
-  if (!trimmed || trimmed.includes('..')) return false;
-  const segments = trimmed.split('/').filter(Boolean);
-  if (segments.length !== 2 || segments[0] !== PREFIX) return false;
-  const fileSegment = segments[1];
-  if (!fileSegment) return false;
-  const allowedExt = /\.(pdf|jpg|jpeg|png)$/i;
-  return allowedExt.test(fileSegment);
-};
+const { BUCKET_INFO_GI, DYNAMODB_PROGRAM_TABLE, PROGRAM_TABLE } = process.env;
 
 /**
  * Genera y retorna una URL prefirmada GET para descargar o visualizar
@@ -34,10 +18,11 @@ const isAllowedPassengerUploadedKey = (key) => {
  *
  * @description Rechaza claves que no coinciden con el formato de subidas vía presign.
  * @example
- * GET /v1/pasajeros/ficha-medica/url?s3Key=fichas-medicas%2F...
+ * GET /v1/pasajeros/ficha-medica/url?programId=PRG%23...&s3Key=fichas-medicas%2FPRG%23...%2F...
  */
 const handler = async (event) => {
   const s3Key = decodeURIComponent(event.queryParams?.s3Key ?? '');
+  const programId = decodeURIComponent(event.queryParams?.programId ?? '');
 
   if (!s3Key) {
     const error = new Error('La clave S3 del archivo es requerida.');
@@ -45,14 +30,38 @@ const handler = async (event) => {
     throw error;
   }
 
-  if (!isAllowedPassengerUploadedKey(s3Key)) {
+  if (!programId) {
+    const error = new Error('El identificador del programa es requerido.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!isAllowedPassengerUploadedKey(s3Key, programId)) {
     const error = new Error('Clave de objeto no permitida.');
     error.statusCode = 400;
     throw error;
   }
 
+  const normalizedS3Key = s3Key.trim();
+  const program = await dynamoDbLib.getOne({
+    TableName: DYNAMODB_PROGRAM_TABLE,
+    Key: { pk: PROGRAM_TABLE, sk: programId },
+  });
+
+  if (!program) {
+    const error = new Error('Programa no encontrado.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (!passengerListHasMedicalFormKey(program.passengerList, normalizedS3Key)) {
+    const error = new Error('La ficha médica no pertenece al programa solicitado.');
+    error.statusCode = 403;
+    throw error;
+  }
+
   const downloadUrl = await getPresignedUrl(
-    { Bucket: BUCKET_INFO_GI, Key: s3Key.trim() },
+    { Bucket: BUCKET_INFO_GI, Key: normalizedS3Key },
     EXPIRES_IN,
   );
 

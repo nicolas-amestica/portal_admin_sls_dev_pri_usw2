@@ -16,15 +16,22 @@ const { BUCKET_INFO_GI } = process.env;
 
 /**
  * Expone una URL prefirmada PUT para subir la ficha médica de un pasajero
- * directamente a S3 (prefijo `fichas-medicas/`). Acepta PDF e imágenes.
+ * directamente a S3 (prefijo `fichas-medicas/<programId>/`). Acepta PDF e imágenes.
  *
  * @example
  * POST /v1/pasajeros/ficha-medica/presign
- * Body: { mimeType: "application/pdf" }
+ * Body: { programId: "PRG#...", mimeType: "application/pdf" }
  */
 const handler = async (event) => {
-  const { mimeType } = event.body || {};
+  const { programId, mimeType } = event.body || {};
   const normalized = (mimeType || '').toLowerCase().trim();
+  const normalizedProgramId = String(programId || '').trim();
+
+  if (!normalizedProgramId) {
+    const error = new Error('El identificador del programa es requerido.');
+    error.statusCode = 400;
+    throw error;
+  }
 
   if (!ALLOWED_TYPES.includes(normalized)) {
     const error = new Error('Solo se permiten archivos PDF, JPEG o PNG.');
@@ -33,7 +40,7 @@ const handler = async (event) => {
   }
 
   const ext = EXT_MAP[normalized];
-  const s3Key = `fichas-medicas/${uuidv7()}.${ext}`;
+  const s3Key = `fichas-medicas/${normalizedProgramId}/${uuidv7()}.${ext}`;
   const uploadUrl = await putPresignedUrl(
     { Bucket: BUCKET_INFO_GI, Key: s3Key, ContentType: normalized },
     EXPIRES_IN,
