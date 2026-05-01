@@ -26,7 +26,8 @@ const findUserProfiles = async (email, appPk) => {
       ":skPrefix": `UPL#USR#${email}#${appPk}`,
     },
   };
-  return (await dynamoDbLib.query(params)) ?? [];
+  const rows = await dynamoDbLib.iterativeQuery(params);
+  return rows ?? [];
 };
 
 /**
@@ -45,7 +46,8 @@ const findModulesByProfile = async (profileId, appPk) => {
       ":skPrefix": `PFL#${profileId}#${appPk}`,
     },
   };
-  return (await dynamoDbLib.query(params)) ?? [];
+  const rows = await dynamoDbLib.iterativeQuery(params);
+  return rows ?? [];
 };
 
 /**
@@ -65,7 +67,8 @@ const findDirectPermissions = async (email, appPk) => {
       ":skPrefix": `PMS#USR#${email}#${appPk}`,
     },
   };
-  return (await dynamoDbLib.query(params)) ?? [];
+  const rows = await dynamoDbLib.iterativeQuery(params);
+  return rows ?? [];
 };
 
 /**
@@ -80,7 +83,8 @@ const findAppModules = async (appPk) => {
     KeyConditionExpression: "pk = :pk",
     ExpressionAttributeValues: { ":pk": appPk },
   };
-  return (await dynamoDbLib.query(params)) ?? [];
+  const rows = await dynamoDbLib.iterativeQuery(params);
+  return rows ?? [];
 };
 
 /**

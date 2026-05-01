@@ -11,7 +11,7 @@ const ACTION = 'Listar módulos.';
  * Reutiliza APP_PK exportado de access-profile.js.
  */
 const handler = async () => {
-  const items = await dynamoDbLib.query({
+  const items = await dynamoDbLib.iterativeQuery({
     TableName: DYNAMODB_USER_TABLE,
     KeyConditionExpression: 'pk = :pk',
     ExpressionAttributeValues: { ':pk': APP_PK },

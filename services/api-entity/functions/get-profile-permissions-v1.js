@@ -19,7 +19,7 @@ const handler = async (event) => {
     throw error;
   }
 
-  const permissions = await dynamoDbLib.query({
+  const permissions = await dynamoDbLib.iterativeQuery({
     TableName: DYNAMODB_USER_TABLE,
     KeyConditionExpression: 'pk = :pk AND begins_with(sk, :prefix)',
     ExpressionAttributeValues: {

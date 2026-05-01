@@ -1,6 +1,7 @@
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { success } from '../../../helpers/responses.js';
 import { standardMiddleware } from '../../../libs/middleware/index.js';
+import { cache } from '../../../libs/cache/index.js';
 import { APP_PK } from './access-profile.js';
 
 const { DYNAMODB_USER_TABLE } = process.env;
@@ -20,7 +21,7 @@ const handler = async (event) => {
     throw error;
   }
 
-  const existing = await dynamoDbLib.query({
+  const existing = await dynamoDbLib.iterativeQuery({
     TableName: DYNAMODB_USER_TABLE,
     KeyConditionExpression: 'pk = :pk AND begins_with(sk, :prefix)',
     ExpressionAttributeValues: {
@@ -50,6 +51,16 @@ const handler = async (event) => {
   ];
 
   await Promise.all(ops);
+
+  console.log('PROFILE_PERMISSIONS_PUT', {
+    profileId,
+    replacedCount: existing?.length ?? 0,
+    savedModuleCount: modules.length,
+    moduleIds: modules.map((m) => m.id),
+  });
+
+  cache.invalidatePattern('^user:access:');
+
   return success(200, { profileId, modules }, ACTION);
 };
 

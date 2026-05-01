@@ -1,6 +1,7 @@
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { success } from '../../../helpers/responses.js';
 import { standardMiddleware } from '../../../libs/middleware/index.js';
+import { cache, CacheKeys } from '../../../libs/cache/index.js';
 import { APP_PK } from './access-profile.js';
 
 const { DYNAMODB_USER_TABLE } = process.env;
@@ -23,12 +24,12 @@ const handler = async (event) => {
   }
 
   const [existingProfiles, existingPerms] = await Promise.all([
-    dynamoDbLib.query({
+    dynamoDbLib.iterativeQuery({
       TableName: DYNAMODB_USER_TABLE,
       KeyConditionExpression: 'pk = :pk AND begins_with(sk, :prefix)',
       ExpressionAttributeValues: { ':pk': APP_PROFILE_USER_PK, ':prefix': `UPL#USR#${email}#${APP_PK}` },
     }),
-    dynamoDbLib.query({
+    dynamoDbLib.iterativeQuery({
       TableName: DYNAMODB_USER_TABLE,
       KeyConditionExpression: 'pk = :pk AND begins_with(sk, :prefix)',
       ExpressionAttributeValues: { ':pk': APP_PERMISSIONS_PK, ':prefix': `PMS#USR#${email}#${APP_PK}` },
@@ -71,6 +72,15 @@ const handler = async (event) => {
   ];
 
   await Promise.all(ops);
+
+  cache.invalidate(CacheKeys.userAccess(email));
+  console.log('USER_IAM_PUT', {
+    email,
+    profileCount: profiles.length,
+    directPermissionCount: directPermissions.length,
+    directPermissionIds: directPermissions.map((p) => p.id),
+  });
+
   return success(200, { email, profiles, directPermissions }, ACTION);
 };
 
