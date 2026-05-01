@@ -73,6 +73,13 @@ export async function requireStaffProfile(headers) {
 }
 
 /**
+ * @description Exige JWT del portal válido sin filtrar por perfil (cualquier usuario autenticado).
+ */
+export async function requirePortalJwt(headers) {
+  await verifyJwtBody(headers);
+}
+
+/**
  * @description Exige perfil Cliente en el JWT (listados pensados solo para el portal del cliente).
  */
 export async function requireClienteProfile(headers) {

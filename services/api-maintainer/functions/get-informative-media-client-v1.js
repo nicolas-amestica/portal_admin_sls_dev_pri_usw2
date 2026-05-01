@@ -1,18 +1,18 @@
 import { success } from '../../../helpers/responses.js';
 import { standardMiddleware } from '../../../libs/middleware/index.js';
 import * as dynamoDb from '../../../libs/dynamodb-v3.js';
-import { requireClienteProfile } from '../helpers/portal-jwt-auth.js';
+import { requirePortalJwt } from '../helpers/portal-jwt-auth.js';
 import { INFO_MEDIA_PK, VALID_SCOPES } from '../helpers/informative-media-constants.js';
 
 const { DYNAMODB_MAINTAINER_TABLE } = process.env;
 
 /**
- * @description Lista medios informativos activos para usuarios con perfil Cliente.
+ * @description Lista medios informativos activos para cualquier usuario del portal autenticado (JWT).
  * Query: scope (requerido), ej. CLIENT_HOME.
  */
 const handler = async (event) => {
-  await requireClienteProfile(event.headers ?? {});
-  const action = 'Listar medios informativos para cliente.';
+  await requirePortalJwt(event.headers ?? {});
+  const action = 'Listar medios informativos para portal.';
   const scope = (event.queryParams?.scope ?? '').trim();
 
   if (!scope || !VALID_SCOPES.has(scope)) {
