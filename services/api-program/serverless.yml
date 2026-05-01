@@ -229,3 +229,39 @@ functions:
           authorizer:
             id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
             type: request
+
+  get_passengers_v1:
+    handler: functions/get-passengers-v1.main
+    description: Retorna la nómina de pasajeros guardada para un programa.
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/pasajeros
+          method: GET
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  presign_passenger_medical_form_v1:
+    handler: functions/presign-passenger-medical-form-v1.main
+    description: URL prefirmada PUT para subir la ficha médica de un pasajero a S3.
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/pasajeros/ficha-medica/presign
+          method: POST
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  get_passenger_medical_form_url_v1:
+    handler: functions/get-passenger-medical-form-url-v1.main
+    description: URL prefirmada GET para descargar o visualizar la ficha médica de un pasajero.
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/pasajeros/ficha-medica/url
+          method: GET
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request

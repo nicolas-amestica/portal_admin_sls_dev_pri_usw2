@@ -150,7 +150,7 @@ create_bucket "$BUCKET_DEPLOY" "Artefactos de despliegue Serverless"
 create_bucket "$BUCKET_INFO"   "Documentos e información de programas (PDFs, comprobantes)"
 
 # Crear carpetas lógicas en el bucket de info
-for prefix in contratos programas comprobantes inbox-adjuntos; do
+for prefix in contratos programas comprobantes inbox-adjuntos fichas-medicas; do
   aws s3api put-object \
     --bucket "$BUCKET_INFO" \
     --profile "$PROFILE" \
@@ -599,8 +599,10 @@ echo "     cd services/api-maintainer     && sls deploy --stage ${STAGE} --regio
 echo "     cd services/api-payment        && sls deploy --stage ${STAGE} --region ${REGION}"
 echo "     cd services/api-favorites      && sls deploy --stage ${STAGE} --region ${REGION}"
 echo "     cd services/api-meet           && sls deploy --stage ${STAGE} --region ${REGION}"
-echo "     cd services/api-whatsapp-agent && sls deploy --stage ${STAGE} --region ${REGION}"
+echo "     cd services/api-whatsapp-agent  && sls deploy --stage ${STAGE} --region ${REGION}"
+echo "     cd services/api-accounting     && sls deploy --stage ${STAGE} --region ${REGION}"
 echo "     cd services/job-trigger        && sls deploy --stage ${STAGE} --region ${REGION}"
+echo "     cd services/job-instagram-poster && sls deploy --stage ${STAGE} --region ${REGION}"
 echo "     # Servicios Go (requieren compilación previa):"
 echo "     cd services/api-notification   && make build && sls deploy --stage ${STAGE} --region ${REGION}"
 echo "     cd services/api-configuration  && make build && sls deploy --stage ${STAGE} --region ${REGION}"

@@ -78,7 +78,7 @@ check_infrastructure() {
 }
 
 # Contador de servicios
-TOTAL_SERVICES=15
+TOTAL_SERVICES=16
 DEPLOYED=0
 FAILED=0
 FAILED_SERVICES=()
@@ -125,6 +125,7 @@ SERVICES=(
     "services/api-whatsapp-agent"
     "services/api-accounting"
     "services/job-trigger"
+    "services/job-instagram-poster"
 )
 
 for service in "${SERVICES[@]}"; do
