@@ -183,7 +183,7 @@ functions:
 
   get_informative_media_client_v1:
     handler: functions/get-informative-media-client-v1.main
-    description: Lista medios informativos activos por ámbito (portal cliente).
+    description: Lista medios informativos activos por ámbito (cualquier JWT portal).
     timeout: 29
     events:
       - httpApi:
