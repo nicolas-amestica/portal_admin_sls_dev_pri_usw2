@@ -3,6 +3,7 @@ import { standardMiddleware } from '../../../libs/middleware/index.js';
 import * as dynamoDb from '../../../libs/dynamodb-v3.js';
 import { requireStaffProfile } from '../helpers/portal-jwt-auth.js';
 import { INFO_MEDIA_PK, VALID_SCOPES } from '../helpers/informative-media-constants.js';
+import { normalizeInformativeMediaLink } from '../helpers/validate-informative-media-link.js';
 
 const { DYNAMODB_MAINTAINER_TABLE } = process.env;
 
@@ -27,6 +28,8 @@ const handler = async (event) => {
     s3Key,
     active = true,
     sortOrder = 0,
+    linkHref,
+    linkLabel,
   } = event.body ?? {};
 
   const sc = String(scope ?? '').trim();
@@ -60,6 +63,8 @@ const handler = async (event) => {
     throw err;
   }
 
+  const link = normalizeInformativeMediaLink(linkHref, linkLabel);
+
   const id = crypto.randomUUID();
   const sk = `${sc}#${id}`;
   const now = new Date().toISOString();
@@ -74,6 +79,8 @@ const handler = async (event) => {
     s3Key,
     active: Boolean(active),
     sortOrder: Number(sortOrder) || 0,
+    linkHref: link.linkHref,
+    linkLabel: link.linkLabel,
     createdAt: now,
     updatedAt: now,
   };

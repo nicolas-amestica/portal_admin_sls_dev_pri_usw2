@@ -4,6 +4,7 @@ import * as dynamoDb from '../../../libs/dynamodb-v3.js';
 import { deleteObject } from '../../../libs/s3-v3.js';
 import { requireStaffProfile } from '../helpers/portal-jwt-auth.js';
 import { INFO_MEDIA_PK, VALID_SCOPES } from '../helpers/informative-media-constants.js';
+import { normalizeInformativeMediaLink } from '../helpers/validate-informative-media-link.js';
 
 const { DYNAMODB_MAINTAINER_TABLE, BUCKET_INFO_GI } = process.env;
 
@@ -34,6 +35,8 @@ const handler = async (event) => {
     s3Key,
     active,
     sortOrder,
+    linkHref,
+    linkLabel,
   } = event.body ?? {};
 
   if (!sk || typeof sk !== 'string') {
@@ -73,6 +76,8 @@ const handler = async (event) => {
     throw err;
   }
 
+  const link = normalizeInformativeMediaLink(linkHref, linkLabel);
+
   const existing = await dynamoDb.getOne({
     TableName: DYNAMODB_MAINTAINER_TABLE,
     Key: { pk: INFO_MEDIA_PK, sk },
@@ -98,6 +103,8 @@ const handler = async (event) => {
       '#s3Key = :s3Key',
       '#active = :active',
       '#sortOrder = :sortOrder',
+      '#linkHref = :linkHref',
+      '#linkLabel = :linkLabel',
       '#updatedAt = :updatedAt',
     ].join(', '),
     ExpressionAttributeNames: {
@@ -107,6 +114,8 @@ const handler = async (event) => {
       '#s3Key': 's3Key',
       '#active': 'active',
       '#sortOrder': 'sortOrder',
+      '#linkHref': 'linkHref',
+      '#linkLabel': 'linkLabel',
       '#updatedAt': 'updatedAt',
     },
     ExpressionAttributeValues: {
@@ -116,6 +125,8 @@ const handler = async (event) => {
       ':s3Key': s3Key,
       ':active': Boolean(active),
       ':sortOrder': Number(sortOrder) || 0,
+      ':linkHref': link.linkHref,
+      ':linkLabel': link.linkLabel,
       ':updatedAt': now,
     },
   });
