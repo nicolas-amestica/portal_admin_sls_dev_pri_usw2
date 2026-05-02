@@ -118,6 +118,36 @@ const buildUser = async ({ dniClean, clientRepresentative, representative, sk })
 };
 
 /**
+ * @description Valida los datos necesarios para completar la aprobación antes de mutar S3 o DynamoDB.
+ */
+const resolveApprovalContacts = (program) => {
+  const programContent = program.content?.[0];
+  const representative = programContent?.representative;
+  const clientRepsList = programContent?.contract?.clientRepresentative;
+  const clientRepresentative =
+    clientRepsList?.find((rep) => String(rep?.dni ?? '').trim().length > 0) ?? clientRepsList?.[0];
+
+  if (!clientRepresentative?.dni) {
+    const error = new Error('Falta información del representante del cliente.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!representative?.email?.trim()) {
+    const error = new Error('Falta el email del representante del programa.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return {
+    representative,
+    clientRepresentative,
+    dniClean: cleanRut(clientRepresentative.dni),
+    clientEmail: representative.email.trim().toLowerCase(),
+  };
+};
+
+/**
  * Intenta cargar el logo desde S3. Retorna null si no está disponible.
  */
 const loadLogoFromS3 = async () => {
@@ -192,6 +222,12 @@ const handler = async (event) => {
   }
 
   const program = programs[0];
+  const {
+    representative,
+    clientRepresentative,
+    dniClean,
+    clientEmail,
+  } = resolveApprovalContacts(program);
 
   let signedContractBuffer;
   if (s3KeyPending) {
@@ -241,20 +277,6 @@ const handler = async (event) => {
   program.content[0].contract.files.push(uploadedFile);
 
   const approvedProgram = await dynamoDbLib.put({ TableName: DYNAMODB_PROGRAM_TABLE, Item: program });
-
-  const representative = program.content[0].representative;
-  const clientRepsList = program.content[0].contract.clientRepresentative;
-  const clientRepresentative =
-    clientRepsList?.find((rep) => String(rep?.dni ?? '').trim().length > 0) ?? clientRepsList?.[0];
-
-  if (!clientRepresentative?.dni) {
-    const error = new Error('Falta información del representante del cliente.');
-    error.statusCode = 400;
-    throw error;
-  }
-
-  const dniClean = cleanRut(clientRepresentative.dni);
-  const clientEmail = representative.email.trim().toLowerCase();
   const existingUsers = await getUserByEmail(clientEmail);
 
   if (existingUsers?.length) {
