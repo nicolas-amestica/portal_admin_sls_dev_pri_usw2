@@ -16,6 +16,8 @@ const { DYNAMODB_USER_TABLE } = process.env;
  * - course: nombre del curso del programa (si existe)
  * - school: nombre de la escuela del programa (si existe)
  * - hasAssignedInstallment: si sii=false, indica si ya se asignó cuota manual
+ * - startDate: fecha de inicio del programa (sort key auxiliar / contenido)
+ * - endDate: fecha de término si existe en el ítem o en content[0].dates[1]
  *
  * @example
  * GET /v1/pagos/programas?userId=USR%236f770265-9eb3-4dee-83da-bbc5707bcef0
@@ -51,6 +53,10 @@ const handler = async (event) => {
 
   const activePrograms = activeItems.map((item, index) => {
     const detail = programDetails[index];
+    const dates = detail.content?.[0]?.dates;
+    const endDateFromContent =
+      Array.isArray(dates) && dates[1] ? String(dates[1]).split('T')[0] : null;
+
     return {
       destination: detail.content[0]?.destination?.display || '',
       course: detail.content[0]?.course || '',
@@ -60,6 +66,8 @@ const handler = async (event) => {
       passengers: detail.content[0]?.passengers ?? 0,
       program: item.program,
       createdAt: item.createdAt,
+      startDate: detail.startDate || null,
+      endDate: detail.endDate ?? endDateFromContent,
       sii: detail?.sii !== false,
       hasAssignedInstallment: Array.isArray(detail?.assignedInstallments) && detail.assignedInstallments.length > 0,
     };
