@@ -1,3 +1,4 @@
+import { uuidv7 } from "uuidv7";
 import * as S3 from "../../../libs/s3-v3.js";
 import { cleanRut } from "../../../utils/rut.js";
 import { success } from "../../../helpers/responses.js";
@@ -80,7 +81,6 @@ const getUserByEmail = (email) =>
  * Sube un PDF a S3 y retorna la metadata del archivo subido.
  */
 const uploadPdfToS3 = async (pdfBuffer) => {
-  const { uuidv7 } = await import('uuidv7');
   const uuid_v7 = uuidv7();
   await S3.putObject({
     Bucket: BUCKET_INFO_GI,
