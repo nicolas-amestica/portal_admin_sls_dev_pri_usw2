@@ -53,21 +53,22 @@ const handler = async (event) => {
 
   const activePrograms = activeItems.map((item, index) => {
     const detail = programDetails[index];
-    const dates = detail.content?.[0]?.dates;
+    const content = detail?.content?.[0] || {};
+    const dates = content.dates;
     const endDateFromContent =
       Array.isArray(dates) && dates[1] ? String(dates[1]).split('T')[0] : null;
 
     return {
-      destination: detail.content[0]?.destination?.display || '',
-      course: detail.content[0]?.course || '',
-      school: detail.content[0]?.school || '',
-      name: detail.content[0]?.name || '',
-      status: detail.status || '',
-      passengers: detail.content[0]?.passengers ?? 0,
+      destination: content.destination?.display || '',
+      course: content.course || '',
+      school: content.school || '',
+      name: content.name || '',
+      status: detail?.status || '',
+      passengers: content.passengers ?? 0,
       program: item.program,
       createdAt: item.createdAt,
-      startDate: detail.startDate || null,
-      endDate: detail.endDate ?? endDateFromContent,
+      startDate: detail?.startDate || null,
+      endDate: detail?.endDate ?? endDateFromContent,
       sii: detail?.sii !== false,
       hasAssignedInstallment: Array.isArray(detail?.assignedInstallments) && detail.assignedInstallments.length > 0,
     };
