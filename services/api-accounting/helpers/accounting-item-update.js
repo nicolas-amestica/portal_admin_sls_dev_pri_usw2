@@ -10,7 +10,7 @@ import {
 const EXPENSE_UPDATABLE = [
   'monto', 'montoNeto', 'montoIVA', 'categoria', 'subcategoria',
   'tipoDocumento', 'folio', 'rutEmisor', 'nombreEmisor',
-  'motivoNegocio', 'tarjeta', 'personasInvitadas', 'receiptS3Key',
+  'motivoNegocio', 'tarjeta', 'personasInvitadas', 'receiptS3Key', 'receiptS3Keys',
   'conciliadoCartola', 'fecha', 'programSk',
 ];
 
@@ -21,6 +21,30 @@ const INCOME_UPDATABLE = [
   'medioPago', 'cuentaBancaria', 'origenPago',
   'conciliadoBancario', 'comprobantePagoS3Key', 'fecha', 'programSk',
 ];
+
+/**
+ * @description Normaliza comprobantes aceptando formato nuevo (receiptS3Keys) o legado (receiptS3Key).
+ */
+function normalizeExpenseReceiptKeys(updates, existing = {}) {
+  if (Array.isArray(updates.receiptS3Keys)) {
+    return [...new Set(updates.receiptS3Keys.filter((key) => typeof key === 'string' && key.trim()).map((key) => key.trim()))];
+  }
+
+  if (typeof updates.receiptS3Key === 'string') {
+    const trimmed = updates.receiptS3Key.trim();
+    return trimmed ? [trimmed] : [];
+  }
+
+  if (Array.isArray(existing.receiptS3Keys)) {
+    return [...new Set(existing.receiptS3Keys.filter((key) => typeof key === 'string' && key.trim()).map((key) => key.trim()))];
+  }
+
+  if (typeof existing.receiptS3Key === 'string' && existing.receiptS3Key.trim()) {
+    return [existing.receiptS3Key.trim()];
+  }
+
+  return [];
+}
 
 /**
  * @description Actualiza gasto in-place o Put+Delete si cambia SK (fecha/programSk/tipoDocumento).
@@ -38,10 +62,21 @@ export async function updateExpenseWithOptionalRelocate({ tableName, sk, updates
     throw error;
   }
 
+  const normalizedReceiptKeys = normalizeExpenseReceiptKeys(updates, existing);
+  const normalizedUpdates = { ...updates };
+  if (updates.receiptS3Keys !== undefined || updates.receiptS3Key !== undefined) {
+    normalizedUpdates.receiptS3Keys = normalizedReceiptKeys;
+    normalizedUpdates.receiptS3Key = normalizedReceiptKeys[0] ?? '';
+  }
+
   const merged = { ...existing };
   EXPENSE_UPDATABLE.forEach((field) => {
-    if (updates[field] !== undefined) merged[field] = updates[field];
+    if (normalizedUpdates[field] !== undefined) merged[field] = normalizedUpdates[field];
   });
+
+  // Garantiza ambos campos para compatibilidad temporal.
+  merged.receiptS3Keys = normalizeExpenseReceiptKeys(normalizedUpdates, merged);
+  merged.receiptS3Key = merged.receiptS3Keys[0] ?? '';
 
   if (merged.fecha) merged.periodo = merged.fecha.slice(0, 7);
 
@@ -68,9 +103,9 @@ export async function updateExpenseWithOptionalRelocate({ tableName, sk, updates
   const expressionNames = {};
 
   EXPENSE_UPDATABLE.forEach((field) => {
-    if (updates[field] !== undefined) {
+    if (normalizedUpdates[field] !== undefined) {
       updateParts.push(`#${field} = :${field}`);
-      expressionValues[`:${field}`] = updates[field];
+      expressionValues[`:${field}`] = normalizedUpdates[field];
       expressionNames[`#${field}`] = field;
     }
   });
@@ -81,7 +116,7 @@ export async function updateExpenseWithOptionalRelocate({ tableName, sk, updates
     throw error;
   }
 
-  if (updates.fecha !== undefined) {
+  if (normalizedUpdates.fecha !== undefined) {
     updateParts.push('#periodo = :periodo', '#gsiOne = :gsiOne');
     expressionValues[':periodo'] = merged.periodo;
     expressionValues[':gsiOne'] = merged.gsiOne;

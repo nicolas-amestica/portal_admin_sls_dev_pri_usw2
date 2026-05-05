@@ -13,8 +13,22 @@ const { DYNAMODB_ACCOUNTING_TABLE } = process.env;
 const ACTION = 'Registrar gasto';
 const REQUIRED_FIELDS = [
   'fecha', 'monto', 'categoria', 'tipoDocumento', 'nombreEmisor', 'motivoNegocio', 'tarjeta',
-  'programSk',
 ];
+
+/**
+ * @description Normaliza comprobantes aceptando formato nuevo (receiptS3Keys) o legado (receiptS3Key).
+ */
+const normalizeReceiptKeys = (body) => {
+  if (Array.isArray(body.receiptS3Keys)) {
+    return [...new Set(body.receiptS3Keys.filter((key) => typeof key === 'string' && key.trim()).map((key) => key.trim()))];
+  }
+
+  if (typeof body.receiptS3Key === 'string' && body.receiptS3Key.trim()) {
+    return [body.receiptS3Key.trim()];
+  }
+
+  return [];
+};
 
 /**
  * Construye el item de gasto para DynamoDB.
@@ -28,6 +42,7 @@ const buildExpense = (body, partitionKey, userId) => {
   const id = randomUUID();
   const periodo = body.fecha.slice(0, 7);
   const now = new Date().toISOString();
+  const receiptS3Keys = normalizeReceiptKeys(body);
   const sk = buildExpenseSortKey({
     programSk: body.programSk,
     periodo,
@@ -56,7 +71,8 @@ const buildExpense = (body, partitionKey, userId) => {
     motivoNegocio: body.motivoNegocio,
     tarjeta: body.tarjeta,
     personasInvitadas: body.personasInvitadas ?? [],
-    receiptS3Key: body.receiptS3Key ?? '',
+    receiptS3Keys,
+    receiptS3Key: receiptS3Keys[0] ?? '',
     programSk: body.programSk,
     conciliadoCartola: false,
     status: 'REGISTRADO',

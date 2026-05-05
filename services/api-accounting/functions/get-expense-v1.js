@@ -7,6 +7,21 @@ const { DYNAMODB_ACCOUNTING_TABLE } = process.env;
 const ACTION = 'Obtener gasto';
 
 /**
+ * @description Normaliza comprobantes para exponer receiptS3Keys y receiptS3Key en forma consistente.
+ */
+const normalizeExpense = (item) => {
+  const receiptS3Keys = Array.isArray(item.receiptS3Keys)
+    ? [...new Set(item.receiptS3Keys.filter((key) => typeof key === 'string' && key.trim()).map((key) => key.trim()))]
+    : (typeof item.receiptS3Key === 'string' && item.receiptS3Key.trim() ? [item.receiptS3Key.trim()] : []);
+
+  return {
+    ...item,
+    receiptS3Keys,
+    receiptS3Key: receiptS3Keys[0] ?? '',
+  };
+};
+
+/**
  * Handler: obtiene un gasto por sk (path).
  * GET /v1/contabilidad/gastos/{sk}
  */
@@ -31,7 +46,7 @@ const handler = async (event) => {
     throw error;
   }
 
-  return success(200, { Item: item }, ACTION);
+  return success(200, { Item: normalizeExpense(item) }, ACTION);
 };
 
 export const main = standardMiddleware(handler);
