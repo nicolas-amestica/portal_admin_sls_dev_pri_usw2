@@ -122,6 +122,20 @@ const isExpired = (expiration) => {
   return new Date(expiration).getTime() < new Date().setHours(0, 0, 0, 0);
 };
 
+/** Normaliza el campo `allowances` al formato pipe-separated uppercase: "CREATE|READ|UPDATE|DELETE". */
+const normalizeAllowances = (raw) => {
+  if (!raw) return "CREATE|READ|UPDATE|DELETE";
+  if (raw.startsWith("[")) {
+    return raw
+      .replace(/[\[\]]/g, "")
+      .split(",")
+      .map((s) => s.trim().toUpperCase())
+      .filter(Boolean)
+      .join("|");
+  }
+  return raw.toUpperCase();
+};
+
 /**
  * Construye la lista plana de accesos (Access[]) a partir de los módulos de la
  * aplicación, los permisos de perfil y los permisos directos del usuario.
@@ -168,6 +182,7 @@ const buildAccessList = (appModules, profilePermissions, directPermissions) => {
     const lv1 = lv1Map.get(lv1Sk);
     acc.push({
       allow: permission.allowances || "[create, read, update, delete]",
+      allowances: normalizeAllowances(permission.allowances),
       icon: module.icon || "",
       tooltip: module.tooltip || "",
       path: module.path || "",

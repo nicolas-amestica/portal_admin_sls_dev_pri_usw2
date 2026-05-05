@@ -287,6 +287,42 @@ functions:
             id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
             type: request
 
+  create_user_v1:
+    handler: functions/create-user-v1.main
+    description: Crea un nuevo usuario en el portal con perfiles opcionales.
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/iam/usuarios
+          method: POST
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  list_auto_profile_rules_v1:
+    handler: functions/list-auto-profile-rules-v1.main
+    description: Retorna las reglas de asignación automática de perfil.
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/iam/reglas-perfiles-auto
+          method: GET
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  upsert_auto_profile_rule_v1:
+    handler: functions/upsert-auto-profile-rule-v1.main
+    description: Crea o actualiza una regla de perfil automático por trigger.
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/iam/reglas-perfiles-auto
+          method: PUT
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
   get_profile_permissions_v1:
     handler: functions/get-profile-permissions-v1.main
     description: Retorna los módulos asignados a un perfil.

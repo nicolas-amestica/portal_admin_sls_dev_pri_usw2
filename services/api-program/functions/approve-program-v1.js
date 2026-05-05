@@ -1,5 +1,3 @@
-import bcrypt from "bcryptjs";
-import { uuidv7 } from "uuidv7";
 import * as S3 from "../../../libs/s3-v3.js";
 import { cleanRut } from "../../../utils/rut.js";
 import { success } from "../../../helpers/responses.js";
@@ -7,7 +5,7 @@ import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { APPROVED_PROGRAM } from '../helpers/approve-program-email.js';
 import { standardMiddleware } from "../../../libs/middleware/index.js";
 import { sendEmailWithAttachments, generateEmailHTML } from '../../../libs/nodemailer.js';
-import { ensureClienteProfileForPortalUser } from '../helpers/assign-cliente-profile.js';
+import { createPortalUser } from '../../api-entity/helpers/create-user.js';
 
 const {
   STAGE,
@@ -22,6 +20,29 @@ const MESSAGE = STAGE === 'dev' ? APPROVED_PROGRAM.dev : APPROVED_PROGRAM.prd;
 
 const PENDING_SIGNED_CONTRACT_PREFIX = 'contratos/pending/';
 const MAX_SIGNED_PDF_BYTES = 10 * 1024 * 1024;
+const AUTO_PROFILE_RULES_PK = 'APP#AUTO_PROFILE_RULES';
+
+/**
+ * Regla de perfil automático cacheada en el contexto del Lambda.
+ * Se recarga solo si es null (primera invocación del container).
+ */
+let cachedProgramApprovalRule = undefined;
+
+/** Obtiene la regla PROGRAM_APPROVAL desde DynamoDB (una vez por lifecycle del container). */
+const getApprovalProfileRule = async () => {
+  if (cachedProgramApprovalRule !== undefined) return cachedProgramApprovalRule;
+
+  const rule = await dynamoDbLib.getOne({
+    TableName: DYNAMODB_USER_TABLE,
+    Key: { pk: AUTO_PROFILE_RULES_PK, sk: 'RULE#PROGRAM_APPROVAL' },
+  });
+
+  cachedProgramApprovalRule = rule?.isActive && rule.profileId
+    ? { id: rule.profileId, title: rule.profileTitle || '' }
+    : null;
+
+  return cachedProgramApprovalRule;
+};
 
 /**
  * Valida que la clave pertenezca al prefijo temporal de contratos firmados subidos por presign PUT.
@@ -59,6 +80,7 @@ const getUserByEmail = (email) =>
  * Sube un PDF a S3 y retorna la metadata del archivo subido.
  */
 const uploadPdfToS3 = async (pdfBuffer) => {
+  const { uuidv7 } = await import('uuidv7');
   const uuid_v7 = uuidv7();
   await S3.putObject({
     Bucket: BUCKET_INFO_GI,
@@ -74,47 +96,6 @@ const uploadPdfToS3 = async (pdfBuffer) => {
     path: "contratos",
     uploadDate: new Date().toISOString()
   };
-};
-
-/**
- * Construye los objetos de nuevo usuario (auth + directorio) a partir del representante del contrato.
- */
-const buildUser = async ({ dniClean, clientRepresentative, representative, sk }) => {
-  const hashedPassword = await bcrypt.hash('Indomito1234$', 10);
-  const currentDate = new Date().toISOString();
-  const userId = uuidv7();
-  const email = representative.email.trim().toLowerCase();
-  const fullName = clientRepresentative.name || '';
-
-  const authRecord = {
-    pk: `USR#${userId}`,
-    sk: `USR#${userId}`,
-    id: userId,
-    email,
-    fullName,
-    gsiOne: dniClean,
-    phoneNumber: representative.phone || '',
-    password: hashedPassword,
-    isActive: true,
-    createdAt: currentDate,
-    updatedAt: currentDate,
-    content: [{ createdAt: currentDate, program: sk, isActive: true }]
-  };
-
-  const dirRecord = {
-    pk: 'APP#USERS',
-    sk: `USR#${email}`,
-    id: userId,
-    email,
-    fullName,
-    gsiOne: dniClean,
-    isActive: true,
-    phoneNumber: representative.phone || null,
-    createdAt: currentDate,
-    updatedAt: currentDate,
-  };
-
-  return { authRecord, dirRecord };
 };
 
 /**
@@ -257,6 +238,8 @@ const handler = async (event) => {
   const clientEmail = representative.email.trim().toLowerCase();
   const existingUsers = await getUserByEmail(clientEmail);
 
+  let temporaryPassword;
+
   if (existingUsers?.length) {
     const existingUser = existingUsers[0];
     const currentContent = existingUser.content || [];
@@ -275,14 +258,23 @@ const handler = async (event) => {
       console.log(`Usuario con email ${clientEmail} ya tiene vinculado el programa ${sk}.`);
     }
   } else {
-    const { authRecord, dirRecord } = await buildUser({ dniClean, clientRepresentative, representative, sk });
-    await Promise.all([
-      dynamoDbLib.put({ TableName: DYNAMODB_USER_TABLE, Item: authRecord }),
-      dynamoDbLib.put({ TableName: DYNAMODB_USER_TABLE, Item: dirRecord }),
-    ]);
-  }
+    const approvalRule = await getApprovalProfileRule();
+    const profiles = approvalRule ? [approvalRule] : [];
 
-  await ensureClienteProfileForPortalUser(DYNAMODB_USER_TABLE, clientEmail);
+    const { generatedPassword } = await createPortalUser(
+      {
+        email: clientEmail,
+        fullName: clientRepresentative.name || '',
+        gsiOne: dniClean,
+        phoneNumber: representative.phone || '',
+        profiles,
+        metadata: { source: 'program-approval', programSk: sk },
+      },
+      DYNAMODB_USER_TABLE,
+    );
+
+    temporaryPassword = generatedPassword;
+  }
 
   const emailSet = new Set();
   formContact?.email?.split(',').map(e => e.trim()).filter(Boolean).forEach(e => emailSet.add(e.toLowerCase()));
@@ -290,12 +282,12 @@ const handler = async (event) => {
 
   const recipientEmail = [...emailSet].join(', ');
   const recipientName = clientRepresentative?.name || representative?.name || '';
-  const temporaryPassword = 'Indomito1234$';
+  const passwordForEmail = temporaryPassword || '(contraseña preexistente)';
 
   const logoBuffer = await loadLogoFromS3();
   const htmlContent = generateEmailHTML({
     recipientName,
-    bodyHtml: MESSAGE.buildBody(clientEmail, temporaryPassword),
+    bodyHtml: MESSAGE.buildBody(clientEmail, passwordForEmail),
     useCidLogo: !!logoBuffer
   });
 
