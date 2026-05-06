@@ -37,6 +37,7 @@ const handler = async (event) => {
     sortOrder,
     linkHref,
     linkLabel,
+    requiredPath,
   } = event.body ?? {};
 
   if (!sk || typeof sk !== 'string') {
@@ -105,6 +106,7 @@ const handler = async (event) => {
       '#sortOrder = :sortOrder',
       '#linkHref = :linkHref',
       '#linkLabel = :linkLabel',
+      '#requiredPath = :requiredPath',
       '#updatedAt = :updatedAt',
     ].join(', '),
     ExpressionAttributeNames: {
@@ -116,6 +118,7 @@ const handler = async (event) => {
       '#sortOrder': 'sortOrder',
       '#linkHref': 'linkHref',
       '#linkLabel': 'linkLabel',
+      '#requiredPath': 'requiredPath',
       '#updatedAt': 'updatedAt',
     },
     ExpressionAttributeValues: {
@@ -127,6 +130,7 @@ const handler = async (event) => {
       ':sortOrder': Number(sortOrder) || 0,
       ':linkHref': link.linkHref,
       ':linkLabel': link.linkLabel,
+      ':requiredPath': requiredPath || null,
       ':updatedAt': now,
     },
   });

@@ -30,6 +30,7 @@ const handler = async (event) => {
     sortOrder = 0,
     linkHref,
     linkLabel,
+    requiredPath,
   } = event.body ?? {};
 
   const sc = String(scope ?? '').trim();
@@ -81,6 +82,7 @@ const handler = async (event) => {
     sortOrder: Number(sortOrder) || 0,
     linkHref: link.linkHref,
     linkLabel: link.linkLabel,
+    requiredPath: requiredPath || null,
     createdAt: now,
     updatedAt: now,
   };
