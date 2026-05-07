@@ -78,7 +78,7 @@ check_infrastructure() {
 }
 
 # Contador de servicios
-TOTAL_SERVICES=16
+TOTAL_SERVICES=17
 DEPLOYED=0
 FAILED=0
 FAILED_SERVICES=()
@@ -114,6 +114,7 @@ SERVICES=(
     "services/api-maintainer"
     "services/api-contract"
     "services/api-program"
+    "services/api-ticket"
     "services/api-entity"
     "services/api-payment"
     "services/api-balance"

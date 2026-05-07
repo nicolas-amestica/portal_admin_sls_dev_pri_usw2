@@ -50,6 +50,7 @@ TABLE_USERS="users-${STAGE}-pri-${SHORT_REGION}"
 TABLE_CONFIG="config-${STAGE}-pri-${SHORT_REGION}"
 TABLE_PAYMENTS="payments-${STAGE}-pri-${SHORT_REGION}"
 TABLE_MAINTAINER="maintainer-${STAGE}-pri-${SHORT_REGION}"
+TABLE_TICKETS="tickets-${STAGE}-pri-${SHORT_REGION}"
 
 PARAM_JWT="/pa/${STAGE}/jwt-key"
 PARAM_EMAIL="/pa/${STAGE}/email-config"
@@ -150,7 +151,7 @@ create_bucket "$BUCKET_DEPLOY" "Artefactos de despliegue Serverless"
 create_bucket "$BUCKET_INFO"   "Documentos e información de programas (PDFs, comprobantes)"
 
 # Crear carpetas lógicas en el bucket de info
-for prefix in contratos programas comprobantes inbox-adjuntos; do
+for prefix in contratos programas comprobantes inbox-adjuntos tickets; do
   aws s3api put-object \
     --bucket "$BUCKET_INFO" \
     --profile "$PROFILE" \
@@ -541,6 +542,41 @@ aws dynamodb update-continuous-backups \
   --output text &>/dev/null 2>&1 || true
 log_ok "PITR habilitado en ${TABLE_MAINTAINER}"
 
+# ── 3.6 Tabla: tickets ─────────────────────────────────────────────────────────
+log_info "Creando tabla: ${TABLE_TICKETS}"
+log_info "  PK: pk (S) | SK: sk (S) — consultas por período PER#MMYYYY#id"
+
+if aws dynamodb describe-table \
+    --table-name "$TABLE_TICKETS" \
+    --profile "$PROFILE" \
+    --region "$REGION" \
+    --output text &>/dev/null 2>&1; then
+  already_exists "Tabla ${TABLE_TICKETS}"
+else
+  aws dynamodb create-table \
+    --table-name "$TABLE_TICKETS" \
+    --billing-mode PAY_PER_REQUEST \
+    --attribute-definitions \
+      AttributeName=pk,AttributeType=S \
+      AttributeName=sk,AttributeType=S \
+    --key-schema \
+      AttributeName=pk,KeyType=HASH \
+      AttributeName=sk,KeyType=RANGE \
+    --profile "$PROFILE" \
+    --region "$REGION" \
+    --output text &>/dev/null
+
+  wait_for_table "$TABLE_TICKETS"
+fi
+
+aws dynamodb update-continuous-backups \
+  --table-name "$TABLE_TICKETS" \
+  --point-in-time-recovery-specification PointInTimeRecoveryEnabled=true \
+  --profile "$PROFILE" \
+  --region "$REGION" \
+  --output text &>/dev/null 2>&1 || true
+log_ok "PITR habilitado en ${TABLE_TICKETS}"
+
 # =============================================================================
 # RESUMEN FINAL
 # =============================================================================
@@ -572,6 +608,7 @@ echo "    • ${TABLE_USERS}     (GSI: gsiOne-index, resetToken-index, email-ind
 echo "    • ${TABLE_CONFIG}"
 echo "    • ${TABLE_PAYMENTS}  (GSI: sk-index, gsiOne-index, gsiTwo-index, gsiThree-index)"
 echo "    • ${TABLE_MAINTAINER}"
+echo "    • ${TABLE_TICKETS}"
 echo ""
 echo -e "${YELLOW}⚠  Próximos pasos:${NC}"
 echo "  1. Actualiza los parámetros SSM con valores reales:"
