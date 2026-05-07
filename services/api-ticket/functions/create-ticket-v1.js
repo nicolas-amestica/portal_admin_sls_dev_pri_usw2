@@ -2,6 +2,7 @@ import { success } from '../../../helpers/responses.js';
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { standardMiddleware } from '../../../libs/middleware/index.js';
 import { buildTicketKeys } from '../helpers/fn-build-ticket.js';
+import { normalizeTicketForResponse } from '../helpers/fn-normalize-ticket-response.js';
 import { validateTicketPayload } from '../helpers/fn-validate-ticket-payload.js';
 import { TICKET_STATUS } from '../constants/ticket-status.const.js';
 
@@ -30,6 +31,7 @@ const handler = async (event) => {
     content,
     priority,
     status: TICKET_STATUS.ABIERTO,
+    comments: [],
     createdBy,
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
@@ -40,7 +42,7 @@ const handler = async (event) => {
     Item: item,
   });
 
-  return success(201, result, ACTION);
+  return success(201, normalizeTicketForResponse(result), ACTION);
 };
 
 export const main = standardMiddleware(handler);

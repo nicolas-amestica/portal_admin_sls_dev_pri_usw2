@@ -1,6 +1,7 @@
 import { success } from '../../../helpers/responses.js';
 import { standardMiddleware } from '../../../libs/middleware/index.js';
 import { findTicketById } from '../helpers/fn-find-ticket-by-id.js';
+import { normalizeTicketForResponse } from '../helpers/fn-normalize-ticket-response.js';
 
 const ACTION = 'Obtener ticket por id';
 
@@ -29,7 +30,7 @@ const handler = async (event) => {
     throw err;
   }
 
-  return success(200, item, ACTION);
+  return success(200, normalizeTicketForResponse(item), ACTION);
 };
 
 export const main = standardMiddleware(handler);

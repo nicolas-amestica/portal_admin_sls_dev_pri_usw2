@@ -28,6 +28,7 @@ export const resolveAuthContext = async (event) => {
     return {
       email: body.email,
       profiles: body.profiles ?? [],
+      profileIds: body.profileIds ?? [],
     };
   } catch {
     const err = new Error('Token inválido o expirado');

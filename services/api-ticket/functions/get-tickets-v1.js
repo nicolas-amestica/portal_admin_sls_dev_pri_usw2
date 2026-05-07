@@ -1,6 +1,7 @@
 import { success } from '../../../helpers/responses.js';
 import { standardMiddleware } from '../../../libs/middleware/index.js';
 import { queryTicketsByPeriod } from '../helpers/fn-query-tickets.js';
+import { normalizeTicketForResponse } from '../helpers/fn-normalize-ticket-response.js';
 
 const ACTION = 'Listar tickets por período';
 
@@ -16,7 +17,8 @@ const handler = async (event) => {
   }
 
   const items = await queryTicketsByPeriod(periodo);
-  return success(200, items, ACTION);
+  const normalized = (items ?? []).map((item) => normalizeTicketForResponse(item));
+  return success(200, normalized, ACTION);
 };
 
 export const main = standardMiddleware(handler);

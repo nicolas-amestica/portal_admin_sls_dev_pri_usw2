@@ -104,6 +104,39 @@ functions:
             id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
             type: request
 
+  create_comment_v1:
+    handler: functions/create-comment-v1.main
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/tickets/{ticketId}/comments
+          method: POST
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  update_comment_v1:
+    handler: functions/update-comment-v1.main
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/tickets/{ticketId}/comments/{commentId}
+          method: PUT
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  delete_comment_v1:
+    handler: functions/delete-comment-v1.main
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/tickets/{ticketId}/comments/{commentId}
+          method: DELETE
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
   update_ticket_v1:
     handler: functions/update-ticket-v1.main
     timeout: 29
