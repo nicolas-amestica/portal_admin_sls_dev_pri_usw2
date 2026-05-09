@@ -11,7 +11,6 @@ const { DYNAMODB_PAYMENT_TABLE } = process.env;
  * Usa token-index GSI (estructura de transacciones legacy).
  */
 const handler = async (event) => {
-  console.log("Event ==>", event);
   const action = "Obtener estado de transacción.";
 
   try {

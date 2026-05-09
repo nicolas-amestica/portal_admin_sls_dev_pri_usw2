@@ -3,6 +3,8 @@ import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { success } from '../../../helpers/responses.js';
 import { standardMiddleware } from '../../../libs/middleware/index.js';
 import { APP_PROFILES_PK } from './list-profiles-v1.js';
+import { getPortalJwtBodyFromEvent } from '../../../libs/fn-get-portal-jwt-body-from-event.js';
+import { assertPortalAdministrador } from '../../../libs/assert-portal-administrador.js';
 
 const { DYNAMODB_USER_TABLE } = process.env;
 const ACTION = 'Crear o actualizar perfil.';
@@ -12,6 +14,9 @@ const ACTION = 'Crear o actualizar perfil.';
  * pk = APP#PROFILES, sk = PFL#{uuid}
  */
 const handler = async (event) => {
+  const jwtBody = await getPortalJwtBodyFromEvent(event);
+  assertPortalAdministrador(jwtBody.profiles);
+
   const { sk, title, description = '' } = event.body || {};
 
   if (!title?.trim()) {

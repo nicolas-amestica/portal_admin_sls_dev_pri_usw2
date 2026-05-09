@@ -3,6 +3,8 @@ import { uuidv7 } from 'uuidv7';
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { success } from '../../../helpers/responses.js';
 import { standardMiddleware } from '../../../libs/middleware/index.js';
+import { getPortalJwtBodyFromEvent } from '../../../libs/fn-get-portal-jwt-body-from-event.js';
+import { assertPortalAdministrador } from '../../../libs/assert-portal-administrador.js';
 
 const { DYNAMODB_USER_TABLE } = process.env;
 const APP_USERS_PK = 'APP#USERS';
@@ -15,6 +17,9 @@ const ACTION = 'Crear o actualizar usuario.';
  *   - pk=APP#USERS, sk=USR#{email} → directorio para listado sin scan
  */
 const handler = async (event) => {
+  const jwtBody = await getPortalJwtBodyFromEvent(event);
+  assertPortalAdministrador(jwtBody.profiles);
+
   const { sk, email, fullName, gsiOne, phoneNumber, password, isActive = true } = event.body || {};
 
   if (!email?.trim() || !fullName?.trim() || !gsiOne?.trim()) {
@@ -37,8 +42,12 @@ const handler = async (event) => {
 
     if (password?.trim()) {
       updates.push('#pwd = :pwd');
+      updates.push('failedLoginAttempts = :zero');
+      updates.push('passwordResetRequired = :prFalse');
       const hashedPassword = await bcrypt.hash(password.trim(), 10);
       values[':pwd'] = hashedPassword;
+      values[':zero'] = 0;
+      values[':prFalse'] = false;
     }
 
     const dirUpdates = ['fullName = :fn', 'gsiOne = :rut', 'isActive = :active', 'updatedAt = :ts'];
@@ -53,7 +62,9 @@ const handler = async (event) => {
       dynamoDbLib.update({
         TableName: DYNAMODB_USER_TABLE,
         Key: { pk: `USR#${sk}`, sk: `USR#${sk}` },
-        UpdateExpression: `SET ${updates.join(', ')}`,
+        UpdateExpression: password?.trim()
+          ? `SET ${updates.join(', ')} REMOVE lockReason`
+          : `SET ${updates.join(', ')}`,
         ExpressionAttributeNames: password?.trim() ? { '#pwd': 'password' } : undefined,
         ExpressionAttributeValues: values,
       }),
@@ -81,6 +92,8 @@ const handler = async (event) => {
     gsiOne: gsiOne.trim(),
     phoneNumber: phoneNumber ?? null,
     isActive,
+    failedLoginAttempts: 0,
+    passwordResetRequired: false,
     createdAt: now,
     updatedAt: now,
     ...(hashedPassword && { password: hashedPassword }),

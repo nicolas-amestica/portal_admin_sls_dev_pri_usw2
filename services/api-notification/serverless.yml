@@ -18,6 +18,7 @@ provider:
   region: ${self:custom.region}
   profile: pa-${self:custom.stage}
   lambdaHashingVersion: 20201221
+  logRetentionInDays: ${self:custom.logRetentionInDays.${self:custom.stage}, 14}
   architecture: arm64
 
   httpApi:
@@ -32,7 +33,7 @@ provider:
     BUCKET_INFO_GI: giras-indomito-${self:custom.stage}-info
 
   tracing:
-    lambda: true
+    lambda: ${self:custom.xrayEnabled.${self:custom.stage}, true}
 
   deploymentBucket:
     name: ${self:custom.bucketDeployName}
@@ -71,7 +72,8 @@ provider:
     - Effect: Allow
       Action:
         - kms:Decrypt
-      Resource: '*'
+      Resource:
+        - arn:aws:kms:${aws:region}:${aws:accountId}:alias/aws/ssm
 
 package:
   individually: true

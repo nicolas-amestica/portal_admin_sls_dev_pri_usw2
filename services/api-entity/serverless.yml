@@ -32,6 +32,7 @@ provider:
   region: ${opt:region, 'us-west-2'}
   profile: pa-${self:custom.stage}
   lambdaHashingVersion: 20201221
+  logRetentionInDays: ${self:custom.logRetentionInDays.${self:custom.stage}, 14}
 
   # Usar API Gateway HTTP compartido
   httpApi:
@@ -53,7 +54,7 @@ provider:
 
   # Configurar seguimiento mediante aws x-ray para identificar y resolver problemas y errores de rendimiento.
   tracing:
-    lambda: true
+    lambda: ${self:custom.xrayEnabled.${self:custom.stage}, true}
 
   # Repositorio en S3 que se va a usar para desplegar los recursos en cloudFormation
   deploymentBucket:
@@ -112,6 +113,9 @@ functions:
       - httpApi:
           path: /v1/iam/accesos/aplicaciones/GI/user
           method: GET
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
 
   renew_session_v1:
     handler: functions/renew-session-v1.main

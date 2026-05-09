@@ -1,5 +1,5 @@
-import jwt from 'jsonwebtoken';
 import { getParameterValue } from '../../../libs/parameter-store.js';
+import { verifyPortalJwt } from '../../../libs/jwt-portal.js';
 
 /**
  * @description Decodifica el JWT del header Authorization y devuelve email y perfiles.
@@ -23,7 +23,7 @@ export const resolveAuthContext = async (event) => {
   const token = String(auth).slice(7).trim();
   const secret = await getParameterValue(secretPath);
   try {
-    const decoded = jwt.verify(token, secret);
+    const decoded = verifyPortalJwt(token, secret);
     const body = decoded.body ?? {};
     return {
       email: body.email,

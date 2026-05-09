@@ -8,6 +8,25 @@ import { loggerMiddleware } from './logger.js';
 import { errorHandlerMiddleware } from './error-handler.js';
 import { eventParserMiddleware } from './event-parser.js';
 
+/** Orígenes CORS permitidos (alineados a CloudFront del portal). */
+const DEFAULT_CORS_ORIGINS = [
+  "http://localhost:4200",
+  "http://localhost:4300",
+  "https://d2q00w63koc9yz.cloudfront.net",
+  "https://d2e3zvke409odp.cloudfront.net",
+];
+
+const corsOriginOption = () => {
+  const fromEnv = process.env.CORS_ALLOWED_ORIGINS;
+  if (fromEnv?.trim()) {
+    return fromEnv
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+  return DEFAULT_CORS_ORIGINS;
+};
+
 /**
  * Middleware stack completo para handlers estándar
  */
@@ -20,8 +39,9 @@ export const standardMiddleware = (handler) => {
     }))
     .use(eventParserMiddleware())
     .use(cors({
-      origin: '*',
-      headers: '*'
+      origin: corsOriginOption(),
+      headers:
+        "Content-Type,Authorization,X-Correlation-Id,X-Amz-Date,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent",
     }))
     .use(errorHandlerMiddleware())
     .use(httpErrorHandler());  // Middy nativo - catch-all

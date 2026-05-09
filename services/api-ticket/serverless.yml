@@ -46,7 +46,7 @@ provider:
     PROFILE: ${self:provider.profile}
 
   tracing:
-    lambda: true
+    lambda: ${self:custom.xrayEnabled.${self:custom.stage}, true}
 
   deploymentBucket:
     name: sls-deploys-${self:custom.stage}-pri-${self:custom.shortRegion}

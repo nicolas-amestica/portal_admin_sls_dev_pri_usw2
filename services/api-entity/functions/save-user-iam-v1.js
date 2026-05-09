@@ -3,6 +3,8 @@ import { success } from '../../../helpers/responses.js';
 import { standardMiddleware } from '../../../libs/middleware/index.js';
 import { cache, CacheKeys } from '../../../libs/cache/index.js';
 import { APP_PK } from './access-profile.js';
+import { getPortalJwtBodyFromEvent } from '../../../libs/fn-get-portal-jwt-body-from-event.js';
+import { assertPortalAdministrador } from '../../../libs/assert-portal-administrador.js';
 
 const { DYNAMODB_USER_TABLE } = process.env;
 const APP_PROFILE_USER_PK = 'APP#PROFILE#USER';
@@ -15,6 +17,9 @@ const ACTION = 'Guardar IAM de usuario.';
  * directPermissions[]: [{ id, allowances?, expiration? }]
  */
 const handler = async (event) => {
+  const jwtBody = await getPortalJwtBodyFromEvent(event);
+  assertPortalAdministrador(jwtBody.profiles);
+
   const { email, profiles = [], directPermissions = [] } = event.body || {};
 
   if (!email) {

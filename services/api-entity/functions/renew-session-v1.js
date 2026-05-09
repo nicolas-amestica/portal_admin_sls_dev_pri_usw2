@@ -1,7 +1,7 @@
-import jwt from "jsonwebtoken";
 import { success } from "../../../helpers/responses.js";
 import { getParameterValue } from "../../../libs/parameter-store.js";
 import { standardMiddleware } from "../../../libs/middleware/index.js";
+import { verifyPortalJwt, signPortalJwt } from "../../../libs/jwt-portal.js";
 
 const { SECRET_KEY } = process.env;
 
@@ -21,7 +21,7 @@ const verifyToken = (authHeader, secret) => {
   }
   const token = authHeader.split(" ")[1];
   try {
-    return jwt.verify(token, secret);
+    return verifyPortalJwt(token, secret);
   } catch {
     const error = new Error("Token inválido o expirado.");
     error.statusCode = 401;
@@ -52,7 +52,7 @@ const handler = async (event) => {
     throw error;
   }
 
-  const newToken = jwt.sign({ body: decoded.body }, secret, { expiresIn: "3d" });
+  const newToken = signPortalJwt({ body: decoded.body }, secret);
 
   return success(200, { token: newToken }, action);
 };

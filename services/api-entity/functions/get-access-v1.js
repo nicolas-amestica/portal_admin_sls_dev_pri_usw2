@@ -2,6 +2,8 @@ import { resolveUserSession, findModuleFavorites } from "./access-profile.js";
 import { success } from "../../../helpers/responses.js";
 import { cache, CacheKeys } from "../../../libs/cache/index.js";
 import { standardMiddleware } from "../../../libs/middleware/index.js";
+import { getPortalJwtBodyFromEvent } from "../../../libs/fn-get-portal-jwt-body-from-event.js";
+import { assertPortalAdministrador } from "../../../libs/assert-portal-administrador.js";
 
 /**
  * Obtiene los accesos del menú de un usuario autenticado usando la nueva estructura IAM.
@@ -9,9 +11,10 @@ import { standardMiddleware } from "../../../libs/middleware/index.js";
  * Usa caché en memoria para reducir llamadas a DynamoDB en invocaciones warm.
  */
 const handler = async (event) => {
-  console.log("Event ==>", event);
   const action = "Obtener accesos del usuario.";
-  const { userId } = event.queryParams; // userId = email del usuario
+  const { userId } = event.queryParams;
+  const jwtBody = await getPortalJwtBodyFromEvent(event);
+  const callerEmail = String(jwtBody.email ?? "").trim().toLowerCase();
 
   if (!userId) {
     const error = new Error("Se requiere el parámetro userId.");
@@ -19,17 +22,20 @@ const handler = async (event) => {
     throw error;
   }
 
-  const cacheKey = CacheKeys.userAccess(userId);
+  const requested = decodeURIComponent(String(userId)).trim().toLowerCase();
+  if (requested !== callerEmail) {
+    assertPortalAdministrador(jwtBody.profiles);
+  }
+
+  const cacheKey = CacheKeys.userAccess(requested);
   const cached = cache.get(cacheKey);
 
   let access;
 
   if (cached) {
-    console.log("CACHE_HIT", { key: cacheKey });
     access = cached.access;
   } else {
-    console.log("CACHE_MISS", { key: cacheKey });
-    const result = await resolveUserSession(userId);
+    const result = await resolveUserSession(requested);
 
     if (!result.access || result.access.length === 0) {
       const error = new Error("Acceso Restringido.");
@@ -39,11 +45,10 @@ const handler = async (event) => {
 
     access = result.access;
     cache.set(cacheKey, { access }, CacheKeys.TTL.USER_ACCESS);
-    console.log("CACHE_SET", { key: cacheKey, ttl: `${CacheKeys.TTL.USER_ACCESS}ms` });
   }
 
   // moduleFavorites nunca se cachea: cambia con cada toggle del usuario
-  const moduleFavorites = await findModuleFavorites(userId);
+  const moduleFavorites = await findModuleFavorites(requested);
 
   return success(200, { access, moduleFavorites: moduleFavorites ?? [] }, action);
 };

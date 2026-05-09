@@ -26,8 +26,6 @@ const MESSAGE = STAGE === 'prd' ? PAYMENT_RECEIPT.prd : PAYMENT_RECEIPT.dev;
  * @returns {Promise<Object|null>} Registro del pago o null si no existe
  */
 const getPaymentByToken = async (token) => {
-  console.log(`🔍 Buscando pago con token usando GSI gsiThree-index (Query eficiente): ${token}`);
-
   const queryParams = {
     TableName: DYNAMODB_PAYMENT_TABLE,
     IndexName: "gsiThree-index",
@@ -38,23 +36,13 @@ const getPaymentByToken = async (token) => {
     Limit: 1,
   };
 
-  console.log("📋 Parámetros de Query:", JSON.stringify(queryParams, null, 2));
-
   const result = await dynamoDbLib.query(queryParams);
 
   if (result && result.length > 0) {
-    console.log("✅ Pago encontrado exitosamente:", JSON.stringify({
-      pk: result[0].pk,
-      sk: result[0].sk,
-      status: result[0].status,
-      installmentNumber: result[0].installmentNumber,
-      gsiThree: result[0].gsiThree,
-      tokenMatch: result[0].gsiThree === token
-    }));
     return result[0];
   }
 
-  console.warn(`⚠️ No se encontró pago con token: ${token}`);
+  console.warn("No se encontró pago para el token proporcionado.");
   return null;
 };
 
@@ -98,7 +86,9 @@ const handler = async (event) => {
   const transaction = new WebpayPlus.Transaction(options);
   const transbankResponse = await transaction.commit(token);
 
-  console.log("Respuesta de Transbank al confirmar:", JSON.stringify(transbankResponse, null, 2));
+  console.log(
+    `Transbank commit response_code=${transbankResponse.response_code} status=${transbankResponse.status ?? "n/a"}`
+  );
 
   const timestamp = new Date().toISOString();
   const isApproved = transbankResponse.response_code === 0;
@@ -155,7 +145,9 @@ const handler = async (event) => {
     transactionDate: transbankResponse.transaction_date || null,
   };
 
-  console.log("✅ Pago confirmado exitosamente:", JSON.stringify(result, null, 2));
+  console.log(
+    `Pago confirmado paymentId=${paymentRecord.id} installment=${paymentRecord.installmentNumber} status=${newStatus}`
+  );
 
   // Generar y enviar comprobante (no bloquea la respuesta si falla)
   try {
@@ -188,7 +180,7 @@ const handler = async (event) => {
       Body: pdfBuffer,
       ContentType: "application/pdf",
     });
-    console.log(`📄 Comprobante guardado en S3: ${s3Key}`);
+    console.log(`Comprobante PDF guardado paymentId=${paymentRecord.id}`);
 
     // Persistir referencia del comprobante en el registro de pago
     await dynamoDbLib.update({
@@ -224,7 +216,7 @@ const handler = async (event) => {
         }],
       });
 
-      console.log(`📧 Comprobante enviado a: ${paymentRecord.payerEmail}`);
+      console.log("Comprobante enviado por correo.");
     }
   } catch (receiptError) {
     console.warn("⚠️ Error al generar/enviar comprobante (pago ya procesado):", receiptError.message);

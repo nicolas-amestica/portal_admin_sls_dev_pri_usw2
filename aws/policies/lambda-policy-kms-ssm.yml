@@ -1,4 +1,6 @@
 Effect: Allow
 Action:
   - kms:Decrypt
-Resource: '*'
+Resource:
+  # Clave administrada por AWS para parámetros SSM SecureString (Parameter Store)
+  - arn:aws:kms:${aws:region}:${aws:accountId}:alias/aws/ssm

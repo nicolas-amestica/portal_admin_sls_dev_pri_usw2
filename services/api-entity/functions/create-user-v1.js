@@ -1,6 +1,8 @@
 import { success } from '../../../helpers/responses.js';
 import { standardMiddleware } from '../../../libs/middleware/index.js';
 import { createPortalUser } from '../helpers/create-user.js';
+import { getPortalJwtBodyFromEvent } from '../../../libs/fn-get-portal-jwt-body-from-event.js';
+import { assertPortalAdministrador } from '../../../libs/assert-portal-administrador.js';
 
 const { DYNAMODB_USER_TABLE } = process.env;
 const ACTION = 'Crear usuario portal.';
@@ -12,6 +14,9 @@ const ACTION = 'Crear usuario portal.';
  * Response: { user, temporaryPassword }
  */
 const handler = async (event) => {
+  const jwtBody = await getPortalJwtBodyFromEvent(event);
+  assertPortalAdministrador(jwtBody.profiles);
+
   const { email, fullName, gsiOne, phoneNumber, profiles = [] } = event.body || {};
 
   if (!email || !fullName || !gsiOne) {

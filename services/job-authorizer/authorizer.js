@@ -1,6 +1,5 @@
-import jwt from "jsonwebtoken";
 import { getParameterValue } from "../../libs/parameter-store.js";
-import { success, unsuccessful } from "../../helpers/responses";
+import { verifyPortalJwt } from "../../libs/jwt-portal.js";
 
 const { SECRET_KEY } = process.env;
 
@@ -61,8 +60,8 @@ const createPolicy = (effect, resource) => {
  * @returns {"Allow"|"Deny"} Retorna "Allow" si el acceso está permitido, de lo contrario retorna "Deny".
  */
 const validateAccessToEndpoint = (methodArn, endpoints) => {
-  if (!endpoints) {
-    return "Allow";
+  if (!Array.isArray(endpoints) || endpoints.length === 0) {
+    return "Deny";
   }
   const allow = endpoints.some((path) => methodArn.includes(path));
   return allow ? "Allow" : "Deny";
@@ -97,9 +96,13 @@ const generatePolicy = async (token, methodArn, method) => {
 
     const SECRET = await getParameterValue(SECRET_KEY);
 
-    const decoded = jwt.verify(token, SECRET);
-    const payload = decoded.body;
-    const allowances = payload.allowances.toLowerCase();
+    const decoded = verifyPortalJwt(token, SECRET);
+    const payload = decoded.body ?? {};
+    const rawAllowances = payload.allowances;
+    if (typeof rawAllowances !== "string" || !rawAllowances.trim()) {
+      return createPolicy("Deny", methodArn);
+    }
+    const allowances = rawAllowances.toLowerCase();
     const { endpoints } = payload;
     const profiles = payload.profiles || [];
 
@@ -108,9 +111,7 @@ const generatePolicy = async (token, methodArn, method) => {
       const isAdmin = profiles.some((p) => p.includes("ACC#ADMIN") || p === "Administrador");
       if (!isAdmin) {
         console.warn(
-          `Acceso denegado: Se requiere perfil ADMIN para acceder a configuración. Perfiles: ${JSON.stringify(
-            profiles
-          )}`
+          `Acceso denegado: se requiere perfil ADMIN para configuración global (perfiles=${profiles.length})`
         );
         return createPolicy("Deny", methodArn);
       }
@@ -142,7 +143,9 @@ const generatePolicy = async (token, methodArn, method) => {
  * @returns {Promise<Object|string>} Retorna una política de autorización generada o un mensaje de error.
  */
 export const authorize = async (event) => {
-  console.log("Evento recibido por el autorizador:", event);
+  const routeKey = event.requestContext?.http?.path ?? event.routeKey ?? "";
+  const method = event.requestContext?.http?.method ?? "";
+  console.log(`Authorizer request ${method} ${routeKey}`);
 
   // Extraer token de HTTP API Payload v2.0
   const authorizationToken = event.identitySource && event.identitySource.length > 0 
@@ -169,39 +172,4 @@ export const authorize = async (event) => {
     console.error("Error en authorize:", error);
     return createPolicy("Deny", methodArn || "*");
   }
-};
-
-/**
- * Genera un token JWT basado en los permisos proporcionados en el cuerpo del evento.
- *
- * @async
- * @function generateToken
- * @param {Object} event - Objeto del evento que contiene el cuerpo con los permisos (`allowances`).
- * @returns {Promise<Object>} Respuesta exitosa con el token generado.
- *
- * @throws {Error} Si ocurre un error al obtener el secreto o al firmar el token.
- *
- * @description
- * Esta función obtiene una clave secreta desde el almacén de parámetros, extrae los permisos del cuerpo del evento,
- * y genera un token JWT válido por 365 días. El token incluye los permisos en su payload.
- */
-export const generateToken = async (event) => {
-  console.log("event", event);
-  const action = "Generar token.";
-
-  if (!SECRET_KEY)
-    return unsuccessful(
-      400,
-      "No se encuentra el secreto en variables de entorno",
-      action
-    );
-
-  const SECRET = await getParameterValue(SECRET_KEY);
-
-  const { allowances } = JSON.parse(event.body);
-  const TIMEOUT = "365d";
-  const token = jwt.sign({ body: { allowances } }, SECRET, {
-    expiresIn: `${TIMEOUT}`,
-  });
-  return success(200, { token }, "generar token");
 };
