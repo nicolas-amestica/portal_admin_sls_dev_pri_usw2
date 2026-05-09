@@ -22,3 +22,18 @@ export function verifyPortalJwt(token, secret) {
 export function signPortalJwt(payload, secret, expiresIn = '3d') {
   return jwt.sign(payload, secret, { algorithm: JWT_ALG, expiresIn });
 }
+
+/**
+ * @description Valida que el secreto JWT (SSM/env) exista antes de firmar o verificar.
+ * @param {unknown} secret - Secreto HS256.
+ * @throws {Error} Si falta o no es string usable (503 para diferenciar de fallos de credencial).
+ */
+export function assertPortalJwtSecret(secret) {
+  if (typeof secret !== 'string' || !secret.trim()) {
+    const error = new Error(
+      'Clave JWT no disponible. Verifica el parámetro SSM del JWT y permisos de la función Lambda.'
+    );
+    error.statusCode = 503;
+    throw error;
+  }
+}

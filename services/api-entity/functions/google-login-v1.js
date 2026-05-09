@@ -5,7 +5,7 @@ import * as dynamoDbLib from "../../../libs/dynamodb-v3.js";
 import { standardMiddleware } from "../../../libs/middleware/index.js";
 import { getParameterValue } from "../../../libs/parameter-store.js";
 import { getGlobalConfig } from "../../../helpers/get-global-config.js";
-import { signPortalJwt } from "../../../libs/jwt-portal.js";
+import { assertPortalJwtSecret, signPortalJwt } from "../../../libs/jwt-portal.js";
 import { buildJwtEndpointsFromAccess } from "../../../libs/fn-build-jwt-endpoints-from-access.js";
 
 const { DYNAMODB_USER_TABLE, DYNAMODB_CONFIG_TABLE, SECRET_KEY, GOOGLE_CLIENT_ID } = process.env;
@@ -138,6 +138,8 @@ const handler = async (event) => {
       },
     }),
   ]);
+
+  assertPortalJwtSecret(secret);
 
   const endpoints = buildJwtEndpointsFromAccess(access);
   const token = signPortalJwt(

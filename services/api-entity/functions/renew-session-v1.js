@@ -1,7 +1,7 @@
 import { success } from "../../../helpers/responses.js";
 import { getParameterValue } from "../../../libs/parameter-store.js";
 import { standardMiddleware } from "../../../libs/middleware/index.js";
-import { verifyPortalJwt, signPortalJwt } from "../../../libs/jwt-portal.js";
+import { assertPortalJwtSecret, verifyPortalJwt, signPortalJwt } from "../../../libs/jwt-portal.js";
 
 const { SECRET_KEY } = process.env;
 
@@ -44,6 +44,7 @@ const handler = async (event) => {
   const authHeader = event.headers?.authorization ?? event.headers?.Authorization;
 
   const secret = await getParameterValue(SECRET_KEY);
+  assertPortalJwtSecret(secret);
   const decoded = verifyToken(authHeader, secret);
 
   if (!decoded.body) {

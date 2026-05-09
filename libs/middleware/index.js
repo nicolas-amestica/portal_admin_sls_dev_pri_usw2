@@ -1,5 +1,4 @@
 import middy from '@middy/core';
-import httpErrorHandler from '@middy/http-error-handler';
 import httpJsonBodyParser from '@middy/http-json-body-parser';
 import cors from '@middy/http-cors';
 
@@ -39,12 +38,11 @@ export const standardMiddleware = (handler) => {
     }))
     .use(eventParserMiddleware())
     .use(cors({
-      origin: corsOriginOption(),
+      origins: corsOriginOption(),
       headers:
         "Content-Type,Authorization,X-Correlation-Id,X-Amz-Date,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent",
     }))
-    .use(errorHandlerMiddleware())
-    .use(httpErrorHandler());  // Middy nativo - catch-all
+    .use(errorHandlerMiddleware());
 };
 
 // Exportar middlewares individuales para uso custom

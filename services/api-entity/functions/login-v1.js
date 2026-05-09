@@ -5,7 +5,7 @@ import * as dynamoDbLib from "../../../libs/dynamodb-v3.js";
 import { getParameterValue } from "../../../libs/parameter-store.js";
 import { getGlobalConfig } from "../../../helpers/get-global-config.js";
 import { standardMiddleware } from "../../../libs/middleware/index.js";
-import { signPortalJwt } from "../../../libs/jwt-portal.js";
+import { assertPortalJwtSecret, signPortalJwt } from "../../../libs/jwt-portal.js";
 import { buildJwtEndpointsFromAccess } from "../../../libs/fn-build-jwt-endpoints-from-access.js";
 
 const { DYNAMODB_USER_TABLE, DYNAMODB_CONFIG_TABLE, SECRET_KEY } = process.env;
@@ -98,6 +98,7 @@ const recordFailedPasswordAttempt = async (user) => {
  */
 const handler = async (event) => {
   const SECRET = await getParameterValue(SECRET_KEY);
+  assertPortalJwtSecret(SECRET);
   const action = "Identificación de usuario.";
   const data = event.body;
 
