@@ -67,6 +67,18 @@ const validateAccessToEndpoint = (methodArn, endpoints) => {
   return allow ? "Allow" : "Deny";
 };
 
+const AUTHENTICATED_ENDPOINT_PREFIXES = [
+  "v1/sesiones/renovar-sesion",
+  "v1/usuarios/perfil",
+  "v1/iam/accesos/aplicaciones/GI/user",
+  "v1/favoritos",
+  "v1/dashboard",
+  "v1/mantenedor/medios-informativos",
+];
+
+const isAuthenticatedEndpoint = (methodArn) =>
+  AUTHENTICATED_ENDPOINT_PREFIXES.some((path) => methodArn.includes(path));
+
 /**
  * Valida el acceso combinando los permisos de método y endpoint.
  *
@@ -105,16 +117,22 @@ const generatePolicy = async (token, methodArn, method) => {
     const allowances = rawAllowances.toLowerCase();
     const { endpoints } = payload;
     const profiles = payload.profiles || [];
+    const isAdmin = profiles.some((p) => p.includes("ACC#ADMIN") || p === "Administrador");
+
+    if (isAdmin) {
+      return createPolicy(validateAccessToMethod(method, allowances), methodArn);
+    }
+
+    if (isAuthenticatedEndpoint(methodArn)) {
+      return createPolicy(validateAccessToMethod(method, allowances), methodArn);
+    }
 
     // Restricción para api-configuration: solo administradores
     if (methodArn.includes("v1/configuracion/global")) {
-      const isAdmin = profiles.some((p) => p.includes("ACC#ADMIN") || p === "Administrador");
-      if (!isAdmin) {
-        console.warn(
-          `Acceso denegado: se requiere perfil ADMIN para configuración global (perfiles=${profiles.length})`
-        );
-        return createPolicy("Deny", methodArn);
-      }
+      console.warn(
+        `Acceso denegado: se requiere perfil ADMIN para configuración global (perfiles=${profiles.length})`
+      );
+      return createPolicy("Deny", methodArn);
     }
 
     const accessToMethod = validateAccessToMethod(method, allowances);

@@ -11,6 +11,8 @@ export const JWT_ENDPOINT_ALWAYS_PREFIXES = [
   '/v1/usuarios/perfil',
   '/v1/iam/accesos/aplicaciones/GI/user',
   '/v1/favoritos',
+  '/v1/dashboard',
+  '/v1/mantenedor/medios-informativos',
 ];
 
 /**
@@ -56,7 +58,7 @@ const PERMISSION_PATH_TO_API_PREFIXES = {
   'cliente/pagos/resultado': ['/v1/pagos', '/v1/programas'],
   'cliente/lista-pasajeros': ['/v1/pasajeros', '/v1/programas', '/v1/extracciones/object'],
 
-  'agenda/calendario': ['/v1/reuniones'],
+  'agenda/calendario': ['/v1/reuniones', '/v1/mantenedor/presentadores'],
 
   'comunicaciones/conversaciones': [
     '/v1/inbox',
