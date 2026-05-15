@@ -136,7 +136,7 @@ async function loadConversation(phoneNumber) {
 async function saveConversation(phoneNumber, userText, modelText, collectedData) {
   const { CONVERSATIONS_TABLE } = process.env;
   const now = new Date().toISOString();
-  const ttl = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60;
+  const ttl = Math.floor(Date.now() / 1000) + 90 * 24 * 60 * 60;
   const normalizedPhone = normalizePhone(phoneNumber);
   const sessionKey = `CONV#${normalizedPhone}`;
   const lastMessageText = sanitizeForHistory(userText).slice(0, 100);
@@ -231,7 +231,7 @@ async function derivarConversacion(phoneNumber, text, reason, channel, collected
         createdAt: now,
         ...(collectedData?.destino && { destino: collectedData.destino }),
         ...(collectedData?.codigoEvento && { codigoEvento: collectedData.codigoEvento }),
-        ttl: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
+        ttl: Math.floor(Date.now() / 1000) + 90 * 24 * 60 * 60,
       },
     }),
     dynamoDbLib.update({

@@ -1,9 +1,9 @@
 /**
- * @description Calcula el TTL de DynamoDB para el historial de mensajes (7 días).
+ * @description Calcula el TTL de DynamoDB para el historial de mensajes (90 días).
  * @returns {number} Unix timestamp en segundos.
  */
 function ttlMessages() {
-  return Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60;
+  return Math.floor(Date.now() / 1000) + 90 * 24 * 60 * 60;
 }
 
 /**
