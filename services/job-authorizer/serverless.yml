@@ -71,10 +71,6 @@ resources:
         ApiId: ${self:custom.apiGatewayId}
         AuthorizerType: REQUEST
         AuthorizerPayloadFormatVersion: '2.0'
-        # EnableSimpleResponses: devuelve { isAuthorized: boolean } en vez de política IAM.
-        # Esto elimina el bug de caché donde API Gateway reutilizaba una política con
-        # Resource = ARN de la primera ruta invocada, denegando todas las demás con 403.
-        EnableSimpleResponses: true
         AuthorizerUri: 
           Fn::Join:
             - ''
@@ -85,7 +81,6 @@ resources:
               - '/invocations'
         IdentitySource:
           - '$request.header.Authorization'
-          - '$context.routeKey'
         Name: ${self:custom.stage}-shared-authorizer
         AuthorizerResultTtlInSeconds: ${self:custom.authorizerCacheTtlSeconds.${self:custom.stage}, 60}
 
