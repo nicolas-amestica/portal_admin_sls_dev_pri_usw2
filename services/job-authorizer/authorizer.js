@@ -124,11 +124,18 @@ export const authorize = async (event) => {
   const pathLog = event.rawPath ?? event.requestContext?.http?.path ?? event.routeKey ?? "";
   console.log(`Authorizer ${method} ${pathLog}`);
 
-  // Con IdentitySource ['Authorization', 'routeKey'], identitySource[0] = token
-  const rawToken =
-    Array.isArray(event.identitySource) && event.identitySource.length > 0
-      ? event.identitySource[0]
-      : (event.headers?.authorization ?? event.headers?.Authorization ?? "");
+  // Buscar el token Bearer entre todos los identity sources (el orden no está garantizado).
+  // El routeKey tiene formato "METHOD /path" y nunca empieza con "Bearer ".
+  const idSrc = event.identitySource;
+  const rawToken = (() => {
+    if (Array.isArray(idSrc) && idSrc.length > 0) {
+      const bearer = idSrc.find((s) => typeof s === "string" && /^Bearer\s+/i.test(s));
+      if (bearer) return bearer;
+      const jwt = idSrc.find((s) => typeof s === "string" && s.split(".").length === 3);
+      if (jwt) return jwt;
+    }
+    return event.headers?.authorization ?? event.headers?.Authorization ?? "";
+  })();
 
   if (!rawToken) {
     console.warn("Authorizer: sin token de autorización");
