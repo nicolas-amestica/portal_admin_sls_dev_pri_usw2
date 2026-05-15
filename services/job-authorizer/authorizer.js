@@ -67,18 +67,6 @@ const validateAccessToEndpoint = (methodArn, endpoints) => {
   return allow ? "Allow" : "Deny";
 };
 
-const AUTHENTICATED_ENDPOINT_PREFIXES = [
-  "v1/sesiones/renovar-sesion",
-  "v1/usuarios/perfil",
-  "v1/iam/accesos/aplicaciones/GI/user",
-  "v1/favoritos",
-  "v1/dashboard",
-  "v1/mantenedor/medios-informativos",
-];
-
-const isAuthenticatedEndpoint = (methodArn) =>
-  AUTHENTICATED_ENDPOINT_PREFIXES.some((path) => methodArn.includes(path));
-
 /**
  * Valida el acceso combinando los permisos de método y endpoint.
  *
@@ -123,10 +111,6 @@ const generatePolicy = async (token, methodArn, method) => {
       return createPolicy(validateAccessToMethod(method, allowances), methodArn);
     }
 
-    if (isAuthenticatedEndpoint(methodArn)) {
-      return createPolicy(validateAccessToMethod(method, allowances), methodArn);
-    }
-
     // Restricción para api-configuration: solo administradores
     if (methodArn.includes("v1/configuracion/global")) {
       console.warn(
@@ -136,12 +120,22 @@ const generatePolicy = async (token, methodArn, method) => {
     }
 
     const accessToMethod = validateAccessToMethod(method, allowances);
-    const accessToEndpoint = validateAccessToEndpoint(methodArn, endpoints);
 
+    // JWT legacy sin `endpoints` (tokens emitidos antes del autorizador por ruta):
+    // mismas reglas que antes — solo método + allowances; rutas globales ya filtradas arriba.
+    if (!Array.isArray(endpoints) || endpoints.length === 0) {
+      if (accessToMethod === "Deny") {
+        console.log(`No tiene autorización para acceder al método ${method} (JWT sin endpoints)`);
+      }
+      return createPolicy(accessToMethod, methodArn);
+    }
+
+    const accessToEndpoint = validateAccessToEndpoint(methodArn, endpoints);
     const conditionKey = validateAccess(accessToMethod, accessToEndpoint);
 
-    if (conditionKey === "Deny")
-      console.log(`No tiene autorización para acceder al método ${method}`);
+    if (conditionKey === "Deny") {
+      console.log(`No tiene autorización para acceder al método ${method} o al recurso`);
+    }
 
     return createPolicy(conditionKey, methodArn);
   } catch (error) {
