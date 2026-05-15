@@ -27,6 +27,17 @@ const validateAccessToMethod = (method, allowances) => {
 };
 
 /**
+ * Normaliza el routeArn a wildcard de API para evitar el bug de caché donde
+ * API Gateway reutiliza una política con Resource=ARN_ruta_A para la ruta B.
+ * @param {string|undefined} arn
+ * @returns {string}
+ */
+const normalizeArn = (arn) => {
+  if (!arn || typeof arn !== "string") return "arn:aws:execute-api:*:*:*";
+  return arn.replace(/\/[^/]+\/[A-Z]+\/.+$/, "/*");
+};
+
+/**
  * Crea un objeto de política de autorización para AWS API Gateway.
  *
  * @param {string} effect - El efecto de la política, por ejemplo "Allow" o "Deny".
@@ -44,7 +55,7 @@ const createPolicy = (effect, resource) => {
     const statementOne = {};
     statementOne.Action = "execute-api:Invoke";
     statementOne.Effect = effect;
-    statementOne.Resource = resource;
+    statementOne.Resource = normalizeArn(resource);
     policyDocument.Statement[0] = statementOne;
     authResponse.policyDocument = policyDocument;
   }
@@ -60,8 +71,9 @@ const createPolicy = (effect, resource) => {
  * @returns {"Allow"|"Deny"} Retorna "Allow" si el acceso está permitido, de lo contrario retorna "Deny".
  */
 const validateAccessToEndpoint = (methodArn, endpoints) => {
+  // Backward-compat: JWTs anteriores sin campo endpoints solo validan por método HTTP.
   if (!Array.isArray(endpoints) || endpoints.length === 0) {
-    return "Deny";
+    return "Allow";
   }
   const allow = endpoints.some((path) => methodArn.includes(path));
   return allow ? "Allow" : "Deny";
