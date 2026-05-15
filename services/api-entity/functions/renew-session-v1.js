@@ -2,6 +2,8 @@ import { success } from "../../../helpers/responses.js";
 import { getParameterValue } from "../../../libs/parameter-store.js";
 import { standardMiddleware } from "../../../libs/middleware/index.js";
 import { assertPortalJwtSecret, verifyPortalJwt, signPortalJwt } from "../../../libs/jwt-portal.js";
+import { buildJwtEndpointsFromAccess } from "../../../libs/fn-build-jwt-endpoints-from-access.js";
+import { resolveUserSession } from "./access-profile.js";
 
 const { SECRET_KEY } = process.env;
 
@@ -53,7 +55,18 @@ const handler = async (event) => {
     throw error;
   }
 
-  const newToken = signPortalJwt({ body: decoded.body }, secret);
+  const body = { ...decoded.body };
+  const email = String(body.email ?? "").trim().toLowerCase();
+  if (email) {
+    try {
+      const { access } = await resolveUserSession(email);
+      body.endpoints = buildJwtEndpointsFromAccess(access);
+    } catch (err) {
+      console.error("renew-session: no se pudo reconstruir endpoints desde IAM", err);
+    }
+  }
+
+  const newToken = signPortalJwt({ body }, secret);
 
   return success(200, { token: newToken }, action);
 };
