@@ -236,7 +236,7 @@ export const generateContract = async (
 
       checkPageBreak(15);
       page.drawText(
-        `${clause?.detail?.days} días / ${clause?.detail?.nights} noches`,
+        `${clause?.detail?.days} días / ${clause?.detail?.nights} noches de estadía`,
         {
           x: MARGIN,
           y: yPosition,
