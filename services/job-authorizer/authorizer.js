@@ -111,6 +111,28 @@ const validateAccess = (accessToMethod, accessToEndpoint) => {
 };
 
 /**
+ * @description Resuelve el verbo HTTP del payload 2.0 (a veces falta `requestContext.http.method`).
+ * @param {Record<string, unknown>} event
+ * @returns {string}
+ */
+const resolveHttpMethod = (event) => {
+  const fromCtx = event.requestContext?.http?.method;
+  if (typeof fromCtx === "string" && fromCtx.trim()) return fromCtx.trim().toUpperCase();
+
+  const fromRouteKey = (rk) => {
+    if (typeof rk !== "string" || !rk.trim()) return "";
+    const sp = rk.indexOf(" ");
+    if (sp <= 0) return "";
+    return rk.slice(0, sp).trim().toUpperCase();
+  };
+
+  const a = fromRouteKey(event.routeKey);
+  if (a) return a;
+
+  return fromRouteKey(event.requestContext?.routeKey);
+};
+
+/**
  * Genera una política de autorización basada en el token JWT recibido y el método solicitado.
  *
  * @async
@@ -189,9 +211,9 @@ const generatePolicy = async (token, methodArn, method, haystackParts) => {
  * @returns {Promise<Object|string>} Retorna una política de autorización generada o un mensaje de error.
  */
 export const authorize = async (event) => {
-  const routeKey = event.requestContext?.http?.path ?? event.routeKey ?? "";
-  const method = event.requestContext?.http?.method ?? "";
-  console.log(`Authorizer request ${method} ${routeKey}`);
+  const pathLog = event.requestContext?.http?.path ?? event.rawPath ?? event.routeKey ?? "";
+  const httpMethod = resolveHttpMethod(event);
+  console.log(`Authorizer request ${httpMethod} ${pathLog}`);
 
   // Extraer token de HTTP API Payload v2.0
   const authorizationToken = event.identitySource && event.identitySource.length > 0 
@@ -199,7 +221,6 @@ export const authorize = async (event) => {
     : event.headers?.authorization || event.headers?.Authorization;
     
   const methodArn = event.routeArn;
-  const httpMethod = event.requestContext?.http?.method;
   const haystackParts = collectPathHaystackParts(event, methodArn);
 
   if (!authorizationToken) {
