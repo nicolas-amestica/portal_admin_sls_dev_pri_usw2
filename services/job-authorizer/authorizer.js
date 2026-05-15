@@ -27,18 +27,9 @@ const validateAccessToMethod = (method, allowances) => {
 };
 
 /**
- * Normaliza el routeArn a wildcard de API para evitar el bug de caché donde
- * API Gateway reutiliza una política con Resource=ARN_ruta_A para la ruta B.
- * @param {string|undefined} arn
- * @returns {string}
- */
-const normalizeArn = (arn) => {
-  if (!arn || typeof arn !== "string") return "arn:aws:execute-api:*:*:*";
-  return arn.replace(/\/[^/]+\/[A-Z]+\/.+$/, "/*");
-};
-
-/**
  * Crea un objeto de política de autorización para AWS API Gateway.
+ * El Resource usa el routeArn exacto. La caché por (token + routeKey) en
+ * IdentitySource garantiza que no haya mismatch entre rutas distintas.
  *
  * @param {string} effect - El efecto de la política, por ejemplo "Allow" o "Deny".
  * @param {string} resource - El recurso al que se aplica la política (ARN).
@@ -48,17 +39,16 @@ const createPolicy = (effect, resource) => {
   const authResponse = {};
   authResponse.principalId = "user";
 
-  if (effect && resource) {
-    const policyDocument = {};
-    policyDocument.Version = "2012-10-17";
-    policyDocument.Statement = [];
-    const statementOne = {};
-    statementOne.Action = "execute-api:Invoke";
-    statementOne.Effect = effect;
-    statementOne.Resource = normalizeArn(resource);
-    policyDocument.Statement[0] = statementOne;
-    authResponse.policyDocument = policyDocument;
-  }
+  const safeResource = resource || "arn:aws:execute-api:*:*:*";
+  const policyDocument = {};
+  policyDocument.Version = "2012-10-17";
+  policyDocument.Statement = [];
+  const statementOne = {};
+  statementOne.Action = "execute-api:Invoke";
+  statementOne.Effect = effect || "Deny";
+  statementOne.Resource = safeResource;
+  policyDocument.Statement[0] = statementOne;
+  authResponse.policyDocument = policyDocument;
 
   return authResponse;
 };

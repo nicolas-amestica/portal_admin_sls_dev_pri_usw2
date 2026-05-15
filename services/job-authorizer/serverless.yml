@@ -81,6 +81,7 @@ resources:
               - '/invocations'
         IdentitySource:
           - '$request.header.Authorization'
+          - '$context.routeKey'
         Name: ${self:custom.stage}-shared-authorizer
         AuthorizerResultTtlInSeconds: ${self:custom.authorizerCacheTtlSeconds.${self:custom.stage}, 60}
 
