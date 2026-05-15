@@ -71,6 +71,7 @@ resources:
         ApiId: ${self:custom.apiGatewayId}
         AuthorizerType: REQUEST
         AuthorizerPayloadFormatVersion: '2.0'
+        EnableSimpleResponses: true
         AuthorizerUri: 
           Fn::Join:
             - ''
