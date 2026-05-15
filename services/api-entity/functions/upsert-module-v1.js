@@ -2,6 +2,8 @@ import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { success } from '../../../helpers/responses.js';
 import { standardMiddleware } from '../../../libs/middleware/index.js';
 import { APP_PK } from './access-profile.js';
+import { getPortalJwtBodyFromEvent } from '../../../libs/fn-get-portal-jwt-body-from-event.js';
+import { assertPortalAdministrador } from '../../../libs/assert-portal-administrador.js';
 
 const { DYNAMODB_USER_TABLE } = process.env;
 const ACTION = 'Crear o actualizar módulo.';
@@ -12,6 +14,9 @@ const ACTION = 'Crear o actualizar módulo.';
  * - LV2: sk = APP#ADMIN_PORTAL#LV1#{lv1Id}#LV2#{id}  (lv1Sk requerido al crear LV2)
  */
 const handler = async (event) => {
+  const jwtBody = await getPortalJwtBodyFromEvent(event);
+  assertPortalAdministrador(jwtBody.profiles);
+
   const { sk, id, title, icon = '', path = '', tooltip = '', order = 0, lv1Sk } = event.body || {};
 
   if (!id?.trim() || !title?.trim()) {

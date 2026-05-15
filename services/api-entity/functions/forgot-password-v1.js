@@ -35,7 +35,6 @@ const generateResetToken = () => {
  * Función principal para la recuperación de contraseña de usuario por email.
  */
 const handler = async (event) => {
-  console.log("Event ==>", event);
   const action = "Recuperación de contraseña.";
   const data = event.body;
 
@@ -63,6 +62,7 @@ const handler = async (event) => {
 
     const user = items?.[0];
 
+    // Usuario bloqueado por intentos (passwordResetRequired) sigue activo: debe poder solicitar recuperación.
     if (!user || !user.isActive) {
       console.log(`Usuario con email ${email} no encontrado o desactivado.`);
       return success(200, securityMessage, action);

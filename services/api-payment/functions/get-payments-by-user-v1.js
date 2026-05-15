@@ -9,7 +9,6 @@ const { DYNAMODB_PAYMENT_TABLE } = process.env;
  * Obtiene todos los pagos realizados por un usuario específico.
  */
 const handler = async (event) => {
-  console.log("Event ==>", event);
   const action = "Obtener pagos por usuario.";
   const userId = event.queryParams?.userId;
 

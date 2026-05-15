@@ -2,6 +2,8 @@ import { uuidv7 } from 'uuidv7';
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { success } from '../../../helpers/responses.js';
 import { standardMiddleware } from '../../../libs/middleware/index.js';
+import { getPortalJwtBodyFromEvent } from '../../../libs/fn-get-portal-jwt-body-from-event.js';
+import { assertPortalAdministrador } from '../../../libs/assert-portal-administrador.js';
 
 const { DYNAMODB_USER_TABLE } = process.env;
 const AUTO_PROFILE_RULES_PK = 'APP#AUTO_PROFILE_RULES';
@@ -15,6 +17,9 @@ const ACTION = 'Actualizar regla de perfil automático.';
  * Body: { trigger, profileId?, profileTitle?, isActive? }
  */
 const handler = async (event) => {
+  const jwtBody = await getPortalJwtBodyFromEvent(event);
+  assertPortalAdministrador(jwtBody.profiles);
+
   const { trigger, profileId, profileTitle, isActive } = event.body || {};
 
   if (!trigger || !VALID_TRIGGERS.includes(trigger)) {

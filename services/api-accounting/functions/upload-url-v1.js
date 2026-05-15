@@ -22,8 +22,15 @@ const handler = async (event) => {
     throw error;
   }
 
+  const ext = String(extension).trim().toLowerCase().replace(/^\./, '');
+  if (!/^[a-z0-9]{1,10}$/.test(ext)) {
+    const error = new Error('Extensión de archivo no permitida.');
+    error.statusCode = 400;
+    throw error;
+  }
+
   const folder = tipo === 'ingreso' ? 'contabilidad/ingresos' : 'contabilidad/gastos';
-  const s3Key = `${folder}/${randomUUID()}.${extension}`;
+  const s3Key = `${folder}/${randomUUID()}.${ext}`;
 
   const uploadUrl = await putPresignedUrl(
     { Bucket: process.env.BUCKET_INFO_GI, Key: s3Key, ContentType: contentType },

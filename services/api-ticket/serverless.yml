@@ -1,0 +1,160 @@
+service: api-ticket
+frameworkVersion: '4'
+
+configValidationMode: warn
+projectDir: ./../../
+
+plugins:
+  - serverless-offline
+
+custom: ${file(../../common/custom.yml)}
+
+build:
+  esbuild:
+    bundle: true
+    minify: true
+    sourcemap: true
+    exclude:
+      - 'aws-sdk'
+      - '@aws-sdk/*'
+    target: 'node20'
+    platform: 'node'
+    format: 'cjs'
+
+package:
+  individually: true
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-west-2'}
+  profile: pa-${self:custom.stage}
+
+  httpApi:
+    id: ${self:custom.apiGatewayId}
+
+  architecture: arm64
+
+  environment:
+    STAGE: ${self:custom.stage}
+    DYNAMODB_TICKET_TABLE: tickets-${self:custom.stage}-pri-${self:custom.shortRegion}
+    TICKET_TABLE_PK: ${ssm:/pa/${self:custom.stage}/ticket-table-pk}
+    BUCKET_INFO_GI: giras-indomito-${self:custom.stage}-info
+    SECRET_KEY: /pa/${self:custom.stage}/jwt-key
+    NODE_OPTIONS: '--enable-source-maps'
+    PROFILE: ${self:provider.profile}
+
+  tracing:
+    lambda: ${self:custom.xrayEnabled.${self:custom.stage}, true}
+
+  deploymentBucket:
+    name: sls-deploys-${self:custom.stage}-pri-${self:custom.shortRegion}
+
+  iamRoleStatements:
+    - ${file(../../aws/policies/lambda-policy-xray.yml)}
+    - ${file(../../aws/policies/lambda-policy-ssm.yml)}
+    - ${file(../../aws/policies/lambda-policy-kms-ssm.yml)}
+    - ${file(../../aws/policies/lambda-policy-dynamodb-ticket.yml)}
+    - ${file(../../aws/policies/lambda-policy-s3.yml)}
+
+functions:
+  # Ruta literal antes de /v1/tickets/{ticketId} para evitar colisión con ticketId=presigned-url
+  presign_ticket_upload_v1:
+    handler: functions/presign-ticket-upload-v1.main
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/tickets/presigned-url
+          method: GET
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  create_ticket_v1:
+    handler: functions/create-ticket-v1.main
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/tickets
+          method: POST
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  get_tickets_v1:
+    handler: functions/get-tickets-v1.main
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/tickets
+          method: GET
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  get_ticket_v1:
+    handler: functions/get-ticket-v1.main
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/tickets/{ticketId}
+          method: GET
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  create_comment_v1:
+    handler: functions/create-comment-v1.main
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/tickets/{ticketId}/comments
+          method: POST
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  update_comment_v1:
+    handler: functions/update-comment-v1.main
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/tickets/{ticketId}/comments/{commentId}
+          method: PUT
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  delete_comment_v1:
+    handler: functions/delete-comment-v1.main
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/tickets/{ticketId}/comments/{commentId}
+          method: DELETE
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  update_ticket_v1:
+    handler: functions/update-ticket-v1.main
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/tickets/{ticketId}
+          method: PUT
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  delete_ticket_v1:
+    handler: functions/delete-ticket-v1.main
+    timeout: 29
+    events:
+      - httpApi:
+          path: /v1/tickets/{ticketId}
+          method: DELETE
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request

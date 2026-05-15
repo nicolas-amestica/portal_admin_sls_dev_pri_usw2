@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Script de deployment secuencial para Portal Admin
-# Uso: ./deploy-all.sh [dev|prd]
+# Uso: ./deploy-all.sh [dev|qa|prd] [service1,service2,...]
 
 set -e  # Salir si hay error
 
@@ -14,10 +14,12 @@ NC='\033[0m' # No Color
 
 # Stage (default: dev)
 STAGE=${1:-dev}
+TARGET_SERVICES_CSV=${2:-}
 
 echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}  Portal Admin - Deployment Secuencial${NC}"
 echo -e "${BLUE}  Stage: ${STAGE}${NC}"
+echo -e "${YELLOW}  Nota: cambios en JWT/IAM requieren nueva sesión en el portal.${NC}"
 echo -e "${BLUE}========================================${NC}\n"
 
 # Función para desplegar un servicio
@@ -78,7 +80,7 @@ check_infrastructure() {
 }
 
 # Contador de servicios
-TOTAL_SERVICES=16
+TOTAL_SERVICES=17
 DEPLOYED=0
 FAILED=0
 FAILED_SERVICES=()
@@ -109,11 +111,12 @@ echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}  Desplegando Servicios (${TOTAL_SERVICES})${NC}"
 echo -e "${BLUE}========================================${NC}\n"
 
-SERVICES=(
+ALL_SERVICES=(
     "services/job-authorizer"
     "services/api-maintainer"
     "services/api-contract"
     "services/api-program"
+    "services/api-ticket"
     "services/api-entity"
     "services/api-payment"
     "services/api-balance"
@@ -127,6 +130,24 @@ SERVICES=(
     "services/job-trigger"
     "services/job-instagram-poster"
 )
+
+SERVICES=()
+if [ -n "$TARGET_SERVICES_CSV" ]; then
+    IFS=',' read -r -a REQUESTED <<< "$TARGET_SERVICES_CSV"
+    for requested in "${REQUESTED[@]}"; do
+        requested="$(echo "$requested" | xargs)"
+        if [ -n "$requested" ]; then
+            SERVICES+=("services/$requested")
+        fi
+    done
+    TOTAL_SERVICES=${#SERVICES[@]}
+else
+    SERVICES=("${ALL_SERVICES[@]}")
+fi
+
+if [ -n "$TARGET_SERVICES_CSV" ]; then
+    echo -e "${YELLOW}🎯 Modo selectivo: ${TARGET_SERVICES_CSV}${NC}"
+fi
 
 for service in "${SERVICES[@]}"; do
     if [ -d "$PROJECT_ROOT/$service" ]; then

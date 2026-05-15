@@ -31,6 +31,10 @@ export const main = async (event) => {
       return unsuccessful(400, Object.assign(new Error('s3Key, fileName y mimeType son requeridos'), { statusCode: 400 }), ACTION);
     }
 
+    if (typeof s3Key !== 'string' || !s3Key.startsWith('inbox-adjuntos/') || s3Key.includes('..')) {
+      return unsuccessful(403, Object.assign(new Error('Clave S3 no permitida'), { statusCode: 403 }), ACTION);
+    }
+
     const { CONVERSATIONS_TABLE, BUCKET_INFO_GI } = process.env;
 
     const buffer = await getObjectBuffer({ Bucket: BUCKET_INFO_GI, Key: s3Key });

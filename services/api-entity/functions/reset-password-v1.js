@@ -7,10 +7,9 @@ import { standardMiddleware } from "../../../libs/middleware/index.js";
 const { DYNAMODB_USER_TABLE } = process.env;
 
 /**
- * Función principal para restablecer la contraseña de usuario usando un token de recuperación.
+ * @description Restablece la contraseña con token de recuperación y limpia bloqueo por intentos fallidos.
  */
 const handler = async (event) => {
-  console.log("Event ==>", event);
   const action = "Restablecimiento de contraseña.";
   const data = event.body;
 
@@ -53,7 +52,6 @@ const handler = async (event) => {
 
   // Validar que el usuario existe
   if (!resultPromises[0]) {
-    console.log(`Token inválido o expirado: ${data.token}`);
     const error = new Error('Token inválido o expirado.');
     error.statusCode = 400;
     throw error;
@@ -66,7 +64,6 @@ const handler = async (event) => {
   const now = new Date();
 
   if (now > tokenExpiry) {
-    console.log(`Token expirado para usuario ${user.email}. Expiry: ${user.resetTokenExpiry}, Now: ${now.toISOString()}`);
     const error = new Error('El token ha expirado. Solicita un nuevo enlace de recuperación.');
     error.statusCode = 400;
     throw error;
@@ -74,7 +71,6 @@ const handler = async (event) => {
 
   // Validar que el usuario esté activo
   if (!user.isActive) {
-    console.log(`Intento de restablecer contraseña para usuario desactivado: ${user.email}`);
     const error = new Error('Usuario desactivado.');
     error.statusCode = 403;
     throw error;
@@ -84,7 +80,7 @@ const handler = async (event) => {
   const saltRounds = 10;
   const hashedPassword = await bcrypt.hash(data.newPassword, saltRounds);
 
-  // Actualizar la contraseña y eliminar el token de recuperación
+  // Actualizar la contraseña, limpiar bloqueo por intentos y eliminar el token de recuperación
   const updateParams = {
     TableName: DYNAMODB_USER_TABLE,
     ReturnConsumedCapacity: "TOTAL",
@@ -92,10 +88,13 @@ const handler = async (event) => {
       pk: user.pk,
       sk: user.sk,
     },
-    UpdateExpression: "SET password = :password, updatedAt = :updatedAt REMOVE resetToken, resetTokenExpiry",
+    UpdateExpression:
+      "SET password = :password, updatedAt = :updatedAt, failedLoginAttempts = :zero, passwordResetRequired = :prFalse REMOVE resetToken, resetTokenExpiry, lockReason",
     ExpressionAttributeValues: {
       ":password": hashedPassword,
       ":updatedAt": new Date().toISOString(),
+      ":zero": 0,
+      ":prFalse": false,
     },
   };
 

@@ -1,25 +1,15 @@
 import axios from "axios";
-import jwt from "jsonwebtoken";
 import { resolveUserSession } from "./access-profile.js";
 import { success } from "../../../helpers/responses.js";
 import * as dynamoDbLib from "../../../libs/dynamodb-v3.js";
 import { standardMiddleware } from "../../../libs/middleware/index.js";
 import { getParameterValue } from "../../../libs/parameter-store.js";
 import { getGlobalConfig } from "../../../helpers/get-global-config.js";
+import { assertPortalJwtSecret, signPortalJwt } from "../../../libs/jwt-portal.js";
+import { buildJwtEndpointsFromAccess } from "../../../libs/fn-build-jwt-endpoints-from-access.js";
 
 const { DYNAMODB_USER_TABLE, DYNAMODB_CONFIG_TABLE, SECRET_KEY, GOOGLE_CLIENT_ID } = process.env;
 const APP_USERS_PK = 'APP#USERS';
-
-/**
- * Genera un token JWT firmado con los datos del usuario.
- *
- * @param {Object} body - Datos para incluir en el payload del token.
- * @param {string} secret - Clave secreta para firmar el token.
- * @returns {string} Token JWT con expiración de 3 días.
- */
-const generateToken = (body, secret) => {
-  return jwt.sign({ body }, secret, { expiresIn: "3d" });
-};
 
 /**
  * Valida el ID token de Google llamando al endpoint tokeninfo de Google.
@@ -84,7 +74,6 @@ const findUserByEmail = async (email) => {
  * @note Solo usuarios previamente registrados por el administrador pueden acceder.
  */
 const handler = async (event) => {
-  console.log("Event ==>", event);
   const action = "Identificación de usuario con Google.";
   const { credential } = event.body;
 
@@ -150,12 +139,18 @@ const handler = async (event) => {
     }),
   ]);
 
-  const token = generateToken(
+  assertPortalJwtSecret(secret);
+
+  const endpoints = buildJwtEndpointsFromAccess(access);
+  const token = signPortalJwt(
     {
-      allowances: "crud",
-      email: user.email,
-      profiles: profileTitles,
-      profileIds,
+      body: {
+        allowances: "crud",
+        email: user.email,
+        profiles: profileTitles,
+        profileIds,
+        endpoints,
+      },
     },
     secret
   );

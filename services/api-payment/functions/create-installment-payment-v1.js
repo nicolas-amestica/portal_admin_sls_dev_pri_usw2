@@ -4,11 +4,13 @@ import { success } from "../../../helpers/responses";
 import * as dynamoDbLib from "../../../libs/dynamodb-v3";
 import { standardMiddleware } from "../../../libs/middleware/index.js";
 import { configureTransbank } from "../utils/transbank.js";
+import { getPortalJwtBodyFromEvent } from "../../../libs/fn-get-portal-jwt-body-from-event.js";
 
 const {
   STAGE,
   IS_OFFLINE,
   DYNAMODB_PAYMENT_TABLE,
+  DYNAMODB_USER_TABLE,
 } = process.env;
 
 const FRONTEND_URL = IS_OFFLINE === "true"
@@ -24,10 +26,39 @@ const PENDING_TIMEOUT_MINUTES = 30;
  * Crea una transacción de pago para una cuota específica de un programa.
  */
 const handler = async (event) => {
-  console.log("Event ==>", event);
   const action = "Crear pago de cuota de programa.";
   const data = event.body;
-  const { programId, installmentNumber, amount, userId, payerEmail, returnUrl } = data;
+  const { programId, installmentNumber, amount, payerEmail, returnUrl } = data;
+
+  const jwtBody = await getPortalJwtBodyFromEvent(event);
+  const callerEmail = String(jwtBody.email ?? "").trim().toLowerCase();
+  if (!callerEmail) {
+    const error = new Error("Sesión inválida.");
+    error.statusCode = 401;
+    throw error;
+  }
+
+  const userRows = await dynamoDbLib.query({
+    TableName: DYNAMODB_USER_TABLE,
+    IndexName: "email-index",
+    KeyConditionExpression: "#email = :email",
+    FilterExpression: "begins_with(pk, :pkPrefix)",
+    ExpressionAttributeNames: { "#email": "email" },
+    ExpressionAttributeValues: { ":email": callerEmail, ":pkPrefix": "USR#" },
+  });
+  const callerUser = userRows?.[0];
+  if (!callerUser) {
+    const error = new Error("Usuario no encontrado.");
+    error.statusCode = 403;
+    throw error;
+  }
+  const userId = callerUser.pk.replace(/^USR#/, "");
+
+  if (data.userId != null && String(data.userId) !== String(userId)) {
+    const error = new Error("No autorizado.");
+    error.statusCode = 403;
+    throw error;
+  }
 
   // Validaciones
   if (!programId) {
@@ -45,14 +76,14 @@ const handler = async (event) => {
     error.statusCode = 400;
     throw error;
   }
-  if (!userId) {
-    const error = new Error('El userId es requerido.');
-    error.statusCode = 400;
-    throw error;
-  }
   if (!payerEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payerEmail)) {
     const error = new Error('El correo del pagador es requerido y debe ser válido.');
     error.statusCode = 400;
+    throw error;
+  }
+  if (String(payerEmail).trim().toLowerCase() !== callerEmail) {
+    const error = new Error('El correo del pagador debe coincidir con el usuario autenticado.');
+    error.statusCode = 403;
     throw error;
   }
 
@@ -125,7 +156,7 @@ const handler = async (event) => {
   const transaction = new WebpayPlus.Transaction(options);
   const response = await transaction.create(buyOrder, sessionId, amount, finalReturnUrl);
 
-  console.log(`Transacción creada en Transbank. Token: ${response.token}, URL: ${response.url}`);
+  console.log(`Transacción creada en Transbank (buyOrder=${buyOrder}).`);
 
   const timestamp = new Date().toISOString();
   await dynamoDbLib.put({
@@ -163,7 +194,7 @@ const handler = async (event) => {
     amount,
   };
 
-  console.log("Pago creado exitosamente:", JSON.stringify(result));
+  console.log(`Pago creado exitosamente paymentId=${paymentId} buyOrder=${buyOrder}`);
 
   return success(200, result, action);
 };

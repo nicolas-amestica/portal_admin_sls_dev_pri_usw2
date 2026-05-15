@@ -95,6 +95,8 @@ export const createPortalUser = async (
     phoneNumber: phoneNumber || null,
     password: hashedPassword,
     isActive: true,
+    failedLoginAttempts: 0,
+    passwordResetRequired: false,
     createdAt: now,
     updatedAt: now,
     content: contentEntry,

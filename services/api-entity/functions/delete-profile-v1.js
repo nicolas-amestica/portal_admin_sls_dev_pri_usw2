@@ -4,6 +4,8 @@ import { standardMiddleware } from '../../../libs/middleware/index.js';
 import { cache } from '../../../libs/cache/index.js';
 import { APP_PROFILES_PK } from './list-profiles-v1.js';
 import { APP_PK } from './access-profile.js';
+import { getPortalJwtBodyFromEvent } from '../../../libs/fn-get-portal-jwt-body-from-event.js';
+import { assertPortalAdministrador } from '../../../libs/assert-portal-administrador.js';
 
 const { DYNAMODB_USER_TABLE } = process.env;
 const APP_PROFILE_PERMISSIONS_PK = 'APP#PROFILE#PERMISSIONS';
@@ -13,7 +15,10 @@ const ACTION = 'Eliminar perfil.';
  * @description Elimina un perfil IAM y sus permisos de módulos asociados en cascada.
  */
 const handler = async (event) => {
-  const { sk } = event.queryStringParameters || {};
+  const jwtBody = await getPortalJwtBodyFromEvent(event);
+  assertPortalAdministrador(jwtBody.profiles);
+
+  const { sk } = event.queryParams || {};
 
   if (!sk) {
     const error = new Error('sk del perfil es requerido');

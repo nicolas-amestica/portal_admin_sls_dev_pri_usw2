@@ -31,6 +31,7 @@ provider:
   region: ${opt:region, 'us-west-2'}
   profile: pa-${self:custom.stage}
   lambdaHashingVersion: 20201221
+  logRetentionInDays: ${self:custom.logRetentionInDays.${self:custom.stage}, 14}
 
   httpApi:
     id: ${self:custom.apiGatewayId}
@@ -45,7 +46,7 @@ provider:
     NODE_OPTIONS: '--enable-source-maps'
 
   tracing:
-    lambda: true
+    lambda: ${self:custom.xrayEnabled.${self:custom.stage}, true}
 
   deploymentBucket:
     name: sls-deploys-${self:custom.stage}-pri-${self:custom.shortRegion}

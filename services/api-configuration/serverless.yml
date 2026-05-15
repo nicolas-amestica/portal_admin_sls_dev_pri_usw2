@@ -21,6 +21,7 @@ provider:
   region: ${self:custom.region}
   profile: pa-${self:custom.stage}
   lambdaHashingVersion: 20201221
+  logRetentionInDays: ${self:custom.logRetentionInDays.${self:custom.stage}, 14}
   endpointType: REGIONAL
   architecture: arm64
 

@@ -22,7 +22,6 @@ const FRONTEND_URL = IS_OFFLINE === "true"
  * Para nuevos pagos, usar POST /v1/pagos/cuotas/crear.
  */
 const handler = async (event) => {
-  console.log("Event ==>", event);
   const action = "Crear transacción de pago.";
   const data = event.body;
   const { amount, orderId, userId, description } = data;

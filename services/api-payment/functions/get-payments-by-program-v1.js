@@ -9,7 +9,6 @@ const { DYNAMODB_PAYMENT_TABLE } = process.env;
  * Obtiene todos los pagos realizados para un programa específico.
  */
 const handler = async (event) => {
-  console.log("Event ==>", event);
   const action = "Obtener pagos por programa.";
   const programId = event.queryParams?.programId;
 

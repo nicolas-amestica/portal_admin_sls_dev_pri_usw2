@@ -31,6 +31,7 @@ provider:
   region: ${opt:region, 'us-west-2'}
   profile: pa-${self:custom.stage}
   lambdaHashingVersion: 20201221
+  logRetentionInDays: ${self:custom.logRetentionInDays.${self:custom.stage}, 14}
 
   httpApi:
     id: ${self:custom.apiGatewayId}
@@ -53,6 +54,7 @@ provider:
     BUCKET_INFO_GI: giras-indomito-${self:custom.stage}-info
     AGENT_LAMBDA_NAME: agente-whatsapp-${self:custom.stage}-ejecutar_agente_v1
     META_PAGE_SECRET_KEY: /pa/${self:custom.stage}/meta-page-config
+    SECRET_KEY: /pa/${self:custom.stage}/jwt-key
     # Cambiar a 'true' para habilitar respuestas en Messenger e Instagram
     ENABLE_META_CHANNELS: 'false'
     WS_MANAGEMENT_ENDPOINT:
@@ -65,7 +67,7 @@ provider:
           - '.amazonaws.com/${self:provider.stage}'
 
   tracing:
-    lambda: true
+    lambda: ${self:custom.xrayEnabled.${self:custom.stage}, true}
 
   deploymentBucket:
     name: sls-deploys-${self:custom.stage}-pri-${self:custom.shortRegion}
@@ -95,7 +97,7 @@ provider:
       Action:
         - execute-api:ManageConnections
       Resource:
-        - arn:aws:execute-api:${self:provider.region}:*:*/@connections/*
+        Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebsocketsApi}/@connections/*
 
 functions:
   verificar_webhook_v1:
@@ -133,6 +135,9 @@ functions:
       - httpApi:
           path: /v1/inbox/conversaciones
           method: GET
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
 
   obtener_conversacion_v1:
     handler: functions/obtener-conversacion-v1.main
@@ -143,6 +148,9 @@ functions:
       - httpApi:
           path: /v1/inbox/conversaciones/{phone}
           method: GET
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
 
   responder_conversacion_v1:
     handler: functions/responder-conversacion-v1.main
@@ -153,6 +161,9 @@ functions:
       - httpApi:
           path: /v1/inbox/conversaciones/{phone}/responder
           method: POST
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
 
   presign_adjunto_v1:
     handler: functions/presign-adjunto-v1.main
@@ -163,6 +174,9 @@ functions:
       - httpApi:
           path: /v1/inbox/adjuntos/presign
           method: POST
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
 
   eliminar_conversacion_v1:
     handler: functions/eliminar-conversacion-v1.main
@@ -173,6 +187,9 @@ functions:
       - httpApi:
           path: /v1/inbox/conversaciones/{phone}
           method: DELETE
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
 
   actualizar_contacto_v1:
     handler: functions/actualizar-contacto-v1.main
@@ -183,6 +200,9 @@ functions:
       - httpApi:
           path: /v1/inbox/conversaciones/{phone}/contacto
           method: PATCH
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
 
   marcar_no_leido_v1:
     handler: functions/marcar-no-leido-v1.main
@@ -193,6 +213,9 @@ functions:
       - httpApi:
           path: /v1/inbox/conversaciones/{phone}/marcar-no-leido
           method: PATCH
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
 
   adjuntar_archivo_v1:
     handler: functions/adjuntar-archivo-v1.main
@@ -203,6 +226,9 @@ functions:
       - httpApi:
           path: /v1/inbox/conversaciones/{phone}/adjuntar
           method: POST
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
 
   ws_connect_v1:
     handler: functions/ws-connect-v1.main

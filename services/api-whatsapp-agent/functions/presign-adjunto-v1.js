@@ -23,13 +23,20 @@ export const main = async (event) => {
       return unsuccessful(400, err, ACTION);
     }
 
-    const s3Key = `inbox-adjuntos/${uuidv7()}/${fileName}`;
+    const rawBase = String(fileName).split(/[/\\]/).pop() ?? 'adjunto';
+    const safeName = rawBase.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 200) || 'adjunto';
+    if (!safeName || safeName.includes('..')) {
+      const err = Object.assign(new Error('Nombre de archivo inválido'), { statusCode: 400 });
+      return unsuccessful(400, err, ACTION);
+    }
+
+    const s3Key = `inbox-adjuntos/${uuidv7()}/${safeName}`;
     const uploadUrl = await putPresignedUrl(
       { Bucket: process.env.BUCKET_INFO_GI, Key: s3Key, ContentType: mimeType },
       EXPIRES_IN
     );
 
-    console.log(`[${ACTION}] Pre-signed URL generada para "${fileName}" → ${s3Key}`);
+    console.log(`[${action}] Pre-signed URL generada → ${s3Key}`);
     return success(200, { uploadUrl, s3Key }, ACTION);
   } catch (error) {
     console.error(`[${ACTION}] Error:`, error.message, error.stack);

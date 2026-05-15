@@ -18,8 +18,6 @@ const handler = async (event) => {
   const action = "cancel-installment-payment-v1";
 
   try {
-    console.log(`[${action}] Event:`, JSON.stringify(event, null, 2));
-
     const { programId, installmentNumber } = event.body;
 
     if (!programId || !installmentNumber) {

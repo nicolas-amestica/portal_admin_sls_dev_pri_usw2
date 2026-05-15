@@ -10,6 +10,22 @@ regions:
 
 stage: ${opt:stage, self:provider.stage}
 
+# Ajustes transversales de costo/rendimiento por ambiente.
+logRetentionInDays:
+  dev: 7
+  qa: 10
+  prd: 30
+
+xrayEnabled:
+  dev: false
+  qa: true
+  prd: true
+
+authorizerCacheTtlSeconds:
+  dev: 30
+  qa: 60
+  prd: 120
+
 bucketDeployName: sls-deploys-${self:custom.stage}-pri-${self:custom.shortRegion}
 usersTableName: users-${self:custom.stage}-pri-${self:custom.shortRegion}
 configTableName: config-${self:custom.stage}-pri-${self:custom.shortRegion}

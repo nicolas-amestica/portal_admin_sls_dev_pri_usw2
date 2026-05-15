@@ -23,7 +23,6 @@ const { DYNAMODB_PAYMENT_TABLE } = process.env;
  * con capacidad de filtrado y paginación.
  */
 const handler = async (event) => {
-  console.log("Event ==>", event);
   const action = "Listar transacciones de pago.";
 
   try {

@@ -1,5 +1,5 @@
-import jwt from 'jsonwebtoken';
 import { getParameterValue } from '../../../libs/parameter-store.js';
+import { verifyPortalJwt } from '../../../libs/jwt-portal.js';
 
 const STAFF_TITLES = new Set(['administrador', 'operador']);
 
@@ -44,7 +44,7 @@ async function verifyJwtBody(headers) {
   const token = String(auth).slice(7).trim();
   try {
     const secret = await getJwtSecretCached(secretPath);
-    const decoded = jwt.verify(token, secret);
+    const decoded = verifyPortalJwt(token, secret);
     return decoded.body ?? {};
   } catch {
     const err = new Error('Token inválido o expirado.');

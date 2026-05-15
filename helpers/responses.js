@@ -20,12 +20,15 @@ export const logger = winston.createLogger({
  *
  * @param {number} statusCode - Código de estado HTTP de la respuesta.
  * @param {Object} body - Objeto que representa el cuerpo de la respuesta.
- * @param {string} status - Estado de la respuesta (por ejemplo, 'success', 'error').
- * @param {boolean} [debug=true] - Si es true, registra el cuerpo de la respuesta para depuración.
+ * @param {boolean} status - Indica si la operación fue exitosa.
+ * @param {boolean} [debug] - Si es true, fuerza log del cuerpo; si se omite, solo se loguea con LOG_RESPONSE_BODIES=true.
  * @returns {Object} Objeto de respuesta con statusCode, headers y body serializado en JSON.
  */
-function buildResponse(statusCode, body, status, debug = true) {
-  if (debug) logger.info(body);
+const shouldLogResponseBody = (debugFlag) =>
+  debugFlag !== undefined ? debugFlag : process.env.LOG_RESPONSE_BODIES === "true";
+
+function buildResponse(statusCode, body, status, debug) {
+  if (shouldLogResponseBody(debug)) logger.info(body);
   const content = JSON.parse(
     JSON.stringify(body, (key, value) =>
       typeof value === "bigint" ? value.toString() : value
@@ -35,8 +38,6 @@ function buildResponse(statusCode, body, status, debug = true) {
     statusCode,
     headers: {
       "Content-Type": "application/json",
-      "Access-Control-Allow-Headers": "*",
-      "Access-Control-Allow-Origin": "*",
     },
     body: JSON.stringify({ state: status, ...content }),
     isBase64Encoded: false,
@@ -50,10 +51,10 @@ function buildResponse(statusCode, body, status, debug = true) {
  * @param {object} body - Cuerpo de la respuesta, puede contener propiedades como Count, ScannedCount, ConsumedCapacity, LastEvaluatedKey, Item, Attributes o Items.
  * @param {string} action - Acción realizada que se describe en la metadata.
  * @param {object} params - Parámetros de consulta utilizados en la petición.
- * @param {boolean} [debug=true] - Indica si se debe incluir información de depuración en la respuesta.
+ * @param {boolean} [debug] - Control de log del cuerpo (ver buildResponse).
  * @returns {object} Respuesta formateada con metadatos y datos.
  */
-export function success(code, body, action, params, debug = true) {
+export function success(code, body, action, params, debug) {
   const response = {
     metadata: {
       statusCode: code,
@@ -80,15 +81,24 @@ export function success(code, body, action, params, debug = true) {
  * @returns {Object} Objeto de respuesta formateado indicando el fallo de la operación.
  */
 export function unsuccessful(code, err, action) {
+  const portalExtra =
+    err?.portalData && typeof err.portalData === "object" && !Array.isArray(err.portalData)
+      ? err.portalData
+      : {};
   const response = {
     metadata: {
       action,
-      statusCode: err.code,
+      statusCode: err?.code,
     },
-    data: { ...err },
+    data: {
+      message: err?.message ?? "Error",
+      code: err?.code,
+      correlationId: err?.correlationId,
+      ...portalExtra,
+    },
   };
 
-  return buildResponse(code, response, false);
+  return buildResponse(code, response, false, false);
 }
 
 /**
@@ -98,7 +108,7 @@ export function unsuccessful(code, err, action) {
  * @returns {*} La respuesta construida con código de estado 200.
  */
 export function send(body) {
-  return buildResponse(200, body, true);
+  return buildResponse(200, body, true, false);
 }
 
 /**

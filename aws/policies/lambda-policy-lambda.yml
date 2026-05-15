@@ -1,6 +1,5 @@
-Effect: 'Allow'
+Effect: Allow
 Action:
-  - 'lambda:InvokeFunction'
-  - 'lambda:InvokeAsync'
+  - lambda:InvokeFunction
 Resource:
-  - '*'
+  - arn:aws:lambda:${self:provider.region}:*:function:agente-whatsapp-${self:custom.stage}-ejecutar_agente_v1

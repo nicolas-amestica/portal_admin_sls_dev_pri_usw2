@@ -3,4 +3,4 @@ Action:
   - ssm:GetParameter
   - ssm:GetParameters
 Resource:
-  - arn:aws:ssm:${self:provider.region}:*:parameter/pa/*
+  - arn:aws:ssm:${self:provider.region}:*:parameter/pa/${self:custom.stage}/*
