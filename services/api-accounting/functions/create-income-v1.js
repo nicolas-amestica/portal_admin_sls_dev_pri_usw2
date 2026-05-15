@@ -13,7 +13,7 @@ const { DYNAMODB_ACCOUNTING_TABLE } = process.env;
 const ACTION = 'Registrar ingreso';
 const REQUIRED_FIELDS = [
   'fecha', 'montoTotal', 'tipoDocumento', 'nombreCliente', 'concepto',
-  'medioPago', 'cuentaBancaria', 'programSk',
+  'medioPago', 'cuentaBancaria',
 ];
 
 /**
@@ -69,7 +69,7 @@ const buildIncome = (body, partitionKey, userId) => {
 
 /**
  * Handler: registra un ingreso recibido en cuenta bancaria.
- * POST /v1/contabilidad/ingresos — body opcional userId (auditoría).
+ * POST /v1/contabilidad/ingresos — body opcional userId (auditoría) y programSk (si falta o vacío, el SK usa segmento legacy).
  */
 const handler = async (event) => {
   const missing = REQUIRED_FIELDS.filter((f) => !event.body?.[f]);
@@ -83,7 +83,7 @@ const handler = async (event) => {
   const userId = normalizeAuditUserId(event.body?.userId);
 
   const programSkTrim = String(event.body.programSk ?? '').trim();
-  event.body.programSk = programSkTrim;
+  event.body.programSk = programSkTrim; // opcional; SK usa LEGACY_PROGRAM_SEGMENT si viene vacío
 
   const item = buildIncome(event.body, partitionKey, userId);
   const result = await dynamoDbLib.put({ TableName: DYNAMODB_ACCOUNTING_TABLE, Item: item });
