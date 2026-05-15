@@ -71,6 +71,10 @@ resources:
         ApiId: ${self:custom.apiGatewayId}
         AuthorizerType: REQUEST
         AuthorizerPayloadFormatVersion: '2.0'
+        # EnableSimpleResponses: devuelve { isAuthorized: boolean } en vez de política IAM.
+        # Esto elimina el bug de caché donde API Gateway reutilizaba una política con
+        # Resource = ARN de la primera ruta invocada, denegando todas las demás con 403.
+        EnableSimpleResponses: true
         AuthorizerUri: 
           Fn::Join:
             - ''
@@ -79,9 +83,6 @@ resources:
               - ':lambda:path/2015-03-31/functions/'
               - !GetAtt AuthLambdaFunction.Arn
               - '/invocations'
-        # Incluir routeKey en la clave de caché: si solo va Authorization, API Gateway
-        # reutiliza la misma política IAM (Resource = ARN de la primera ruta) en todas
-        # las rutas y el resto recibe 403. Ver AWS HTTP API Lambda authorizer caching.
         IdentitySource:
           - '$request.header.Authorization'
           - '$context.routeKey'
