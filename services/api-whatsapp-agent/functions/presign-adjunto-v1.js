@@ -36,7 +36,7 @@ export const main = async (event) => {
       EXPIRES_IN
     );
 
-    console.log(`[${action}] Pre-signed URL generada → ${s3Key}`);
+    console.log(`[${ACTION}] Pre-signed URL generada → ${s3Key}`);
     return success(200, { uploadUrl, s3Key }, ACTION);
   } catch (error) {
     console.error(`[${ACTION}] Error:`, error.message, error.stack);
