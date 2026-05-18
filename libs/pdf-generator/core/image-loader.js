@@ -8,11 +8,9 @@ let cachedImages = null;
  */
 const loadImageAsBase64 = async (bucket, key) => {
   try {
-    console.log(`Cargando imagen: s3://${bucket}/${key}`);
     const { Body } = await S3.getObject({ Bucket: bucket, Key: key });
     const byteArray = await Body.transformToByteArray();
     const base64 = Buffer.from(byteArray).toString('base64');
-    console.log(`Imagen cargada exitosamente: ${key} (${base64.length} bytes en base64)`);
     return base64;
   } catch (error) {
     console.error(`Error cargando imagen desde S3: s3://${bucket}/${key}`, {
@@ -30,11 +28,8 @@ const loadImageAsBase64 = async (bucket, key) => {
  */
 export const loadImages = async (bucket, headerKey, footerKey) => {
   if (cachedImages) {
-    console.log("Usando imágenes en caché");
     return cachedImages;
   }
-
-  console.log(`Cargando imágenes desde S3 bucket: ${bucket}`);
 
   try {
     const [headerImage, footerImage] = await Promise.all([
@@ -43,7 +38,6 @@ export const loadImages = async (bucket, headerKey, footerKey) => {
     ]);
 
     cachedImages = { headerImage, footerImage };
-    console.log("Imágenes almacenadas en caché para futuros usos");
 
     return cachedImages;
   } catch (error) {
@@ -60,11 +54,8 @@ export const loadImages = async (bucket, headerKey, footerKey) => {
  */
 export const loadSignatures = async (bucket, representatives) => {
   if (!representatives || representatives.length === 0) {
-    console.log("No hay representantes para cargar firmas");
     return [];
   }
-
-  console.log(`Cargando ${representatives.length} firmas desde S3 bucket: ${bucket}`);
 
   const signaturePromises = representatives.map(async (rep) => {
     const dni = rep.dni || rep.rut;
@@ -82,7 +73,7 @@ export const loadSignatures = async (bucket, representatives) => {
         name: rep.name
       };
     } catch (error) {
-      console.warn(`No se pudo cargar la firma para DNI ${dni}:`, error.message);
+      console.warn(`No se pudo cargar la firma para el representante:`, error.message);
       return null;
     }
   });
@@ -91,8 +82,6 @@ export const loadSignatures = async (bucket, representatives) => {
 
   // Filtrar firmas nulas (que no se pudieron cargar)
   const validSignatures = signatures.filter(sig => sig !== null);
-
-  console.log(`Se cargaron exitosamente ${validSignatures.length} de ${representatives.length} firmas`);
 
   return validSignatures;
 };

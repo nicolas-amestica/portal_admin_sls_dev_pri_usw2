@@ -462,7 +462,7 @@ export async function runConversationTurn(history, newMessage, phoneNumber, coll
 
     const responses = await Promise.all(calls.map(async (part) => {
       const { name, args } = part.functionCall;
-      console.log(`[GEMINI] Herramienta: ${name}`, JSON.stringify(args));
+      console.log(`[GEMINI] Herramienta: ${name}`);
 
       let result;
       try {
@@ -472,7 +472,7 @@ export async function runConversationTurn(history, newMessage, phoneNumber, coll
       }
 
       toolsExecuted.push({ name, args, result });
-      console.log(`[GEMINI] Resultado ${name}:`, JSON.stringify(result));
+      console.log(`[GEMINI] Resultado ${name}: OK`);
 
       return {
         functionResponse: {

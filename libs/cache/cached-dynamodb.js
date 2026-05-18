@@ -21,18 +21,15 @@ export class CachedDynamoDB {
     // 1. Intentar obtener del caché
     const cached = cache.get(cacheKey);
     if (cached !== null) {
-      console.log('CACHE_HIT', { key: cacheKey });
       return cached;
     }
 
     // 2. Cache MISS - consultar DynamoDB
-    console.log('CACHE_MISS', { key: cacheKey });
     const result = await dynamodb.get(params);
 
     // 3. Guardar en caché si hay resultado
     if (result.Item) {
       cache.set(cacheKey, result.Item, ttl);
-      console.log('CACHE_SET', { key: cacheKey, ttl: `${ttl}ms` });
     }
 
     return result.Item || null;
@@ -50,12 +47,10 @@ export class CachedDynamoDB {
     // 1. Intentar obtener del caché
     const cached = cache.get(cacheKey);
     if (cached !== null) {
-      console.log('CACHE_HIT', { key: cacheKey, count: cached.length });
       return cached;
     }
 
     // 2. Cache MISS - consultar DynamoDB
-    console.log('CACHE_MISS', { key: cacheKey });
     const result = await dynamodb.query(params);
 
     // 3. Guardar en caché si hay resultados
@@ -63,7 +58,6 @@ export class CachedDynamoDB {
     const items = result || [];
     if (items.length > 0) {
       cache.set(cacheKey, items, ttl);
-      console.log('CACHE_SET', { key: cacheKey, count: items.length, ttl: `${ttl}ms` });
     }
 
     return items;
@@ -81,18 +75,15 @@ export class CachedDynamoDB {
     // 1. Intentar obtener del caché
     const cached = cache.get(cacheKey);
     if (cached !== null) {
-      console.log('CACHE_HIT', { key: cacheKey, count: cached.length });
       return cached;
     }
 
     // 2. Cache MISS - consultar DynamoDB
-    console.log('CACHE_MISS', { key: cacheKey });
     const result = await dynamodb.scan(params);
 
     // 3. Guardar en caché
     const items = result.Items || [];
     cache.set(cacheKey, items, ttl);
-    console.log('CACHE_SET', { key: cacheKey, count: items.length, ttl: `${ttl}ms` });
 
     return items;
   }
@@ -112,7 +103,6 @@ export class CachedDynamoDB {
       const keys = Array.isArray(invalidateKeys) ? invalidateKeys : [invalidateKeys];
       keys.forEach(key => {
         cache.invalidate(key);
-        console.log('CACHE_INVALIDATE', { key });
       });
     }
 
@@ -134,7 +124,6 @@ export class CachedDynamoDB {
       const keys = Array.isArray(invalidateKeys) ? invalidateKeys : [invalidateKeys];
       keys.forEach(key => {
         cache.invalidate(key);
-        console.log('CACHE_INVALIDATE', { key });
       });
     }
 
@@ -148,6 +137,5 @@ export class CachedDynamoDB {
    */
   static invalidatePattern(pattern) {
     cache.invalidatePattern(pattern);
-    console.log('CACHE_INVALIDATE_PATTERN', { pattern });
   }
 }

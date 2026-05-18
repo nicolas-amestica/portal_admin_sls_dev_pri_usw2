@@ -75,7 +75,6 @@ export const generateDocumentBuffer = async ({ scope, form, action = {}, bucket 
     let footerImage = null;
 
     if (action.hasHeaderFooter === true) {
-      console.log('hasHeaderFooter = true: Cargando header y footer desde S3...');
       try {
         const images = await loadImages(
           bucket,
@@ -84,13 +83,10 @@ export const generateDocumentBuffer = async ({ scope, form, action = {}, bucket 
         );
         headerImage = images.headerImage;
         footerImage = images.footerImage;
-        console.log('Header y footer cargados exitosamente');
       } catch (error) {
         console.warn('Error al cargar header/footer desde S3:', error.message);
         // Continuar sin imágenes en caso de error
       }
-    } else {
-      console.log(`hasHeaderFooter = ${action.hasHeaderFooter}: NO se cargarán header ni footer`);
     }
 
     // 6. Cargar firmas digitales si hasSigned = false (documento con firmas)
@@ -102,20 +98,14 @@ export const generateDocumentBuffer = async ({ scope, form, action = {}, bucket 
         ...(documentData.signatures.clients || [])
       ];
 
-      console.log(`hasSigned = false: Intentando cargar ${allRepresentatives.length} firma(s) desde S3...`);
-      console.log('DNIs a buscar:', allRepresentatives.map(r => r.dni).join(', '));
-
       if (allRepresentatives.length > 0) {
         try {
           signatures = await loadSignatures(bucket, allRepresentatives);
-          console.log(`Firmas cargadas: ${signatures.length} de ${allRepresentatives.length}`);
         } catch (error) {
           console.warn('Error al cargar firmas desde S3:', error.message);
           // Continuar sin firmas en caso de error
         }
       }
-    } else {
-      console.log(`hasSigned = ${action.hasSigned}: NO se cargarán firmas digitales`);
     }
 
     // 7. Configurar opciones del generador de PDF

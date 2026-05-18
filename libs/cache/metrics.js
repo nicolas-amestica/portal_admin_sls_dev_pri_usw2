@@ -4,49 +4,36 @@ import { cache } from './in-memory-cache.js';
  * Métricas del caché para observabilidad
  *
  * Proporciona funciones para:
- * - Logging de estadísticas del caché
+ * - Obtención de estadísticas del caché
  * - Integración futura con CloudWatch Metrics
  * - Análisis de hit rate y rendimiento
  */
 export class CacheMetrics {
   /**
-   * Log de estadísticas del caché
+   * Retorna estadísticas del caché
    *
-   * Llamar al final de cada invocación Lambda para registrar métricas
+   * @returns {object} Estadísticas actuales del caché
    */
   static logStats() {
     const stats = cache.getStats();
-
-    console.log('CACHE_STATS', {
-      hits: stats.hits,
-      misses: stats.misses,
-      total: stats.total,
-      hitRate: stats.hitRate,
-      cacheSize: stats.size,
-      timestamp: new Date().toISOString()
-    });
-
     return stats;
   }
 
   /**
-   * Log detallado con información adicional
+   * Retorna estadísticas detalladas con información adicional
    *
    * @param {string} functionName - Nombre de la función Lambda
    * @param {object} context - Context de Lambda (opcional)
+   * @returns {object} Estadísticas detalladas
    */
   static logDetailedStats(functionName, context = {}) {
     const stats = cache.getStats();
-
-    console.log('CACHE_DETAILED_STATS', {
+    return {
       functionName,
       requestId: context.requestId,
       correlationId: context.correlationId,
       ...stats,
-      timestamp: new Date().toISOString()
-    });
-
-    return stats;
+    };
   }
 
   /**
@@ -56,9 +43,6 @@ export class CacheMetrics {
    */
   static resetStats() {
     cache.stats = { hits: 0, misses: 0 };
-    console.log('CACHE_STATS_RESET', {
-      timestamp: new Date().toISOString()
-    });
   }
 
   /**
@@ -139,11 +123,6 @@ export class CacheMetrics {
     // };
     //
     // await cloudwatch.putMetricData(params);
-
-    console.log('CACHE_CLOUDWATCH_PUBLISH', {
-      message: 'CloudWatch integration not yet implemented',
-      stats
-    });
 
     return stats;
   }
