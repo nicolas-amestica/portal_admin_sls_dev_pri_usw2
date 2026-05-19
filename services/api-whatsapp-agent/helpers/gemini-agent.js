@@ -36,15 +36,23 @@ const TOOLS = [
       {
         name: 'buscar_presupuestos',
         description:
-          'Busca PDFs de presupuesto en S3. Para Camboriú (Brasil) usa destino camboriu y codigoRegion brasil; los archivos reales se llaman brasil-1.pdf, brasil-2.pdf (el sistema los encuentra por destino camboriu). Para Bariloche usa la región chilena real del colegio (no uses brasil). Llamar cuando haya destino y codigoRegion confirmados. Si el cliente mencionó ciudad/comuna, incluirla en ciudad.',
+          'Busca PDFs de presupuesto en S3. Para Camboriú (Brasil) usa destino camboriu y codigoRegion brasil; los archivos reales se llaman brasil-1.pdf, brasil-2.pdf (el sistema los encuentra por destino camboriu). Para Bariloche usa la región chilena real del colegio (no uses brasil). Para circuitos del Sur de Chile (sur_de_chile, chiloe, pucon, valdivia, puerto_varas) usa SOLO codigoRegion v (V Región). Llamar cuando haya destino y codigoRegion confirmados. Si el cliente mencionó ciudad/comuna, incluirla en ciudad.',
         parameters: {
           type: 'OBJECT',
           properties: {
             destino: {
               type: 'STRING',
               description:
-                "Destino principal del viaje en minúsculas. 'bariloche' (Argentina/Bariloche). 'camboriu' para Camboriú-Brasil (los PDF en S3 usan nombre brasil-N.pdf; no cambiar el valor del argumento).",
-              enum: ['bariloche', 'camboriu'],
+                "Destino principal del viaje en minúsculas. 'bariloche' (Argentina/Bariloche). 'camboriu' para Camboriú-Brasil (los PDF en S3 usan nombre brasil-N.pdf; no cambiar el valor del argumento). 'sur_de_chile' si piden sur de chile o circuito sur sin ciudad concreta (solo con codigoRegion v). 'chiloe', 'pucon', 'valdivia', 'puerto_varas' cuando nombren ese lugar (solo con codigoRegion v). Puede devolver varios PDF si el nombre del archivo incluye ese destino.",
+              enum: [
+                'bariloche',
+                'camboriu',
+                'sur_de_chile',
+                'chiloe',
+                'pucon',
+                'valdivia',
+                'puerto_varas',
+              ],
             },
             codigoRegion: {
               type: 'STRING',
@@ -288,7 +296,7 @@ export function buildSystemPrompt(phoneNumber, collectedData, channel, hasHistor
   - **Argentina en cotización escolar:** Para el lado argentino lo habitual para giras de estudio es Bariloche (patagonia argentina).
   - **Argentina vs Brasil:** Si piden cotizar "Argentina" y "Brasil" por separado, aclara que la alternativa argentina típica para giras es Bariloche: ejecuta buscar_presupuestos para bariloche con la región chilena del colegio y otra llamada para camboriu con codigoRegion brasil; responde con UN solo mensaje que mencione ambos envíos (sin duplicar introducción).
   - **Dos destinos mismo pedido:** Tras dos llamadas buscar_presupuestos (ej: Bariloche + Camboriú), un único mensaje cohesivo y una sola invitación a reunión.
-  - **Sur de Chile / otros destinos:** El envío automático de PDF en esta herramienta es principalmente Bariloche (por región) y Camboriú (carpeta brasil). Para otros circuitos del Sur u ofertas sin PDF automático, explica que sí trabajan esos destinos cuando aplique, ofrece reunión informativa y orienta sin ejecutar sin_respuesta salvo que sea un tema fuera de alcance comercial.
+  - **Sur de Chile (solo origen V Región):** Invoca buscar_presupuestos con sur_de_chile, chiloe, pucon, valdivia o puerto_varas SOLO cuando codigoRegion sea v (Valparaíso, Viña del Mar, Quilpué, Villa Alemana, etc.). Si el cliente es de otra región y pide esos destinos, NO llames a la herramienta ni uses sin_respuesta: confirma que sí trabajan esos circuitos y ofrece reunión informativa. Si sur_de_chile devuelve varios PDF, preséntalos como programas distintos (no duplicados).
   - **Derivación a humano (sin_respuesta):** Solo para temas que no puedas resolver con lo anterior ni con buscar_presupuestos ni con reuniones (ej: estado puntual de un pago ya registrado en sistemas internos que no tienes, reclamos legales muy específicos). No uses sin_respuesta para preguntas cubiertas en "Consultas frecuentes". Ver sección "Silencio total al derivar".
 
   ## Silencio total al derivar (sin_respuesta)
@@ -296,15 +304,16 @@ export function buildSystemPrompt(phoneNumber, collectedData, channel, hasHistor
   - Motivo: evitar mensajes vacíos de contenido útil y que el humano sea quien responda cuando corresponda.
 
   ## Destinos con PDF automático (WhatsApp)
-  - Bariloche: carpeta presupuestos/{codigoRegion}/ archivos bariloche-N.pdf según región del colegio.
+  - Bariloche: carpeta presupuestos/{codigoRegion}/ archivos bariloche-N.pdf según región del colegio (puede coincidir también con circuitos compuestos del sur si el nombre del PDF incluye bariloche).
   - Camboriú (Brasil): carpeta presupuestos/brasil/ con archivos brasil-N.pdf; para buscar_presupuestos usa destino camboriu y codigoRegion brasil siempre.
+  - Sur de Chile (solo codigoRegion v): carpeta presupuestos/v/ con circuitos multi-destino. Destinos: sur_de_chile (hasta 3 programas), chiloe, pucon, valdivia, puerto_varas. Un mismo destino puede devolver más de un PDF si el nombre del archivo lo incluye.
 
   ## Flujo para entregar presupuestos
   ${channel === 'messenger' || channel === 'instagram' ?
   `IMPORTANTE: Esta conversación llega por ${channel === 'messenger' ? 'Messenger' : 'Instagram'}. NO uses buscar_presupuestos. Cuando el cliente pida presupuestos o información de viajes, responde exactamente: "Para recibir toda la información y presupuestos de nuestras giras, te invitamos a contactarnos por WhatsApp al +56 9 8609 8787, donde te atenderemos con todos los detalles."` :
   `1. Identifica el destino de interés. Si el cliente menciona Argentina en una cotización escolar, aclara en una frase que del lado argentino lo habitual para giras es Bariloche.
   2. Pregunta desde qué región del país salen SOLO si en el historial de esta conversación aún no quedó clara la región para el pedido actual (Para Brasil/Camboriú al llamar la herramienta usa codigoRegion brasil). Si el cliente ya dio región y destino y no cambió de tema, no repitas la pregunta.
-  3. Con destino y región, llama a buscar_presupuestos. Si en un mismo pedido quieren dos destinos (ej: Bariloche y Camboriú), llama buscar_presupuestos dos veces y responde con UN solo mensaje corto que mencione ambos envíos de PDF y una sola invitación a reunión (sin repetir presentación ni párrafos duplicados).
+  3. Con destino y región, llama a buscar_presupuestos. Para sur de chile o destinos del sur (chiloe, pucon, valdivia, puerto_varas) el colegio debe ser de V Región (codigoRegion v). Si en un mismo pedido quieren dos destinos (ej: Bariloche y Camboriú), llama buscar_presupuestos dos veces y responde con UN solo mensaje corto que mencione ambos envíos de PDF y una sola invitación a reunión (sin repetir presentación ni párrafos duplicados). Si la herramienta devuelve varios PDF para un destino, indica brevemente que son alternativas de circuito.
   4. Texto descuentos y rifa: Indica el siguiente párrafo literal solo la PRIMERA vez en esta conversación que envías PDFs de presupuesto (primera entrega de cotizaciones en el hilo). Si ya enviaste PDFs en mensajes anteriores y en este turno envías otros PDFs adicionales, NO repitas el párrafo completo; como máximo una línea breve del tipo "Los descuentos y la rifa siguen siendo los indicados en los programas que te enviamos" u omítelo si es redundante.
   Párrafo solo en primera entrega de cotizaciones por PDF: "Existen 2 descuentos; 10% descuento si cancelan en efectivo y 10% descuento al alumno que tenga un hermano que haya viajado con nosotros anteriormente, además tenemos un beneficio que sería una rifa pro-fondos donde los premios los ponemos nosotros y ustedes solo deben vender los números y el dinero recaudado lo pueden utilizar para costear el viaje o en lo que estimen conveniente".
   5. Finalmente, ofrece agendar la reunión online para entregar más detalles y esclarecer dudas. NO seas insistente, con ofrecerla 1 o 2 veces en toda la conversación es suficiente.`
