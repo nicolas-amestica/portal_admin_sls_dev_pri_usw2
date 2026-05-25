@@ -1,30 +1,12 @@
 import axios from 'axios';
 import { getCalendarAccessToken, buildCalendarApiUrl, mapGoogleEventToMeetEvent } from '../../../helpers/google-calendar-auth.js';
+import { mergeAttendeesEnsuringDefaults } from '../../../helpers/meet-default-guest-attendees.js';
+import { buildAgentMeetingSharedProperties } from '../../../helpers/meet-default-host-presenter.js';
+import { buildEndDateTime, validateMeetingSlot } from '../helpers/meeting-scheduling-rules.js';
 import { buscarEventosPorTelefono } from './crear-reunion.js';
-import { mergeAttendeesEnsuringDefaults } from './meet-default-guest-attendees.js';
+import { listarReuniones } from './listar-reuniones.js';
 
 const TIMEZONE = 'America/Santiago';
-
-/**
- * @description Suma dos horas a la combinación de fecha y hora dadas.
- * @param {string} date - Fecha en formato YYYY-MM-DD.
- * @param {string} time - Hora en formato HH:MM.
- * @returns {string} Fecha y hora de fin en formato YYYY-MM-DDTHH:MM:00.
- */
-function buildEndDateTime(date, time) {
-  const [h, m] = time.split(':').map(Number);
-  let newH = h + 2;
-  let newDate = date;
-
-  if (newH >= 24) {
-    newH = 0;
-    const d = new Date(`${date}T00:00:00`);
-    d.setDate(d.getDate() + 1);
-    newDate = d.toISOString().slice(0, 10);
-  }
-
-  return `${newDate}T${String(newH).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
-}
 
 /**
  * @description Busca en el calendario el evento del cliente usando su código único.
@@ -60,7 +42,7 @@ async function buscarEventoPorCodigo(calendarId, codigoEvento, accessToken) {
  * @param {string} params.nuevaHora - Nueva hora de inicio en formato HH:MM (America/Santiago).
  * @param {string} [params.emailCliente] - Email del cliente para enviarle la invitación actualizada.
  * @param {string} [params.phoneNumber] - Teléfono normalizado sin '+'. Fallback cuando sesión no tiene codigoEvento.
- * @returns {Promise<{exito: boolean, fecha: string, hora: string, meetLink: string|null, mensaje: string}>}
+ * @returns {Promise<{exito: boolean, fecha?: string, hora?: string, meetLink?: string|null, mensaje: string, horariosDisponibles?: string[]}>}
  */
 export async function editarReunion({ codigoEvento, eventId, nuevaFecha, nuevaHora, emailCliente, phoneNumber }) {
   const { GOOGLE_CALENDAR_ID = 'primary' } = process.env;
@@ -74,7 +56,6 @@ export async function editarReunion({ codigoEvento, eventId, nuevaFecha, nuevaHo
   let eventoExistente = null;
 
   if (eventId) {
-    // 1. Lookup directo por ID — más rápido y fiable.
     try {
       const url = buildCalendarApiUrl(GOOGLE_CALENDAR_ID, eventId);
       const response = await axios.get(url, { headers: { Authorization: `Bearer ${accessToken}` } });
@@ -85,7 +66,6 @@ export async function editarReunion({ codigoEvento, eventId, nuevaFecha, nuevaHo
   }
 
   if (!eventoExistente && codigoEvento) {
-    // 2. Búsqueda por código en el título.
     try {
       eventoExistente = await buscarEventoPorCodigo(GOOGLE_CALENDAR_ID, codigoEvento, accessToken);
     } catch (err) {
@@ -94,7 +74,6 @@ export async function editarReunion({ codigoEvento, eventId, nuevaFecha, nuevaHo
   }
 
   if (!eventoExistente && phoneNumber) {
-    // 3. Fallback por teléfono — cubre sesiones stale o sin codigoEvento/eventId.
     const events = await buscarEventosPorTelefono(GOOGLE_CALENDAR_ID, phoneNumber, accessToken).catch(() => []);
     eventoExistente = events[0] || null;
   }
@@ -103,16 +82,42 @@ export async function editarReunion({ codigoEvento, eventId, nuevaFecha, nuevaHo
     return { exito: false, mensaje: 'No se encontró tu reunión. Es posible que ya haya sido cancelada.' };
   }
 
-  const tz = eventoExistente.start?.timeZone || TIMEZONE;
+  const { reuniones } = await listarReuniones({ fechaInicio: nuevaFecha, fechaFin: nuevaFecha });
+  const slotCheck = validateMeetingSlot({
+    date: nuevaFecha,
+    time: nuevaHora,
+    existingEvents: reuniones,
+    excludeEventId: eventoExistente.id,
+  });
 
-  // Institucionales + cliente; conserva registros ya existentes (invitaciones de Google Calendar).
+  if (!slotCheck.valid) {
+    return {
+      exito: false,
+      mensaje: slotCheck.reason,
+      horariosDisponibles: slotCheck.availableSlots ?? [],
+    };
+  }
+
+  const tz = eventoExistente.start?.timeZone || TIMEZONE;
   const attendees = mergeAttendeesEnsuringDefaults(eventoExistente.attendees, emailCliente);
+  const prevExt = eventoExistente.extendedProperties && typeof eventoExistente.extendedProperties === 'object'
+    ? eventoExistente.extendedProperties
+    : {};
+  const prevPrivate = prevExt.private && typeof prevExt.private === 'object' ? prevExt.private : {};
 
   const updatedBody = {
     ...eventoExistente,
     start: { dateTime: `${nuevaFecha}T${nuevaHora}:00`, timeZone: tz },
     end: { dateTime: buildEndDateTime(nuevaFecha, nuevaHora), timeZone: tz },
     attendees,
+    extendedProperties: {
+      ...prevExt,
+      private: {
+        ...prevPrivate,
+        ...(phoneNumber && { phoneNumber }),
+      },
+      shared: buildAgentMeetingSharedProperties(prevExt.shared, phoneNumber),
+    },
   };
 
   let updatedEvent;

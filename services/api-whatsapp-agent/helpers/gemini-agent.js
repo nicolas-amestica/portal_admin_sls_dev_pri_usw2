@@ -85,11 +85,11 @@ const TOOLS = [
             },
             fechaSugerida: {
               type: 'STRING',
-              description: 'Fecha en formato YYYY-MM-DD. Debe estar libre según listar_reuniones y no ser fecha pasada.',
+              description: 'Fecha en formato YYYY-MM-DD. Debe ser día hábil (no domingo ni feriado chileno), con bloque libre según listar_reuniones y no ser fecha pasada.',
             },
             horaSugerida: {
               type: 'STRING',
-              description: "Hora de inicio en formato HH:MM (zona horaria America/Santiago).",
+              description: "Hora de inicio en formato HH:MM (America/Santiago). Solo bloques de 1h30: L-V 10:00, 11:30, 13:00, 14:30, 16:00, 17:30, 19:00, 20:30; Sáb 10:00, 11:30.",
             },
           },
           required: ['nombreCliente', 'fechaSugerida', 'horaSugerida'],
@@ -112,7 +112,7 @@ const TOOLS = [
             },
             horaSugerida: {
               type: 'STRING',
-              description: 'Hora en formato HH:MM si la proporcionó en este turno.',
+              description: 'Hora en formato HH:MM si la proporcionó en este turno. Solo bloques válidos de 1h30.',
             },
             emailCliente: {
               type: 'STRING',
@@ -135,7 +135,7 @@ const TOOLS = [
       {
         name: 'listar_reuniones',
         description:
-          'Lista las reuniones del calendario de Giras Indómito en un rango de fechas. Usar antes de proponer horarios para verificar disponibilidad.',
+          'Lista las reuniones del calendario de Giras Indómito en un rango de fechas. Devuelve reuniones ocupadas y disponibilidadPorDia con horariosDisponibles por día. Usar antes de proponer horarios.',
         parameters: {
           type: 'OBJECT',
           properties: {
@@ -160,11 +160,11 @@ const TOOLS = [
           properties: {
             nuevaFecha: {
               type: 'STRING',
-              description: 'Nueva fecha en formato YYYY-MM-DD.',
+              description: 'Nueva fecha en formato YYYY-MM-DD. Debe ser día hábil (no domingo ni feriado chileno).',
             },
             nuevaHora: {
               type: 'STRING',
-              description: "Nueva hora de inicio en formato HH:MM (America/Santiago). Ejemplos: '10:00', '15:00'.",
+              description: "Nueva hora de inicio en formato HH:MM (America/Santiago). Solo bloques de 1h30: L-V 10:00, 11:30, 13:00, 14:30, 16:00, 17:30, 19:00, 20:30; Sáb 10:00, 11:30.",
             },
             emailCliente: {
               type: 'STRING',
@@ -331,9 +331,13 @@ export function buildSystemPrompt(phoneNumber, collectedData, channel, hasHistor
     4. Si faltan datos: pide SOLO lo que falta en un único mensaje.
   - NUNCA repitas una pregunta sobre un dato que el cliente ya te proporcionó en esta conversación.
   - **Antes de guardar o confirmar una fecha/hora**, valida que esté dentro del horario disponible:
-    - Lunes a viernes: 09:00 a 23:00 hrs.
-    - Sábado: 09:00 a 14:00 hrs.
-    - Domingo: no disponible.
+    - Lunes a viernes: 10:00 a 22:00 hrs.
+    - Sábado: 10:00 a 14:00 hrs.
+    - Domingo y feriados chilenos: no disponible.
+    - Cada reunión dura 1 hora 30 minutos.
+    - Solo bloques de inicio válidos: L-V → 10:00, 11:30, 13:00, 14:30, 16:00, 17:30, 19:00, 20:30; Sáb → 10:00, 11:30.
+    - Usa listar_reuniones para ver disponibilidadPorDia.horariosDisponibles antes de proponer.
+    - Si crear_reunion o editar_reunion retorna exito:false, comunica el motivo y ofrece horariosDisponibles.
     Si la fecha/hora solicitada cae fuera de este horario, informa al cliente que no es posible agendar en ese momento e indícale los días y horarios disponibles para que elija uno nuevo. No llames a guardar_datos_reunion ni a crear_reunion con una hora fuera de horario.
 
   ## Reglas estrictas

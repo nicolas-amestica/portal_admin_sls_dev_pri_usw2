@@ -1,7 +1,10 @@
 import axios from 'axios';
 import { randomUUID, randomBytes } from 'crypto';
 import { getCalendarAccessToken, buildCalendarApiUrl, mapGoogleEventToMeetEvent } from '../../../helpers/google-calendar-auth.js';
-import { buildAttendeesForNewMeet } from './meet-default-guest-attendees.js';
+import { buildAttendeesForNewMeet } from '../../../helpers/meet-default-guest-attendees.js';
+import { buildNewAgentMeetingSharedProperties } from '../../../helpers/meet-default-host-presenter.js';
+import { buildEndDateTime, validateMeetingSlot } from '../helpers/meeting-scheduling-rules.js';
+import { listarReuniones } from './listar-reuniones.js';
 
 const FLAMINGO_COLOR_ID = '4';
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Sin caracteres ambiguos (I, O, 0, 1)
@@ -21,25 +24,6 @@ const NOTIFICATIONS = [
   { method: 'popup', minutes: 60 },
   { method: 'popup', minutes: 15 },
 ];
-
-/**
- * @description Suma dos horas a la combinación de fecha y hora para calcular el fin del evento.
- * @param {string} date - Fecha en formato YYYY-MM-DD.
- * @param {string} time - Hora en formato HH:MM.
- * @returns {string} Fecha y hora de fin en formato YYYY-MM-DDTHH:MM:00.
- */
-function buildEndDateTime(date, time) {
-  const [h, m] = time.split(':').map(Number);
-  let newH = h + 2;
-  let newDate = date;
-  if (newH >= 24) {
-    newH = 0;
-    const d = new Date(`${date}T00:00:00`);
-    d.setDate(d.getDate() + 1);
-    newDate = d.toISOString().slice(0, 10);
-  }
-  return `${newDate}T${String(newH).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
-}
 
 const DESTINO_LABEL = {
   bariloche: 'Bariloche',
@@ -76,10 +60,26 @@ export async function buscarEventosPorTelefono(calendarId, phone, accessToken) {
  * @param {string} params.horaSugerida - Hora en formato HH:MM (America/Santiago).
  * @param {string} [params.destino] - Destino de interés (ej: 'bariloche', 'camboriu').
  * @param {string} [params.phoneNumber] - Teléfono normalizado sin '+'. Se almacena como propiedad privada del evento.
- * @returns {Promise<{meetLink: string, eventId: string, codigoEvento: string, fecha: string, hora: string}>}
+ * @returns {Promise<{meetLink?: string, eventId?: string, codigoEvento?: string, fecha?: string, hora?: string, exito?: boolean, mensaje?: string, horariosDisponibles?: string[]}>}
  */
 export async function crearReunion({ nombreCliente, emailCliente, fechaSugerida, horaSugerida, destino, phoneNumber }) {
   const { GOOGLE_CALENDAR_ID = 'primary', TIMEZONE = 'America/Santiago' } = process.env;
+
+  const { reuniones } = await listarReuniones({ fechaInicio: fechaSugerida, fechaFin: fechaSugerida });
+  const slotCheck = validateMeetingSlot({
+    date: fechaSugerida,
+    time: horaSugerida,
+    existingEvents: reuniones,
+  });
+
+  if (!slotCheck.valid) {
+    return {
+      exito: false,
+      mensaje: slotCheck.reason,
+      horariosDisponibles: slotCheck.availableSlots ?? [],
+    };
+  }
+
   const accessToken = await getCalendarAccessToken();
   const codigoEvento = generarCodigoEvento();
 
@@ -97,10 +97,7 @@ export async function crearReunion({ nombreCliente, emailCliente, fechaSugerida,
     reminders: { useDefault: false, overrides: NOTIFICATIONS },
     extendedProperties: {
       ...(phoneNumber && { private: { phoneNumber } }),
-      shared: {
-        agent: 'true',
-        ...(phoneNumber && { phoneNumber }),
-      },
+      shared: buildNewAgentMeetingSharedProperties(phoneNumber),
     },
     conferenceData: {
       createRequest: {

@@ -46,6 +46,9 @@ provider:
     PROFILE: ${self:provider.profile}
     NODE_OPTIONS: '--enable-source-maps'
     TIMEZONE: America/Santiago
+    MEET_DEFAULT_GUEST_EMAILS: '["susana.guevara.sotomayor@gmail.com"]'
+    MEET_DEFAULT_HOST_SK: 'PRESENTER#a4f8c2b1-3d7e-4f9a-8b5c-6d1e2f3a4b5c'
+    MEET_DEFAULT_HOST_NAME: 'Susana Guevara Sotomayor'
     WHATSAPP_SECRET_KEY: /pa/${self:custom.stage}/whatsapp-config
     GEMINI_SECRET_KEY: /pa/${self:custom.stage}/gemini-api-key
     GOOGLE_CALENDAR_OAUTH_SECRET_KEY: /pa/${self:custom.stage}/google-calendar-oauth

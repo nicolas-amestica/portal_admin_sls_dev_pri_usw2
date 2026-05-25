@@ -12,6 +12,8 @@ async function runStaticPromptAssertions(buildSystemPrompt) {
   const base = buildSystemPrompt('+56912345678', {}, 'whatsapp', false);
   assert.ok(base.includes('Silencio total al derivar'), 'prompt debe incluir política de silencio al derivar');
   assert.ok(base.includes('buscar_presupuestos'), 'prompt debe referenciar flujo presupuestos');
+  assert.ok(base.includes('10:00 a 22:00'), 'prompt debe incluir horario L-V actualizado');
+  assert.ok(base.includes('1 hora 30 minutos'), 'prompt debe indicar duración de reunión');
 
   const conPdf = buildSystemPrompt('+56912345678', { presupuestosPdfEnviados: true }, 'whatsapp', true);
   assert.ok(

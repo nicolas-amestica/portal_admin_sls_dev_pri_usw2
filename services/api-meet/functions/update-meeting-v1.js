@@ -2,6 +2,7 @@ import axios from '../../../libs/axios.js';
 import { standardMiddleware } from '../../../libs/middleware/index.js';
 import { success, unsuccessful } from '../../../helpers/responses.js';
 import { getCalendarAccessToken, buildCalendarApiUrl, mapGoogleEventToMeetEvent } from '../../../helpers/google-calendar-auth.js';
+import { mergeAttendeesEnsuringDefaults } from '../../../helpers/meet-default-guest-attendees.js';
 
 const ACTION = 'Actualizar reunión';
 const FLAMINGO_COLOR_ID = '4';
@@ -108,7 +109,7 @@ const baseHandler = async (event) => {
     description,
     start: { dateTime: `${date}T${startTime}:00`, timeZone: TIMEZONE },
     end: { dateTime: buildEndDateTime(date, startTime), timeZone: TIMEZONE },
-    attendees: guests.map((email) => ({ email })),
+    attendees: mergeAttendeesEnsuringDefaults(existingEvent.attendees, guests),
     colorId: FLAMINGO_COLOR_ID,
     reminders: { useDefault: false, overrides: NOTIFICATIONS },
     ...(Object.keys(extendedPropertiesMerged).length > 0 ? { extendedProperties: extendedPropertiesMerged } : {}),

@@ -47,6 +47,7 @@ provider:
     GOOGLE_MEET_HOST_OAUTH_SECRET_KEY: /pa/${self:custom.stage}/google-meet-host-oauth
     GOOGLE_CALENDAR_ID: c_22d82dc32bd2255c8e0a5de671df98c7338ca03b8528c26c9e091ea79bf4118c@group.calendar.google.com
     TIMEZONE: America/Santiago
+    MEET_DEFAULT_GUEST_EMAILS: '["susana.guevara.sotomayor@gmail.com"]'
 
   tracing:
     lambda: ${self:custom.xrayEnabled.${self:custom.stage}, true}

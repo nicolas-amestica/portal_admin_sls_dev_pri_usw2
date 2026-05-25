@@ -3,6 +3,7 @@ import { randomUUID } from '../../../libs/crypto.js';
 import { standardMiddleware } from '../../../libs/middleware/index.js';
 import { success, unsuccessful } from '../../../helpers/responses.js';
 import { getCalendarAccessToken, getMeetHostAccessToken, buildCalendarApiUrl, mapGoogleEventToMeetEvent, createMeetSpace } from '../../../helpers/google-calendar-auth.js';
+import { buildAttendeesForNewMeet } from '../../../helpers/meet-default-guest-attendees.js';
 
 const ACTION = 'Crear reunión';
 const FLAMINGO_COLOR_ID = '4';
@@ -77,7 +78,7 @@ const baseHandler = async (event) => {
     description,
     start: { dateTime: `${date}T${startTime}:00`, timeZone: TIMEZONE },
     end: { dateTime: buildEndDateTime(date, startTime), timeZone: TIMEZONE },
-    attendees: guests.map((email) => ({ email })),
+    attendees: buildAttendeesForNewMeet(guests),
     colorId: FLAMINGO_COLOR_ID,
     reminders: { useDefault: false, overrides: NOTIFICATIONS },
     conferenceData,
