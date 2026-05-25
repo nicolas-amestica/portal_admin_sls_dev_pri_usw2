@@ -179,19 +179,27 @@ log_ok "CORS configurado en ${BUCKET_INFO}"
 
 # Lifecycle policy: eliminar objetos temporales de adjuntos después de 24h.
 # Red de seguridad por si adjuntar-archivo-v1 falla antes de borrar el objeto S3.
-log_info "Configurando lifecycle policy en ${BUCKET_INFO} (inbox-adjuntos/ → TTL 1 día)"
+log_info "Configurando lifecycle policies en ${BUCKET_INFO} (inbox-adjuntos/ TTL 1d, tools/pdf-to-word/ TTL 7d)"
 aws s3api put-bucket-lifecycle-configuration \
   --bucket "$BUCKET_INFO" \
   --profile "$PROFILE" \
   --lifecycle-configuration '{
-    "Rules": [{
-      "ID": "inbox-adjuntos-ttl",
-      "Status": "Enabled",
-      "Filter": { "Prefix": "inbox-adjuntos/" },
-      "Expiration": { "Days": 1 }
-    }]
+    "Rules": [
+      {
+        "ID": "inbox-adjuntos-ttl",
+        "Status": "Enabled",
+        "Filter": { "Prefix": "inbox-adjuntos/" },
+        "Expiration": { "Days": 1 }
+      },
+      {
+        "ID": "tools-pdf-to-word-ttl",
+        "Status": "Enabled",
+        "Filter": { "Prefix": "tools/pdf-to-word/" },
+        "Expiration": { "Days": 7 }
+      }
+    ]
   }' &>/dev/null
-log_ok "Lifecycle policy configurada en ${BUCKET_INFO} (inbox-adjuntos/ expira en 1 día)"
+log_ok "Lifecycle policies configuradas en ${BUCKET_INFO} (inbox-adjuntos/ 1d, tools/pdf-to-word/ 7d)"
 
 # =============================================================================
 # PASO 2 — SSM PARAMETER STORE

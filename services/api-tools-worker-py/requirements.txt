@@ -1,0 +1,2 @@
+# pdf2docx depends on python-docx, PyMuPDF, opencv-headless via pip resolution
+pdf2docx>=0.5.8,<0.6

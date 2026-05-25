@@ -1,0 +1,57 @@
+service: herramientas-worker-py
+frameworkVersion: '4'
+
+configValidationMode: warn
+projectDir: ./../../
+
+custom: ${file(../../common/custom.yml)}
+
+provider:
+  name: aws
+  runtime: python3.12
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-west-2'}
+  profile: pa-${self:custom.stage}
+  lambdaHashingVersion: 20201221
+  logRetentionInDays: ${self:custom.logRetentionInDays.${self:custom.stage}, 14}
+
+  deploymentBucket:
+    name: sls-deploys-${self:custom.stage}-pri-${self:custom.shortRegion}
+
+  architecture: arm64
+
+  environment:
+    STAGE: ${self:custom.stage}
+    PROFILE: ${self:provider.profile}
+    BUCKET_INFO_GI: giras-indomito-${self:custom.stage}-info
+    DYNAMODB_MAINTAINER_TABLE: maintainer-${self:custom.stage}-pri-${self:custom.shortRegion}
+    JOB_PK: TOOLS#PDF_TO_WORD
+
+  tracing:
+    lambda: ${self:custom.xrayEnabled.${self:custom.stage}, true}
+
+  iamRoleStatements:
+    - ${file(../../aws/policies/lambda-policy-xray.yml)}
+    - ${file(../../aws/policies/lambda-policy-dynamodb-maintainer.yml)}
+    - ${file(../../aws/policies/lambda-policy-s3.yml)}
+
+package:
+  patterns:
+    - '!**/__pycache__/**'
+    - 'functions/**'
+    - 'lib/**'
+    - 'requirements.txt'
+
+functions:
+  pdfToWordWorker:
+    handler: functions/pdf_to_word_worker_v1.lambda_handler
+    timeout: 300
+    memorySize: 1536
+
+resources:
+  Outputs:
+    PdfToWordWorkerArn:
+      Description: ARN de la función Lambda que convierte PDF a DOCX para herramientas del portal.
+      Value: !GetAtt [PdfToWordWorkerLambdaFunction, Arn]
+      Export:
+        Name: ${self:provider.stage}-pdf-to-word-worker-arn

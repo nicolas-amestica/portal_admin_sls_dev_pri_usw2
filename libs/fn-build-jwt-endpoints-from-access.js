@@ -82,6 +82,8 @@ const PERMISSION_PATH_TO_API_PREFIXES = {
   'configuracion/presentadores': ['/v1/mantenedor/presentadores'],
   'configuracion/medios-informativos': ['/v1/mantenedor/medios-informativos'],
   'configuracion/reglas-perfiles-auto': ['/v1/iam/reglas-perfiles-auto'],
+
+  'herramientas/pdf-to-word': ['/v1/herramientas/pdf-a-word'],
 };
 
 /**

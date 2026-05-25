@@ -51,3 +51,9 @@ accountingPartitionPk:
 
 serverless-offline:
   httpPort: 3200
+
+# Opciones de serverless-python-requirements solo para herramientas-worker-py (otros servicios las ignoran).
+pythonRequirements:
+  dockerizePip: true
+  slim: false
+  layer: false

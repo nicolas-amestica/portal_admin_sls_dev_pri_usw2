@@ -1,0 +1,103 @@
+service: herramientas
+frameworkVersion: '4'
+
+configValidationMode: warn
+projectDir: ./../../
+
+plugins:
+  - serverless-offline
+
+custom: ${file(../../common/custom.yml)}
+
+build:
+  esbuild:
+    bundle: true
+    minify: true
+    sourcemap: true
+    exclude:
+      - 'aws-sdk'
+      - '@aws-sdk/*'
+    target: 'node20'
+    platform: 'node'
+    format: 'cjs'
+
+package:
+  individually: true
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-west-2'}
+  profile: pa-${self:custom.stage}
+  lambdaHashingVersion: 20201221
+  logRetentionInDays: ${self:custom.logRetentionInDays.${self:custom.stage}, 14}
+
+  httpApi:
+    id: ${self:custom.apiGatewayId}
+
+  architecture: arm64
+
+  environment:
+    STAGE: ${self:custom.stage}
+    PROFILE: ${self:provider.profile}
+    NODE_OPTIONS: '--enable-source-maps'
+    SECRET_KEY: /pa/${self:custom.stage}/jwt-key
+    DYNAMODB_MAINTAINER_TABLE: maintainer-${self:custom.stage}-pri-${self:custom.shortRegion}
+    BUCKET_INFO_GI: giras-indomito-${self:custom.stage}-info
+    WORKER_FUNCTION_ARN: ${cf:herramientas-worker-py-${self:provider.stage}.PdfToWordWorkerArn}
+
+  tracing:
+    lambda: ${self:custom.xrayEnabled.${self:custom.stage}, true}
+
+  deploymentBucket:
+    name: sls-deploys-${self:custom.stage}-pri-${self:custom.shortRegion}
+
+  iamRoleStatements:
+    - ${file(../../aws/policies/lambda-policy-xray.yml)}
+    - ${file(../../aws/policies/lambda-policy-ssm.yml)}
+    - ${file(../../aws/policies/lambda-policy-kms-ssm.yml)}
+    - ${file(../../aws/policies/lambda-policy-dynamodb-maintainer.yml)}
+    - ${file(../../aws/policies/lambda-policy-s3.yml)}
+    - Effect: Allow
+      Action:
+        - lambda:InvokeFunction
+      Resource:
+        Fn::ImportValue: ${self:provider.stage}-pdf-to-word-worker-arn
+
+functions:
+  presign_pdf_upload_v1:
+    handler: functions/presign-pdf-upload-v1.main
+    timeout: 10
+    memorySize: 128
+    events:
+      - httpApi:
+          path: /v1/herramientas/pdf-a-word/presign
+          method: POST
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  create_pdf_to_word_job_v1:
+    handler: functions/create-pdf-to-word-job-v1.main
+    timeout: 15
+    memorySize: 128
+    events:
+      - httpApi:
+          path: /v1/herramientas/pdf-a-word/jobs/{jobId}
+          method: POST
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
+  get_pdf_to_word_job_status_v1:
+    handler: functions/get-pdf-to-word-job-status-v1.main
+    timeout: 10
+    memorySize: 128
+    events:
+      - httpApi:
+          path: /v1/herramientas/pdf-a-word/jobs/{jobId}
+          method: GET
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request

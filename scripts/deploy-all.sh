@@ -80,7 +80,7 @@ check_infrastructure() {
 }
 
 # Contador de servicios
-TOTAL_SERVICES=17
+TOTAL_SERVICES=19
 DEPLOYED=0
 FAILED=0
 FAILED_SERVICES=()
@@ -127,6 +127,8 @@ ALL_SERVICES=(
     "services/api-meet"
     "services/api-whatsapp-agent"
     "services/api-accounting"
+    "services/api-tools-worker-py"
+    "services/api-tools"
     "services/job-trigger"
     "services/job-instagram-poster"
 )
