@@ -17,6 +17,9 @@ build:
     exclude:
       - 'aws-sdk'
       - '@aws-sdk/*'
+    external:
+      - '@ffmpeg-installer/linux-arm64'
+      - '@ffmpeg-installer/darwin-arm64'
     target: 'node20'
     platform: 'node'
     format: 'cjs'
@@ -223,8 +226,11 @@ functions:
   adjuntar_archivo_v1:
     handler: functions/adjuntar-archivo-v1.main
     description: Descarga un adjunto desde S3 y lo envía al cliente vía WhatsApp Media API.
-    timeout: 30
-    memorySize: 256
+    timeout: 29
+    memorySize: 512
+    package:
+      patterns:
+        - '../../node_modules/@ffmpeg-installer/linux-arm64/**'
     events:
       - httpApi:
           path: /v1/inbox/conversaciones/{phone}/adjuntar

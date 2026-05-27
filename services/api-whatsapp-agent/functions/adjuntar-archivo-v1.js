@@ -6,6 +6,7 @@ import { uploadMedia, sendDocumentById, sendImageById, sendAudioById } from '../
 import { getObjectBuffer, deleteObject } from '../../../libs/s3-v3.js';
 import { broadcastToScope, SCOPES } from '../../../libs/websocket.js';
 import { upsertChatListItem } from '../helpers/chat-list-index.js';
+import { prepareAudioForWhatsApp } from '../helpers/prepare-audio-for-whatsapp.js';
 import { buildTurnItem, normalizePhone } from '../mappers/map-conversacion-item.js';
 
 const ACTION = 'Adjuntar archivo a conversación';
@@ -47,13 +48,20 @@ export const main = async (event) => {
 
     console.log(`[${ACTION}] "${fileName}" (${mimeType}, ${fileSizeMB.toFixed(2)} MB) descargado desde S3`);
 
-    // WhatsApp Cloud API no acepta audio/webm — remapear a audio/ogg (mismo codec Opus).
     const isAudio = mimeType.startsWith('audio/');
-    const uploadMime = (mimeType === 'audio/webm') ? 'audio/ogg' : mimeType;
-    const uploadFileName = (mimeType === 'audio/webm') ? fileName.replace(/\.webm$/, '.ogg') : fileName;
+    let uploadBuffer = buffer;
+    let uploadMime = mimeType;
+    let uploadFileName = fileName;
+
+    if (isAudio) {
+      const prepared = await prepareAudioForWhatsApp(buffer, mimeType, fileName);
+      uploadBuffer = prepared.buffer;
+      uploadMime = prepared.mimeType;
+      uploadFileName = prepared.fileName;
+    }
 
     // Subir archivo a la Media API de WhatsApp y enviar al cliente.
-    const mediaId = await uploadMedia(buffer, uploadFileName, uploadMime);
+    const mediaId = await uploadMedia(uploadBuffer, uploadFileName, uploadMime);
     const phoneWithPrefix = `+${phone}`;
     if (mimeType.startsWith('image/')) {
       await sendImageById(phoneWithPrefix, mediaId, caption);

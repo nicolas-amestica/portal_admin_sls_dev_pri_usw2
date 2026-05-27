@@ -160,7 +160,7 @@ export async function downloadMedia(mediaId) {
  * @param {string} to - Número del destinatario.
  * @param {string} mediaId - ID del media ya subido a Meta.
  */
-export async function sendAudioById(to, mediaId) {
+export async function sendAudioById(to, mediaId, { voice = true } = {}) {
   const { accessToken, phoneNumberId } = await getCredentials();
   await httpClient.post(
     buildMessagesUrl(phoneNumberId),
@@ -169,7 +169,7 @@ export async function sendAudioById(to, mediaId) {
       recipient_type: 'individual',
       to,
       type: 'audio',
-      audio: { id: mediaId },
+      audio: { id: mediaId, ...(voice && { voice: true }) },
     },
     { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' } }
   );
