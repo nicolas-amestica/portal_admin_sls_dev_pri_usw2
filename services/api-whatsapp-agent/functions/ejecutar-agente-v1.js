@@ -184,15 +184,17 @@ async function saveConversation(phoneNumber, userText, modelText, collectedData,
     unreadDelta: 1,
   }).catch((err) => console.warn(`[${ACTION}] No se pudo actualizar CHATS: ${err.message}`));
 
-  // Notificar a la bandeja (canal LIST) para que los admins vean el badge y el último mensaje
-  // sin esperar al polling de fallback. No crítico: si falla el polling recupera el estado.
-  await broadcastToScope(SCOPES.LIST, {
-    type: 'conversation_updated',
-    phone: normalizedPhone,
-    unreadCount,
-    lastMessage: previewText,
-    lastMessageAt: now,
-  }).catch((err) => console.warn(`[${ACTION}] Broadcast WS falló (no crítico): ${err.message}`));
+  // Notificar bandeja (LIST) y detalle abierto (canal por teléfono).
+  await Promise.allSettled([
+    broadcastToScope(SCOPES.LIST, {
+      type: 'conversation_updated',
+      phone: normalizedPhone,
+      unreadCount,
+      lastMessage: previewText,
+      lastMessageAt: now,
+    }),
+    broadcastToScope({ phone: normalizedPhone }, { type: 'new_message', phone: normalizedPhone }),
+  ]).catch((err) => console.warn(`[${ACTION}] Broadcast WS falló (no crítico): ${err.message}`));
 }
 
 const REASON_LABELS = {
