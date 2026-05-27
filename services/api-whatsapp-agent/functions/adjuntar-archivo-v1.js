@@ -5,6 +5,7 @@ import { success, unsuccessful } from '../../../helpers/responses.js';
 import { uploadMedia, sendDocumentById, sendImageById, sendAudioById } from '../helpers/whatsapp-api.js';
 import { getObjectBuffer, deleteObject } from '../../../libs/s3-v3.js';
 import { broadcastToScope, SCOPES } from '../../../libs/websocket.js';
+import { upsertChatListItem } from '../helpers/chat-list-index.js';
 import { buildTurnItem, normalizePhone } from '../mappers/map-conversacion-item.js';
 
 const ACTION = 'Adjuntar archivo a conversación';
@@ -70,20 +71,27 @@ export const main = async (event) => {
       caption?.trim() ?? '',
       [{ s3Key, fileName, mimeType }]
     );
-    dynamoDbLib.put({ TableName: CONVERSATIONS_TABLE, Item: attachmentItem }).catch((err) =>
-      console.warn(`[${ACTION}] Write-through adjunto DynamoDB falló (no crítico): ${err.message}`)
-    );
-
-    // Actualizar item INBOX con el último adjunto como preview.
     const preview = caption?.trim() || `📎 ${fileName}`;
     const now = new Date().toISOString();
-    dynamoDbLib.update({
-      TableName: CONVERSATIONS_TABLE,
-      Key: { pk: 'INBOX', sk: `CONV#${phone}` },
-      UpdateExpression: 'SET lastMessage = :txt, lastMessageAt = :now, unreadCount = :zero',
-      ConditionExpression: 'attribute_exists(pk)',
-      ExpressionAttributeValues: { ':txt': preview.slice(0, 200), ':now': now, ':zero': 0 },
-    }).catch(() => {});
+
+    await Promise.all([
+      dynamoDbLib.put({ TableName: CONVERSATIONS_TABLE, Item: attachmentItem }),
+      dynamoDbLib.update({
+        TableName: CONVERSATIONS_TABLE,
+        Key: { pk: 'INBOX', sk: `CONV#${phone}` },
+        UpdateExpression: 'SET lastMessage = :txt, lastMessageAt = :now, unreadCount = :zero',
+        ConditionExpression: 'attribute_exists(pk)',
+        ExpressionAttributeValues: { ':txt': preview.slice(0, 200), ':now': now, ':zero': 0 },
+      }).catch(() => {}),
+      upsertChatListItem({
+        phone,
+        lastMessage: preview.slice(0, 200),
+        lastMessageAt: now,
+        unreadSet: 0,
+      }),
+    ]).catch((err) =>
+      console.warn(`[${ACTION}] Write-through adjunto DynamoDB falló (no crítico): ${err.message}`)
+    );
 
     // Eliminar objeto temporal de S3 (fire and forget).
     deleteObject({ Bucket: BUCKET_INFO_GI, Key: s3Key }).catch((err) =>

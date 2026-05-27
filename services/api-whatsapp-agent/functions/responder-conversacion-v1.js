@@ -4,6 +4,7 @@ import { parseEventBody } from '../../../helpers/event-parser.js';
 import { success, unsuccessful } from '../../../helpers/responses.js';
 import { sendTextMessage } from '../helpers/whatsapp-api.js';
 import { broadcastToScope, SCOPES } from '../../../libs/websocket.js';
+import { upsertChatListItem } from '../helpers/chat-list-index.js';
 import { buildTurnItem, normalizePhone } from '../mappers/map-conversacion-item.js';
 
 const ACTION = 'Responder conversación derivada';
@@ -37,7 +38,6 @@ export const main = async (event) => {
     await Promise.all([
       sendTextMessage(`+${phone}`, text),
       dynamoDbLib.put({ TableName: CONVERSATIONS_TABLE, Item: item }),
-      // Actualizar item INBOX: nuevo lastMessage y reset unreadCount.
       dynamoDbLib.update({
         TableName: CONVERSATIONS_TABLE,
         Key: { pk: 'INBOX', sk: `CONV#${phone}` },
@@ -45,6 +45,12 @@ export const main = async (event) => {
         ConditionExpression: 'attribute_exists(pk)',
         ExpressionAttributeValues: { ':txt': text.slice(0, 200), ':now': now, ':zero': 0 },
       }).catch((err) => console.warn(`[${ACTION}] No se pudo actualizar INBOX: ${err.message}`)),
+      upsertChatListItem({
+        phone,
+        lastMessage: text.slice(0, 200),
+        lastMessageAt: now,
+        unreadSet: 0,
+      }),
     ]);
 
     console.log(`[${ACTION}] Mensaje enviado a ${phone}`);

@@ -1,6 +1,7 @@
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { success, unsuccessful } from '../../../helpers/responses.js';
 import { broadcastToScope, SCOPES } from '../../../libs/websocket.js';
+import { CHATS_PK, chatListSk } from '../helpers/chat-list-index.js';
 import { normalizePhone } from '../mappers/map-conversacion-item.js';
 
 const ACTION = 'Eliminar conversación';
@@ -59,7 +60,15 @@ export const main = async (event) => {
       });
     }
 
-    // Eliminar item INBOX (quita la conversación del listado).
+    // Eliminar item CHATS (quita del listado global).
+    deletePromises.push(
+      dynamoDbLib.remove({
+        TableName: CONVERSATIONS_TABLE,
+        Key: { pk: CHATS_PK, sk: chatListSk(phone) },
+      })
+    );
+
+    // Eliminar item INBOX (legacy derivaciones).
     deletePromises.push(
       dynamoDbLib.remove({
         TableName: CONVERSATIONS_TABLE,

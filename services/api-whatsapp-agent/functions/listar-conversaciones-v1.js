@@ -1,12 +1,15 @@
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { success, unsuccessful } from '../../../helpers/responses.js';
+import { CHATS_PK, mapChatListItem, sortChatsByActivity } from '../helpers/chat-list-index.js';
 
-const ACTION = 'Listar conversaciones derivadas';
+const ACTION = 'Listar conversaciones';
+/** Máximo de chats devueltos al portal (los más recientes por actividad). */
+const CHAT_LIST_LIMIT = 40;
 
 /**
- * @description Lista las conversaciones derivadas al equipo humano leyendo la partición
- * INBOX de DynamoDB. Cada item INBOX representa una conversación activa cuyo lastMessage,
- * unreadCount y contactName son mantenidos en tiempo real por el sistema.
+ * @description Lista las conversaciones WhatsApp más recientes leyendo la partición
+ * CHATS de DynamoDB. Devuelve como máximo {@link CHAT_LIST_LIMIT} ítems ordenados
+ * por actividad descendente (lastMessageAt → updatedAt → createdAt).
  *
  * @param {object} _event - Evento HTTP de API Gateway.
  */
@@ -17,25 +20,14 @@ export const main = async (_event) => {
     const items = await dynamoDbLib.iterativeQuery({
       TableName: CONVERSATIONS_TABLE,
       KeyConditionExpression: 'pk = :pk',
-      ExpressionAttributeValues: { ':pk': 'INBOX' },
+      ExpressionAttributeValues: { ':pk': CHATS_PK },
       ScanIndexForward: false,
     });
 
-    const conversaciones = (items ?? [])
-      .map((item) => ({
-        id: item.phone,
-        phone: item.phone,
-        contactName: item.contactName || item.phone || 'Desconocido',
-        phoneNumber: item.phone,
-        channel: item.channel ?? 'whatsapp',
-        lastMessage: item.lastMessage ?? '',
-        lastMessageAt: item.lastMessageAt ?? '',
-        unreadCount: item.unreadCount ?? 0,
-        status: item.status ?? 'derived',
-        reason: item.reason,
-        reasonLabel: item.reasonLabel,
-      }))
-      .sort((a, b) => new Date(b.lastMessageAt) - new Date(a.lastMessageAt));
+    const conversaciones = sortChatsByActivity((items ?? []).map(mapChatListItem)).slice(
+      0,
+      CHAT_LIST_LIMIT
+    );
 
     return success(200, conversaciones, ACTION);
   } catch (error) {

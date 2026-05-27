@@ -1,6 +1,7 @@
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { success, unsuccessful } from '../../../helpers/responses.js';
 import { normalizePhone } from '../mappers/map-conversacion-item.js';
+import { CHATS_PK, chatListSk } from '../helpers/chat-list-index.js';
 
 const ACTION = 'Obtener detalle de conversación';
 const PAGE_SIZE = 50;
@@ -77,7 +78,7 @@ function mapDynamoMessages(dynamoMsgs) {
 }
 
 /**
- * @description Retorna el detalle de una conversación derivada.
+ * @description Retorna el detalle de una conversación con historial completo.
  *
  * Query params:
  *   ?since=ISO   → delta: solo mensajes nuevos desde ese timestamp (para WS new_message)
@@ -98,8 +99,8 @@ export const main = async (event) => {
     const isFullLoad = !since && !cursor;
 
     // 1. Obtener datos actuales (Lectura)
-    const [inboxItem, histResult, sessionItem] = await Promise.all([
-      dynamoDbLib.getOne({ TableName: CONVERSATIONS_TABLE, Key: { pk: 'INBOX', sk: `CONV#${phone}` } }),
+    const [chatItem, histResult, sessionItem] = await Promise.all([
+      dynamoDbLib.getOne({ TableName: CONVERSATIONS_TABLE, Key: { pk: CHATS_PK, sk: chatListSk(phone) } }),
       since
         ? loadDeltaMsgs(phone, since).then((msgs) => ({ msgs, hasMore: false, nextCursor: null }))
         : loadMsgsPage(phone, cursor ?? null),
@@ -111,6 +112,12 @@ export const main = async (event) => {
     // 2. Si es carga completa, resetear contadores en segundo plano (Escritura post-lectura)
     if (isFullLoad) {
       Promise.all([
+        dynamoDbLib.update({
+          TableName: CONVERSATIONS_TABLE,
+          Key: { pk: CHATS_PK, sk: chatListSk(phone) },
+          UpdateExpression: 'SET unreadCount = :zero',
+          ExpressionAttributeValues: { ':zero': 0 },
+        }).catch(() => {}),
         dynamoDbLib.update({
           TableName: CONVERSATIONS_TABLE,
           Key: { pk: 'INBOX', sk: `CONV#${phone}` },
@@ -129,7 +136,7 @@ export const main = async (event) => {
 
     const { msgs, hasMore, nextCursor } = histResult;
     const mensajes = mapDynamoMessages(msgs);
-    const contactName = inboxItem?.contactName || sessionItem?.contactName || phone;
+    const contactName = chatItem?.contactName || sessionItem?.contactName || phone;
 
     console.log(`[${ACTION}] ${phone}: ${mensajes.length} msgs, hasMore=${hasMore}, since=${since}, cursor=${cursor}`);
 
@@ -137,13 +144,13 @@ export const main = async (event) => {
       id: phone,
       contactName,
       phoneNumber: phone,
-      channel: inboxItem?.channel ?? sessionItem?.channel ?? 'whatsapp',
-      lastMessage: inboxItem?.lastMessage ?? sessionItem?.lastMessageText ?? '',
-      lastMessageAt: inboxItem?.lastMessageAt ?? sessionItem?.lastMessageAt ?? '',
-      unreadCount: isFullLoad ? (sessionItem?.unreadCount ?? 0) : 0,
-      status: inboxItem?.status ?? 'derived',
-      reason: inboxItem?.reason,
-      reasonLabel: inboxItem?.reasonLabel,
+      channel: chatItem?.channel ?? sessionItem?.channel ?? 'whatsapp',
+      lastMessage: chatItem?.lastMessage ?? sessionItem?.lastMessageText ?? '',
+      lastMessageAt: chatItem?.lastMessageAt ?? sessionItem?.lastMessageAt ?? '',
+      unreadCount: isFullLoad ? (sessionItem?.unreadCount ?? chatItem?.unreadCount ?? 0) : 0,
+      status: chatItem?.status ?? sessionItem?.status ?? 'bot',
+      reason: chatItem?.reason,
+      reasonLabel: chatItem?.reasonLabel,
       mensajes,
       hasMore,
       nextCursor,

@@ -16,6 +16,7 @@ import { sendMetaTextMessage } from '../helpers/messenger-api.js';
 import { getPresignedUrl } from '../../../libs/s3-v3.js';
 import { shortenUrl } from '../helpers/url-shortener.js';
 import { broadcastToScope, SCOPES } from '../../../libs/websocket.js';
+import { upsertChatListItem } from '../helpers/chat-list-index.js';
 
 const ACTION = 'Ejecutar agente WhatsApp';
 // Cada turno ocupa 2 items en DynamoDB (user + model). +1 por si el item de sesión aparece.
@@ -132,13 +133,15 @@ async function loadConversation(phoneNumber) {
  * @param {string} userText
  * @param {string} modelText
  * @param {object} collectedData
+ * @param {string} [channel]
  */
-async function saveConversation(phoneNumber, userText, modelText, collectedData) {
+async function saveConversation(phoneNumber, userText, modelText, collectedData, channel = 'whatsapp') {
   const { CONVERSATIONS_TABLE } = process.env;
   const now = new Date().toISOString();
   const ttl = Math.floor(Date.now() / 1000) + 90 * 24 * 60 * 60;
   const normalizedPhone = normalizePhone(phoneNumber);
   const sessionKey = `CONV#${normalizedPhone}`;
+  const previewText = (modelText?.trim() ? sanitizeForHistory(modelText) : sanitizeForHistory(userText)).slice(0, 200);
   const lastMessageText = sanitizeForHistory(userText).slice(0, 100);
 
   const userItem = buildTurnItem(phoneNumber, `MSG#${uuidv7()}`, 'user', sanitizeForHistory(userText));
@@ -147,9 +150,9 @@ async function saveConversation(phoneNumber, userText, modelText, collectedData)
   const sessionUpdate = dynamoDbLib.update({
     TableName: CONVERSATIONS_TABLE,
     Key: { pk: sessionKey, sk: sessionKey },
-    UpdateExpression: 'SET collectedData = :cd, lastMessageAt = :now, lastMessageText = :txt, updatedAt = :now, #ttl = :ttl, createdAt = if_not_exists(createdAt, :now), phoneNumber = if_not_exists(phoneNumber, :phone) ADD unreadCount :one',
+    UpdateExpression: 'SET collectedData = :cd, lastMessageAt = :now, lastMessageText = :txt, updatedAt = :now, #ttl = :ttl, createdAt = if_not_exists(createdAt, :now), phoneNumber = if_not_exists(phoneNumber, :phone), channel = if_not_exists(channel, :channel) ADD unreadCount :one',
     ExpressionAttributeNames: { '#ttl': 'ttl' },
-    ExpressionAttributeValues: { ':cd': collectedData, ':now': now, ':txt': lastMessageText, ':ttl': ttl, ':one': 1, ':phone': normalizedPhone },
+    ExpressionAttributeValues: { ':cd': collectedData, ':now': now, ':txt': lastMessageText, ':ttl': ttl, ':one': 1, ':phone': normalizedPhone, ':channel': channel },
     ReturnValues: 'UPDATED_NEW',
   });
 
@@ -173,16 +176,24 @@ async function saveConversation(phoneNumber, userText, modelText, collectedData)
     ExpressionAttributeValues: { ':txt': lastMessageText, ':now': now, ':one': 1 },
   }).catch(() => {}); // No-op si la conversación no está derivada
 
+  await upsertChatListItem({
+    phone: normalizedPhone,
+    channel,
+    lastMessage: previewText,
+    lastMessageAt: now,
+    unreadDelta: 1,
+  }).catch((err) => console.warn(`[${ACTION}] No se pudo actualizar CHATS: ${err.message}`));
+
   // Notificar a la bandeja (canal LIST) para que los admins vean el badge y el último mensaje
   // sin esperar al polling de fallback. No crítico: si falla el polling recupera el estado.
   await broadcastToScope(SCOPES.LIST, {
     type: 'conversation_updated',
-    phoneNumber: normalizedPhone,
+    phone: normalizedPhone,
     unreadCount,
-    lastMessage: lastMessageText,
+    lastMessage: previewText,
     lastMessageAt: now,
   }).catch((err) => console.warn(`[${ACTION}] Broadcast WS falló (no crítico): ${err.message}`));
-  }
+}
 
 const REASON_LABELS = {
   sin_presupuesto: 'No se encontró presupuesto disponible',
@@ -213,6 +224,8 @@ async function derivarConversacion(phoneNumber, text, reason, channel, collected
 
   const contactName = session?.contactName || phone;
 
+  const reasonLabel = REASON_LABELS[reason] ?? reason;
+
   await Promise.all([
     dynamoDbLib.put({
       TableName: CONVERSATIONS_TABLE,
@@ -223,7 +236,7 @@ async function derivarConversacion(phoneNumber, text, reason, channel, collected
         contactName,
         channel,
         reason,
-        reasonLabel: REASON_LABELS[reason] ?? reason,
+        reasonLabel,
         lastMessage: (text ?? '').slice(0, 200),
         lastMessageAt: now,
         unreadCount: 1,
@@ -240,6 +253,17 @@ async function derivarConversacion(phoneNumber, text, reason, channel, collected
       UpdateExpression: 'SET #s = :s',
       ExpressionAttributeNames: { '#s': 'status' },
       ExpressionAttributeValues: { ':s': 'derived' },
+    }),
+    upsertChatListItem({
+      phone,
+      contactName,
+      channel,
+      lastMessage: (text ?? '').slice(0, 200),
+      lastMessageAt: now,
+      unreadSet: 1,
+      status: 'derived',
+      reason,
+      reasonLabel,
     }),
   ]);
 
@@ -380,7 +404,7 @@ export const main = async (event) => {
     // Await en paralelo para garantizar que el write en DynamoDB termina antes de retornar
     // (Lambda mata promesas pendientes tras el return → fire-and-forget pierde el UpdateItem).
     const [, phone] = await Promise.all([
-      saveConversation(phoneNumber, text, '', collectedData).catch((e) =>
+      saveConversation(phoneNumber, text, '', collectedData, channel).catch((e) =>
         console.error(`[${ACTION}] Error guardando turno tras error Gemini:`, e.message)
       ),
       derivarConversacion(phoneNumber, text, 'error_gemini', channel, collectedData).catch((e) => {
@@ -389,14 +413,21 @@ export const main = async (event) => {
       }),
     ]);
     if (phone) {
-      await broadcastToScope({ phone }, { type: 'new_message', phone }).catch((err) =>
-        console.warn(`[${ACTION}] Broadcast detalle fallido: ${err.message}`)
-      );
+      await Promise.allSettled([
+        broadcastToScope({ phone }, { type: 'new_message', phone }),
+        broadcastToScope(SCOPES.LIST, {
+          type: 'conversation_updated',
+          phone,
+          unreadCount: 1,
+          lastMessage: (text ?? '').slice(0, 100),
+          lastMessageAt: new Date().toISOString(),
+        }),
+      ]).catch((err) => console.warn(`[${ACTION}] Broadcast fallido: ${err.message}`));
     }
     return;
   }
 
-  // 3. Si el agente derivó a humano (sin_respuesta) o no encontró presupuesto, no responder al cliente.
+  // 3. Si el agente derivó a humano
   const derivado = toolsExecuted.some((t) => t.name === 'sin_respuesta');
   const sinPresupuesto = toolsExecuted.some(
     (t) => t.name === 'buscar_presupuestos' && !t.result?.encontrados
@@ -411,7 +442,7 @@ export const main = async (event) => {
     // Await en paralelo: sin esto, Lambda puede retornar antes de que el UpdateItem termine.
     const [, phone] = await Promise.all([
       // Solo persistir el mensaje del usuario; no crear burbuja del modelo con marcadores internos.
-      saveConversation(phoneNumber, text, '', updatedData).catch((e) =>
+      saveConversation(phoneNumber, text, '', updatedData, channel).catch((e) =>
         console.error(`[${ACTION}] Error guardando turno al derivar:`, e.message)
       ),
       derivarConversacion(phoneNumber, text, reason, channel, collectedData).catch((e) => {
@@ -420,14 +451,21 @@ export const main = async (event) => {
       }),
     ]);
     if (phone) {
-      await broadcastToScope({ phone }, { type: 'new_message', phone }).catch((err) =>
-        console.warn(`[${ACTION}] Broadcast detalle fallido: ${err.message}`)
-      );
+      await Promise.allSettled([
+        broadcastToScope({ phone }, { type: 'new_message', phone }),
+        broadcastToScope(SCOPES.LIST, {
+          type: 'conversation_updated',
+          phone,
+          unreadCount: 1,
+          lastMessage: (text ?? '').slice(0, 100),
+          lastMessageAt: new Date().toISOString(),
+        }),
+      ]).catch((err) => console.warn(`[${ACTION}] Broadcast fallido: ${err.message}`));
     }
     return;
   }
 
-  // 4. Marcar como leído y simular escritura (solo disponible en WhatsApp).
+  // 4. Marcar como leído
   if (channel === 'whatsapp') {
     await markAsRead(messageId).catch((err) =>
       console.warn(`[${ACTION}] No se pudo marcar como leído:`, err.message)
@@ -467,7 +505,7 @@ export const main = async (event) => {
   if (pdfListoParaCliente) {
     updatedData = { ...updatedData, presupuestosPdfEnviados: true };
   }
-  await saveConversation(phoneNumber, text, outboundText, updatedData);
+  await saveConversation(phoneNumber, text, outboundText, updatedData, channel);
 
   console.log(`[${ACTION}] [${channel}] Turno completado para ${phoneNumber}`);
 };

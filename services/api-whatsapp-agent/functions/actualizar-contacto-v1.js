@@ -2,13 +2,14 @@ import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { parseEventBody } from '../../../helpers/event-parser.js';
 import { success, unsuccessful } from '../../../helpers/responses.js';
 import { broadcastToScope, SCOPES } from '../../../libs/websocket.js';
+import { CHATS_PK, chatListSk } from '../helpers/chat-list-index.js';
 import { normalizePhone } from '../mappers/map-conversacion-item.js';
 
 const ACTION = 'Actualizar contacto';
 
 /**
  * @description Actualiza el nombre/alias de un contacto en DynamoDB.
- * Actualiza tanto el item INBOX (listado) como la sesión CONV# (detalle).
+ * Actualiza CHATS (listado), INBOX (si existe) y la sesión CONV# (detalle).
  *
  * @param {object} event - Evento HTTP de API Gateway con pathParameters.phone y body.name.
  */
@@ -25,6 +26,12 @@ export const main = async (event) => {
     const { CONVERSATIONS_TABLE } = process.env;
 
     await Promise.all([
+      dynamoDbLib.update({
+        TableName: CONVERSATIONS_TABLE,
+        Key: { pk: CHATS_PK, sk: chatListSk(phone) },
+        UpdateExpression: 'SET contactName = :name',
+        ExpressionAttributeValues: { ':name': nuevoNombre },
+      }).catch((err) => console.warn(`[${ACTION}] No se pudo actualizar CHATS: ${err.message}`)),
       dynamoDbLib.update({
         TableName: CONVERSATIONS_TABLE,
         Key: { pk: 'INBOX', sk: `CONV#${phone}` },

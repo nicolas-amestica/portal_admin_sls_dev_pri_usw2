@@ -1,13 +1,14 @@
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { success, unsuccessful } from '../../../helpers/responses.js';
 import { broadcastToScope, SCOPES } from '../../../libs/websocket.js';
+import { CHATS_PK, chatListSk } from '../helpers/chat-list-index.js';
 import { normalizePhone } from '../mappers/map-conversacion-item.js';
 
 const ACTION = 'Marcar como no leído';
 
 /**
- * @description Marca una conversación del inbox como no leída (unreadCount = 1).
- * Persiste en DynamoDB (INBOX y Sesión) y hace broadcast WS.
+ * @description Marca una conversación como no leída (unreadCount = 1).
+ * Persiste en DynamoDB (CHATS, INBOX y sesión) y hace broadcast WS.
  *
  * @param {object} event - Evento HTTP de API Gateway con pathParameters.phone.
  */
@@ -19,8 +20,13 @@ export const main = async (event) => {
     const phone = normalizePhone(rawPhone);
     const { CONVERSATIONS_TABLE } = process.env;
 
-    // Actualizar unreadCount en ambos lugares para consistencia entre lista y detalle
     await Promise.all([
+      dynamoDbLib.update({
+        TableName: CONVERSATIONS_TABLE,
+        Key: { pk: CHATS_PK, sk: chatListSk(phone) },
+        UpdateExpression: 'SET unreadCount = :one',
+        ExpressionAttributeValues: { ':one': 1 },
+      }).catch((err) => console.warn(`[${ACTION}] No se pudo actualizar CHATS: ${err.message}`)),
       dynamoDbLib.update({
         TableName: CONVERSATIONS_TABLE,
         Key: { pk: 'INBOX', sk: `CONV#${phone}` },
