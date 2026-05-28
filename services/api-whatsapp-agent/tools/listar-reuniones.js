@@ -4,7 +4,9 @@ import { buildDisponibilidadPorDia } from '../helpers/meeting-scheduling-rules.j
 
 /**
  * @description Lista las reuniones del calendario de Giras Indómito en un rango de fechas.
- * Usar antes de proponer horarios para verificar disponibilidad.
+ * Usar antes de proponer horarios. disponibilidadPorDia.horariosDisponibles incluye
+ * ocupación del calendario y anticipación mínima de 2 horas; es la única lista
+ * autorizada para ofrecer bloques al cliente.
  *
  * @param {object} params
  * @param {string} params.fechaInicio - Fecha de inicio del rango en formato YYYY-MM-DD.

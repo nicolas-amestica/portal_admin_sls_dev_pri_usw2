@@ -85,11 +85,11 @@ const TOOLS = [
             },
             fechaSugerida: {
               type: 'STRING',
-              description: 'Fecha en formato YYYY-MM-DD. Debe ser día hábil (no domingo ni feriado chileno), con bloque libre según listar_reuniones y no ser fecha pasada.',
+              description: 'Fecha en formato YYYY-MM-DD. Debe ser día hábil con bloque libre según listar_reuniones (horariosDisponibles) y no ser fecha pasada.',
             },
             horaSugerida: {
               type: 'STRING',
-              description: "Hora de inicio en formato HH:MM (America/Santiago). Solo bloques de 1h30: L-V 10:00, 11:30, 13:00, 14:30, 16:00, 17:30, 19:00, 20:30; Sáb 10:00, 11:30.",
+              description: 'Hora de inicio en formato HH:MM (America/Santiago). Debe existir en horariosDisponibles del día según listar_reuniones (incluye anticipación mínima de 2 horas).',
             },
           },
           required: ['nombreCliente', 'fechaSugerida', 'horaSugerida'],
@@ -135,7 +135,7 @@ const TOOLS = [
       {
         name: 'listar_reuniones',
         description:
-          'Lista las reuniones del calendario de Giras Indómito en un rango de fechas. Devuelve reuniones ocupadas y disponibilidadPorDia con horariosDisponibles por día. Usar antes de proponer horarios.',
+          'Lista las reuniones del calendario de Giras Indómito en un rango de fechas. Devuelve reuniones ocupadas y disponibilidadPorDia con horariosDisponibles por día. horariosDisponibles ya incluye ocupación del calendario y anticipación mínima de 2 horas: es la ÚNICA lista autorizada para proponer horarios al cliente. Llamar SIEMPRE antes de sugerir fecha u hora (crear o reagendar).',
         parameters: {
           type: 'OBJECT',
           properties: {
@@ -164,7 +164,7 @@ const TOOLS = [
             },
             nuevaHora: {
               type: 'STRING',
-              description: "Nueva hora de inicio en formato HH:MM (America/Santiago). Solo bloques de 1h30: L-V 10:00, 11:30, 13:00, 14:30, 16:00, 17:30, 19:00, 20:30; Sáb 10:00, 11:30.",
+              description: 'Nueva hora de inicio en formato HH:MM (America/Santiago). Debe existir en horariosDisponibles del día según listar_reuniones (incluye anticipación mínima de 2 horas).',
             },
             emailCliente: {
               type: 'STRING',
@@ -330,15 +330,18 @@ export function buildSystemPrompt(phoneNumber, collectedData, channel, hasHistor
     3. Si tienes TODOS los datos: llama a crear_reunion INMEDIATAMENTE. No pidas confirmación adicional.
     4. Si faltan datos: pide SOLO lo que falta en un único mensaje.
   - NUNCA repitas una pregunta sobre un dato que el cliente ya te proporcionó en esta conversación.
-  - **Antes de guardar o confirmar una fecha/hora**, valida que esté dentro del horario disponible:
+  - **Antes de proponer cualquier fecha u hora al cliente**, llama listar_reuniones para el rango de fechas relevante.
+  - **Solo puedes proponer horarios** que aparezcan en disponibilidadPorDia[fecha].horariosDisponibles. NUNCA infieras disponibilidad desde la lista estática de bloques ni inventes horarios.
+  - Si horariosDisponibles está vacío para un día, no ofrezcas ese día; busca el siguiente día hábil con slots en listar_reuniones.
+  - Si el cliente pide una hora que no está en horariosDisponibles, explica que no está disponible (puede ser por ocupación o por la anticipación mínima de 2 horas) y ofrece SOLO alternativas de horariosDisponibles.
+  - Referencia de horario de atención (no proponer sin consultar listar_reuniones):
     - Lunes a viernes: 10:00 a 22:00 hrs.
     - Sábado: 10:00 a 14:00 hrs.
     - Domingo y feriados chilenos: no disponible.
     - Cada reunión dura 1 hora 30 minutos.
-    - Solo bloques de inicio válidos: L-V → 10:00, 11:30, 13:00, 14:30, 16:00, 17:30, 19:00, 20:30; Sáb → 10:00, 11:30.
-    - Usa listar_reuniones para ver disponibilidadPorDia.horariosDisponibles antes de proponer.
-    - Si crear_reunion o editar_reunion retorna exito:false, comunica el motivo y ofrece horariosDisponibles.
-    Si la fecha/hora solicitada cae fuera de este horario, informa al cliente que no es posible agendar en ese momento e indícale los días y horarios disponibles para que elija uno nuevo. No llames a guardar_datos_reunion ni a crear_reunion con una hora fuera de horario.
+    - Anticipación mínima: 2 horas desde el momento actual antes del inicio del bloque.
+  - Si crear_reunion o editar_reunion retorna exito:false, comunica el motivo y ofrece horariosDisponibles del resultado.
+  - No llames a guardar_datos_reunion ni a crear_reunion/editar_reunion con una hora que no esté en horariosDisponibles del día.
 
   ## Reglas estrictas
   - No inventes precios. Guía siempre al envío del PDF o a la reunión informativa.

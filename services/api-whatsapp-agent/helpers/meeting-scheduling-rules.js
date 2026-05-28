@@ -2,11 +2,13 @@ import Holidays from 'date-holidays';
 
 export const MEETING_DURATION_MINUTES = 90;
 export const SLOT_INTERVAL_MINUTES = 90;
+export const MIN_ADVANCE_MINUTES = 120;
 export const DAY_START = '10:00';
 export const WEEKDAY_CLOSE = '22:00';
 export const SATURDAY_CLOSE = '14:00';
 
 const DEFAULT_TIMEZONE = 'America/Santiago';
+const MIN_ADVANCE_REASON = 'Las reuniones deben agendarse con al menos 2 horas de anticipación.';
 
 /** @type {Holidays | null} */
 let _chileHolidays = null;
@@ -79,6 +81,77 @@ function addDaysToDateStr(dateStr, dayOffset) {
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
+}
+
+/**
+ * @description Offset en ms entre UTC y la zona horaria para un instante dado.
+ * @param {Date} date
+ * @param {string} timeZone
+ * @returns {number}
+ */
+function getTimeZoneOffsetMs(date, timeZone) {
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+  const parts = dtf.formatToParts(date);
+  /** @type {Record<string, string>} */
+  const map = {};
+  for (const part of parts) {
+    if (part.type !== 'literal') map[part.type] = part.value;
+  }
+  const asUtc = Date.UTC(
+    Number(map.year),
+    Number(map.month) - 1,
+    Number(map.day),
+    Number(map.hour),
+    Number(map.minute),
+    Number(map.second),
+  );
+  return asUtc - date.getTime();
+}
+
+/**
+ * @description Convierte fecha/hora local en zona horaria a timestamp UTC (ms).
+ * @param {string} dateStr - YYYY-MM-DD.
+ * @param {string} time - HH:MM.
+ * @param {string} [timeZone]
+ * @returns {number}
+ */
+export function zonedDateTimeToUtcMs(dateStr, time, timeZone = DEFAULT_TIMEZONE) {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const [hour, minute] = time.split(':').map(Number);
+  const utcGuess = Date.UTC(year, month - 1, day, hour, minute, 0);
+  const offset = getTimeZoneOffsetMs(new Date(utcGuess), timeZone);
+  return utcGuess - offset;
+}
+
+/**
+ * @description True si el inicio del bloque cumple la anticipación mínima desde now.
+ * @param {object} params
+ * @param {string} params.date
+ * @param {string} params.time
+ * @param {Date} [params.now]
+ * @param {string} [params.timeZone]
+ * @param {number} [params.minAdvanceMinutes]
+ * @returns {boolean}
+ */
+export function isSlotWithinMinAdvance({
+  date,
+  time,
+  now = new Date(),
+  timeZone = DEFAULT_TIMEZONE,
+  minAdvanceMinutes = MIN_ADVANCE_MINUTES,
+}) {
+  const slotMs = zonedDateTimeToUtcMs(date, time, timeZone);
+  const minAllowedMs = now.getTime() + minAdvanceMinutes * 60 * 1000;
+  return slotMs >= minAllowedMs;
 }
 
 /**
@@ -226,11 +299,19 @@ export function hasOverlapWithEvents(window, events, excludeEventId) {
  * @param {Array<{ id?: string, date: string, startTime: string, endTime?: string, status?: string }>} events
  * @param {string} [excludeEventId]
  * @param {string} [timeZone]
+ * @param {Date} [now]
  * @returns {string[]}
  */
-export function getAvailableSlots(dateStr, events, excludeEventId, timeZone = DEFAULT_TIMEZONE) {
+export function getAvailableSlots(
+  dateStr,
+  events,
+  excludeEventId,
+  timeZone = DEFAULT_TIMEZONE,
+  now = new Date(),
+) {
   const dayEvents = events.filter((e) => e.date === dateStr && e.status !== 'cancelled');
   return getValidSlotStarts(dateStr, timeZone).filter((slot) => {
+    if (!isSlotWithinMinAdvance({ date: dateStr, time: slot, now, timeZone })) return false;
     const window = meetingWindow(dateStr, slot);
     return !hasOverlapWithEvents(window, dayEvents, excludeEventId);
   });
@@ -263,6 +344,7 @@ export function eachDateInRange(startDate, endDate) {
  * @param {Array<{ id?: string, date: string, startTime: string, endTime?: string, status?: string }>} [params.existingEvents]
  * @param {string} [params.excludeEventId]
  * @param {string} [params.timeZone]
+ * @param {Date} [params.now]
  * @returns {{ valid: boolean, reason?: string, availableSlots?: string[] }}
  */
 export function validateMeetingSlot({
@@ -271,8 +353,11 @@ export function validateMeetingSlot({
   existingEvents = [],
   excludeEventId,
   timeZone = process.env.TIMEZONE || DEFAULT_TIMEZONE,
+  now = new Date(),
 }) {
   const schedule = getDaySchedule(date, timeZone);
+  const availableSlots = () =>
+    getAvailableSlots(date, existingEvents, excludeEventId, timeZone, now);
 
   if (!schedule.allowed) {
     return { valid: false, reason: schedule.reason, availableSlots: [] };
@@ -282,7 +367,15 @@ export function validateMeetingSlot({
     return {
       valid: false,
       reason: 'La hora no corresponde a un bloque válido de 1 hora 30 minutos.',
-      availableSlots: getAvailableSlots(date, existingEvents, excludeEventId, timeZone),
+      availableSlots: availableSlots(),
+    };
+  }
+
+  if (!isSlotWithinMinAdvance({ date, time, now, timeZone })) {
+    return {
+      valid: false,
+      reason: MIN_ADVANCE_REASON,
+      availableSlots: availableSlots(),
     };
   }
 
@@ -291,7 +384,7 @@ export function validateMeetingSlot({
     return {
       valid: false,
       reason: 'El horario ya está ocupado por otra reunión.',
-      availableSlots: getAvailableSlots(date, existingEvents, excludeEventId, timeZone),
+      availableSlots: availableSlots(),
     };
   }
 
@@ -304,9 +397,16 @@ export function validateMeetingSlot({
  * @param {string} fechaFin
  * @param {Array<{ id?: string, date: string, startTime: string, endTime?: string, status?: string }>} events
  * @param {string} [timeZone]
+ * @param {Date} [now]
  * @returns {Record<string, { diaHabil: boolean, esFestivo: boolean, horariosDisponibles: string[] }>}
  */
-export function buildDisponibilidadPorDia(fechaInicio, fechaFin, events, timeZone = DEFAULT_TIMEZONE) {
+export function buildDisponibilidadPorDia(
+  fechaInicio,
+  fechaFin,
+  events,
+  timeZone = DEFAULT_TIMEZONE,
+  now = new Date(),
+) {
   /** @type {Record<string, { diaHabil: boolean, esFestivo: boolean, horariosDisponibles: string[] }>} */
   const out = {};
 
@@ -317,7 +417,7 @@ export function buildDisponibilidadPorDia(fechaInicio, fechaFin, events, timeZon
       diaHabil: schedule.allowed,
       esFestivo,
       horariosDisponibles: schedule.allowed
-        ? getAvailableSlots(dateStr, events, undefined, timeZone)
+        ? getAvailableSlots(dateStr, events, undefined, timeZone, now)
         : [],
     };
   }
