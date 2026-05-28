@@ -46,13 +46,23 @@ export async function sendTypingIndicator(to) {
 }
 
 /**
+ * @description Extrae el wamid del mensaje saliente desde la respuesta de la Graph API.
+ * @param {object} response - Respuesta axios de POST /messages.
+ * @returns {string|null}
+ */
+function extractOutgoingMessageId(response) {
+  return response?.data?.messages?.[0]?.id ?? null;
+}
+
+/**
  * @description Envía un mensaje de texto por WhatsApp.
  * @param {string} to - Número de teléfono del destinatario con código de país.
  * @param {string} text - Texto del mensaje.
+ * @returns {Promise<string|null>} wamid asignado por Meta, o null si no viene en la respuesta.
  */
 export async function sendTextMessage(to, text) {
   const { accessToken, phoneNumberId } = await getCredentials();
-  await httpClient.post(
+  const response = await httpClient.post(
     buildMessagesUrl(phoneNumberId),
     {
       messaging_product: 'whatsapp',
@@ -63,6 +73,7 @@ export async function sendTextMessage(to, text) {
     },
     { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' } }
   );
+  return extractOutgoingMessageId(response);
 }
 
 /**
@@ -97,7 +108,7 @@ export async function uploadMedia(buffer, filename, mimeType = 'application/pdf'
  */
 export async function sendDocumentById(to, mediaId, filename, caption = '') {
   const { accessToken, phoneNumberId } = await getCredentials();
-  await httpClient.post(
+  const response = await httpClient.post(
     buildMessagesUrl(phoneNumberId),
     {
       messaging_product: 'whatsapp',
@@ -108,6 +119,7 @@ export async function sendDocumentById(to, mediaId, filename, caption = '') {
     },
     { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' } }
   );
+  return extractOutgoingMessageId(response);
 }
 
 /**
@@ -118,7 +130,7 @@ export async function sendDocumentById(to, mediaId, filename, caption = '') {
  */
 export async function sendImageById(to, mediaId, caption = '') {
   const { accessToken, phoneNumberId } = await getCredentials();
-  await httpClient.post(
+  const response = await httpClient.post(
     buildMessagesUrl(phoneNumberId),
     {
       messaging_product: 'whatsapp',
@@ -129,6 +141,7 @@ export async function sendImageById(to, mediaId, caption = '') {
     },
     { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' } }
   );
+  return extractOutgoingMessageId(response);
 }
 
 /**
@@ -162,7 +175,7 @@ export async function downloadMedia(mediaId) {
  */
 export async function sendAudioById(to, mediaId, { voice = true } = {}) {
   const { accessToken, phoneNumberId } = await getCredentials();
-  await httpClient.post(
+  const response = await httpClient.post(
     buildMessagesUrl(phoneNumberId),
     {
       messaging_product: 'whatsapp',
@@ -173,6 +186,7 @@ export async function sendAudioById(to, mediaId, { voice = true } = {}) {
     },
     { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' } }
   );
+  return extractOutgoingMessageId(response);
 }
 
 /**

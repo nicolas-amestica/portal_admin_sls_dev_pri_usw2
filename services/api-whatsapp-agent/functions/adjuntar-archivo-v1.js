@@ -8,6 +8,7 @@ import { broadcastToScope, SCOPES } from '../../../libs/websocket.js';
 import { upsertChatListItem } from '../helpers/chat-list-index.js';
 import { prepareAudioForWhatsApp } from '../helpers/prepare-audio-for-whatsapp.js';
 import { buildTurnItem, normalizePhone } from '../mappers/map-conversacion-item.js';
+import { registerWhatsAppMessageIndex } from '../helpers/whatsapp-delivery.js';
 
 const ACTION = 'Adjuntar archivo a conversación';
 const MAX_FILE_SIZE_MB = 7;
@@ -63,21 +64,31 @@ export const main = async (event) => {
     // Subir archivo a la Media API de WhatsApp y enviar al cliente.
     const mediaId = await uploadMedia(uploadBuffer, uploadFileName, uploadMime);
     const phoneWithPrefix = `+${phone}`;
+    let whatsappMessageId = null;
     if (mimeType.startsWith('image/')) {
-      await sendImageById(phoneWithPrefix, mediaId, caption);
+      whatsappMessageId = await sendImageById(phoneWithPrefix, mediaId, caption);
     } else if (isAudio) {
-      await sendAudioById(phoneWithPrefix, mediaId);
+      whatsappMessageId = await sendAudioById(phoneWithPrefix, mediaId);
     } else {
-      await sendDocumentById(phoneWithPrefix, mediaId, fileName, caption);
+      whatsappMessageId = await sendDocumentById(phoneWithPrefix, mediaId, fileName, caption);
+    }
+
+    const msgSk = `MSG#${uuidv7()}`;
+    if (whatsappMessageId) {
+      await registerWhatsAppMessageIndex({ whatsappMessageId, phone, msgSk });
     }
 
     // Write-through: guardar el adjunto en DynamoDB para el historial del portal.
     const attachmentItem = buildTurnItem(
       phone,
-      `MSG#${uuidv7()}`,
+      msgSk,
       'team',
       caption?.trim() ?? '',
-      [{ s3Key, fileName, mimeType }]
+      [{ s3Key, fileName, mimeType }],
+      {
+        whatsappMessageId: whatsappMessageId ?? undefined,
+        deliveryStatus: whatsappMessageId ? 'sent' : undefined,
+      }
     );
     const preview = caption?.trim() || `📎 ${fileName}`;
     const now = new Date().toISOString();
@@ -118,7 +129,7 @@ export const main = async (event) => {
     ]);
 
     console.log(`[${ACTION}] "${fileName}" enviado a ${phone}`);
-    return success(200, {}, ACTION);
+    return success(200, { whatsappMessageId, msgSk, createdAt: now }, ACTION);
   } catch (error) {
     console.error(`[${ACTION}] Error:`, error.message, error.stack);
     return unsuccessful(error.statusCode || 500, error, ACTION);

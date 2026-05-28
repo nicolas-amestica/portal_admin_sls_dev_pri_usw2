@@ -6,6 +6,7 @@ import { sendTextMessage } from '../helpers/whatsapp-api.js';
 import { broadcastToScope, SCOPES } from '../../../libs/websocket.js';
 import { upsertChatListItem } from '../helpers/chat-list-index.js';
 import { buildTurnItem, normalizePhone } from '../mappers/map-conversacion-item.js';
+import { registerWhatsAppMessageIndex } from '../helpers/whatsapp-delivery.js';
 
 const ACTION = 'Responder conversación derivada';
 
@@ -32,11 +33,19 @@ export const main = async (event) => {
     const text = content.trim();
     const { CONVERSATIONS_TABLE } = process.env;
     const now = new Date().toISOString();
+    const msgSk = `MSG#${uuidv7()}`;
 
-    // Enviar mensaje directo por WhatsApp y persistir en DynamoDB en paralelo.
-    const item = buildTurnItem(phone, `MSG#${uuidv7()}`, 'team', text);
+    const whatsappMessageId = await sendTextMessage(`+${phone}`, text);
+    if (whatsappMessageId) {
+      await registerWhatsAppMessageIndex({ whatsappMessageId, phone, msgSk });
+    }
+
+    const item = buildTurnItem(phone, msgSk, 'team', text, [], {
+      whatsappMessageId: whatsappMessageId ?? undefined,
+      deliveryStatus: whatsappMessageId ? 'sent' : undefined,
+    });
+
     await Promise.all([
-      sendTextMessage(`+${phone}`, text),
       dynamoDbLib.put({ TableName: CONVERSATIONS_TABLE, Item: item }),
       dynamoDbLib.update({
         TableName: CONVERSATIONS_TABLE,
@@ -66,7 +75,7 @@ export const main = async (event) => {
       }),
     ]);
 
-    return success(200, {}, ACTION);
+    return success(200, { whatsappMessageId, msgSk, createdAt: now }, ACTION);
   } catch (error) {
     console.error(`[${ACTION}] Error:`, error.message, error.stack);
     return unsuccessful(error.statusCode || 500, error, ACTION);

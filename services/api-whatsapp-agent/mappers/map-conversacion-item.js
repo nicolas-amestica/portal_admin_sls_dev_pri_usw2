@@ -25,16 +25,20 @@ export function normalizePhone(phoneNumber) {
  * @param {'user'|'model'|'team'} role - Rol del turno.
  * @param {string} text - Texto del mensaje.
  * @param {Array<{url: string, fileName: string, mimeType: string}>} [attachments] - Adjuntos opcionales.
+ * @param {{ whatsappMessageId?: string, deliveryStatus?: 'sent'|'delivered'|'failed' }} [meta] - Metadatos de entrega WhatsApp.
  * @returns {object} Item listo para PutCommand de DynamoDB.
  */
-export function buildTurnItem(phoneNumber, sk, role, text, attachments = []) {
+export function buildTurnItem(phoneNumber, sk, role, text, attachments = [], meta = {}) {
   const normalized = normalizePhone(phoneNumber);
+  const { whatsappMessageId, deliveryStatus } = meta;
   return {
     pk: `CONV#${normalized}`,
     sk,
     role,
     parts: [{ text }],
     ...(attachments.length ? { attachments } : {}),
+    ...(whatsappMessageId ? { whatsappMessageId } : {}),
+    ...(deliveryStatus ? { deliveryStatus } : {}),
     createdAt: new Date().toISOString(),
     ttl: ttlMessages(),
   };

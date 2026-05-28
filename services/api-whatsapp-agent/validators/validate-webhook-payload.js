@@ -153,3 +153,31 @@ export function extractIncomingMessage(body) {
     return null;
   }
 }
+
+/**
+ * @description Extrae actualizaciones de estado de mensajes salientes (sent, delivered, read, failed).
+ * @param {object} body - Payload parseado del webhook de Meta.
+ * @returns {Array<{ whatsappMessageId: string, status: string, recipientId?: string, timestamp?: string }>}
+ */
+export function extractOutgoingStatuses(body) {
+  try {
+    if (body?.object !== 'whatsapp_business_account') return [];
+
+    const change = body?.entry?.[0]?.changes?.[0];
+    if (change?.field !== 'messages') return [];
+
+    const statuses = change?.value?.statuses;
+    if (!Array.isArray(statuses) || !statuses.length) return [];
+
+    return statuses
+      .filter((item) => item?.id && item?.status)
+      .map((item) => ({
+        whatsappMessageId: item.id,
+        status: item.status,
+        recipientId: item.recipient_id,
+        timestamp: item.timestamp,
+      }));
+  } catch {
+    return [];
+  }
+}

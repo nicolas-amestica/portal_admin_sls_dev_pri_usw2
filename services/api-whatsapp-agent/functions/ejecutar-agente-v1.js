@@ -12,6 +12,7 @@ import {
   downloadMedia,
 } from '../helpers/whatsapp-api.js';
 import { buildTurnItem, toGeminiHistory, normalizePhone } from '../mappers/map-conversacion-item.js';
+import { registerWhatsAppMessageIndex } from '../helpers/whatsapp-delivery.js';
 import { sendMetaTextMessage } from '../helpers/messenger-api.js';
 import { getPresignedUrl } from '../../../libs/s3-v3.js';
 import { shortenUrl } from '../helpers/url-shortener.js';
@@ -134,8 +135,10 @@ async function loadConversation(phoneNumber) {
  * @param {string} modelText
  * @param {object} collectedData
  * @param {string} [channel]
+ * @param {{ whatsappMessageId?: string }} [outboundMeta]
  */
-async function saveConversation(phoneNumber, userText, modelText, collectedData, channel = 'whatsapp') {
+async function saveConversation(phoneNumber, userText, modelText, collectedData, channel = 'whatsapp', outboundMeta = {}) {
+  const { whatsappMessageId: outboundWhatsAppMessageId } = outboundMeta;
   const { CONVERSATIONS_TABLE } = process.env;
   const now = new Date().toISOString();
   const ttl = Math.floor(Date.now() / 1000) + 90 * 24 * 60 * 60;
@@ -159,8 +162,27 @@ async function saveConversation(phoneNumber, userText, modelText, collectedData,
   const writes = [dynamoDbLib.put({ TableName: CONVERSATIONS_TABLE, Item: userItem }), sessionUpdate];
 
   // Solo guardar el turno del modelo si hay texto (evita burbujas en blanco en el portal).
+  let modelSk = null;
   if (modelText?.trim()) {
-    const modelItem = buildTurnItem(phoneNumber, `MSG#${uuidv7()}`, 'model', sanitizeForHistory(modelText));
+    modelSk = `MSG#${uuidv7()}`;
+    if (outboundWhatsAppMessageId && channel === 'whatsapp') {
+      await registerWhatsAppMessageIndex({
+        whatsappMessageId: outboundWhatsAppMessageId,
+        phone: phoneNumber,
+        msgSk: modelSk,
+      });
+    }
+    const modelItem = buildTurnItem(
+      phoneNumber,
+      modelSk,
+      'model',
+      sanitizeForHistory(modelText),
+      [],
+      {
+        whatsappMessageId: outboundWhatsAppMessageId,
+        deliveryStatus: outboundWhatsAppMessageId ? 'sent' : undefined,
+      }
+    );
     writes.push(dynamoDbLib.put({ TableName: CONVERSATIONS_TABLE, Item: modelItem }));
   }
 
@@ -489,9 +511,10 @@ export const main = async (event) => {
     console.warn(`[${ACTION}] Texto de respuesta bloqueado (patrón interno). phone=${phoneNumber}`);
     outboundText = '';
   }
+  let outboundWhatsAppMessageId = null;
   if (outboundText) {
     if (channel === 'whatsapp') {
-      await sendTextMessage(phoneNumber, outboundText);
+      outboundWhatsAppMessageId = await sendTextMessage(phoneNumber, outboundText);
     } else {
       await sendMetaTextMessage(phoneNumber, outboundText);
     }
@@ -507,7 +530,9 @@ export const main = async (event) => {
   if (pdfListoParaCliente) {
     updatedData = { ...updatedData, presupuestosPdfEnviados: true };
   }
-  await saveConversation(phoneNumber, text, outboundText, updatedData, channel);
+  await saveConversation(phoneNumber, text, outboundText, updatedData, channel, {
+    whatsappMessageId: outboundWhatsAppMessageId ?? undefined,
+  });
 
   console.log(`[${ACTION}] [${channel}] Turno completado para ${phoneNumber}`);
 };

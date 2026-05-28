@@ -1,5 +1,6 @@
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { SCOPES } from '../../../libs/websocket.js';
+import { normalizePhone } from '../mappers/map-conversacion-item.js';
 import { getParameterValue } from '../../../libs/parameter-store.js';
 import { verifyPortalJwt } from '../../../libs/jwt-portal.js';
 
@@ -72,8 +73,9 @@ export const main = async (event) => {
         console.warn(`[${ACTION}] Sin permiso inbox (phone) connection ${connectionId}`);
         return { statusCode: 403 };
       }
-      pk = `WS#${phone}`;
-      itemExtra.phone = phone;
+      const normalizedPhone = normalizePhone(phone);
+      pk = `WS#${normalizedPhone}`;
+      itemExtra.phone = normalizedPhone;
     } else {
       console.warn(`[${ACTION}] Conexión ${connectionId} rechazada: falta scope o phone`);
       return { statusCode: 400 };

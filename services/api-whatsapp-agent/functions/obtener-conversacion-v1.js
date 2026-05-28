@@ -74,6 +74,8 @@ function mapDynamoMessages(dynamoMsgs) {
     timestamp: m.createdAt,
     tipo: m.role === 'user' ? 'cliente' : m.role === 'team' ? 'equipo' : 'agente_ia',
     ...(m.attachments?.length ? { adjuntos: m.attachments } : {}),
+    ...(m.whatsappMessageId ? { whatsappMessageId: m.whatsappMessageId } : {}),
+    ...(m.deliveryStatus ? { deliveryStatus: m.deliveryStatus } : {}),
   }));
 }
 
