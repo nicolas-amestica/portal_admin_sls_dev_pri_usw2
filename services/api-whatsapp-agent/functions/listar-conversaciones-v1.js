@@ -1,35 +1,41 @@
 import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { success, unsuccessful } from '../../../helpers/responses.js';
-import { CHATS_PK, mapChatListItem, sortChatsByActivity } from '../helpers/chat-list-index.js';
+import {
+  CHATS_PK,
+  CHAT_LIST_DEFAULT_LIMIT,
+  CHAT_LIST_MAX_LIMIT,
+  mapChatListItem,
+  paginateChatsByActivity,
+  sortChatsByActivity,
+} from '../helpers/chat-list-index.js';
 
 const ACTION = 'Listar conversaciones';
-/** Máximo de chats devueltos al portal (los más recientes por actividad). */
-const CHAT_LIST_LIMIT = 40;
 
 /**
- * @description Lista las conversaciones WhatsApp más recientes leyendo la partición
- * CHATS de DynamoDB. Devuelve como máximo {@link CHAT_LIST_LIMIT} ítems ordenados
- * por actividad descendente (lastMessageAt → updatedAt → createdAt).
+ * @description Lista conversaciones WhatsApp paginadas por actividad descendente.
+ * Query params: limit (default 40, max 50), cursor (opaco base64url).
  *
- * @param {object} _event - Evento HTTP de API Gateway.
+ * @param {object} event - Evento HTTP de API Gateway.
  */
-export const main = async (_event) => {
+export const main = async (event) => {
   try {
     const { CONVERSATIONS_TABLE } = process.env;
+    const rawLimit = parseInt(event.queryStringParameters?.limit ?? '', 10);
+    const limit = Number.isFinite(rawLimit)
+      ? Math.min(Math.max(rawLimit, 1), CHAT_LIST_MAX_LIMIT)
+      : CHAT_LIST_DEFAULT_LIMIT;
+    const cursor = event.queryStringParameters?.cursor ?? null;
 
     const items = await dynamoDbLib.iterativeQuery({
       TableName: CONVERSATIONS_TABLE,
       KeyConditionExpression: 'pk = :pk',
       ExpressionAttributeValues: { ':pk': CHATS_PK },
-      ScanIndexForward: false,
     });
 
-    const conversaciones = sortChatsByActivity((items ?? []).map(mapChatListItem)).slice(
-      0,
-      CHAT_LIST_LIMIT
-    );
+    const sorted = sortChatsByActivity((items ?? []).map(mapChatListItem));
+    const page = paginateChatsByActivity(sorted, { limit, cursor });
 
-    return success(200, conversaciones, ACTION);
+    return success(200, page, ACTION);
   } catch (error) {
     console.error(`[${ACTION}] Error:`, error.message, error.stack);
     return unsuccessful(error.statusCode || 500, error, ACTION);

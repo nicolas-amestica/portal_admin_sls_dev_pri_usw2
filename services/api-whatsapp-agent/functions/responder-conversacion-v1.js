@@ -13,7 +13,7 @@ const ACTION = 'Responder conversación derivada';
 /**
  * @description Envía una respuesta del equipo humano a una conversación derivada.
  * Envía el mensaje directamente vía WhatsApp Cloud API, lo persiste en DynamoDB
- * y actualiza el item INBOX con el último mensaje.
+ * y actualiza el ítem CHATS con el último mensaje.
  *
  * @param {object} event - Evento HTTP de API Gateway con pathParameters.phone y body.content.
  */
@@ -47,13 +47,6 @@ export const main = async (event) => {
 
     await Promise.all([
       dynamoDbLib.put({ TableName: CONVERSATIONS_TABLE, Item: item }),
-      dynamoDbLib.update({
-        TableName: CONVERSATIONS_TABLE,
-        Key: { pk: 'INBOX', sk: `CONV#${phone}` },
-        UpdateExpression: 'SET lastMessage = :txt, lastMessageAt = :now, unreadCount = :zero',
-        ConditionExpression: 'attribute_exists(pk)',
-        ExpressionAttributeValues: { ':txt': text.slice(0, 200), ':now': now, ':zero': 0 },
-      }).catch((err) => console.warn(`[${ACTION}] No se pudo actualizar INBOX: ${err.message}`)),
       upsertChatListItem({
         phone,
         lastMessage: text.slice(0, 200),

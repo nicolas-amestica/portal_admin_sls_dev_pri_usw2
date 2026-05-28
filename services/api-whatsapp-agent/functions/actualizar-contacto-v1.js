@@ -9,7 +9,7 @@ const ACTION = 'Actualizar contacto';
 
 /**
  * @description Actualiza el nombre/alias de un contacto en DynamoDB.
- * Actualiza CHATS (listado), INBOX (si existe) y la sesión CONV# (detalle).
+ * Actualiza CHATS (listado) y la sesión CONV# (detalle).
  *
  * @param {object} event - Evento HTTP de API Gateway con pathParameters.phone y body.name.
  */
@@ -32,13 +32,6 @@ export const main = async (event) => {
         UpdateExpression: 'SET contactName = :name',
         ExpressionAttributeValues: { ':name': nuevoNombre },
       }).catch((err) => console.warn(`[${ACTION}] No se pudo actualizar CHATS: ${err.message}`)),
-      dynamoDbLib.update({
-        TableName: CONVERSATIONS_TABLE,
-        Key: { pk: 'INBOX', sk: `CONV#${phone}` },
-        UpdateExpression: 'SET contactName = :name',
-        ConditionExpression: 'attribute_exists(pk)',
-        ExpressionAttributeValues: { ':name': nuevoNombre },
-      }).catch((err) => console.warn(`[${ACTION}] No se pudo actualizar INBOX: ${err.message}`)),
       dynamoDbLib.update({
         TableName: CONVERSATIONS_TABLE,
         Key: { pk: `CONV#${phone}`, sk: `CONV#${phone}` },

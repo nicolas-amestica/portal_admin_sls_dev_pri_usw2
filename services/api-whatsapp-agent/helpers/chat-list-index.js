@@ -4,6 +4,11 @@ import { normalizePhone } from '../mappers/map-conversacion-item.js';
 /** Partición DynamoDB del listado global de chats (Query, sin Scan). */
 export const CHATS_PK = 'CHATS';
 
+/** Tamaño de página por defecto al listar conversaciones. */
+export const CHAT_LIST_DEFAULT_LIMIT = 40;
+/** Tamaño máximo de página permitido. */
+export const CHAT_LIST_MAX_LIMIT = 50;
+
 const TTL_DAYS = 90;
 
 /**
@@ -173,4 +178,61 @@ export function mapChatListItem(item) {
     reason: item.reason,
     reasonLabel: item.reasonLabel,
   };
+}
+
+/**
+ * @description Codifica cursor opaco de paginación por actividad (lastMessageAt + id).
+ * @param {{ lastMessageAt: string, id: string }} payload
+ * @returns {string}
+ */
+export function encodeChatListCursor({ lastMessageAt, id }) {
+  return Buffer.from(JSON.stringify({ lastMessageAt, id }), 'utf8').toString('base64url');
+}
+
+/**
+ * @description Decodifica cursor de paginación del listado.
+ * @param {string} cursor
+ * @returns {{ lastMessageAt: string, id: string } | null}
+ */
+export function decodeChatListCursor(cursor) {
+  if (!cursor) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
+    if (!parsed?.id) return null;
+    return { lastMessageAt: parsed.lastMessageAt ?? '', id: String(parsed.id) };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * @description Pagina una lista ya ordenada por actividad descendente.
+ * @param {ReturnType<typeof mapChatListItem>[]} sortedItems
+ * @param {{ limit: number, cursor?: string | null }} options
+ * @returns {{ items: object[], hasMore: boolean, nextCursor: string | null }}
+ */
+export function paginateChatsByActivity(sortedItems, { limit, cursor = null }) {
+  let startIdx = 0;
+  const decoded = decodeChatListCursor(cursor);
+  if (decoded) {
+    const idx = sortedItems.findIndex(
+      (c) =>
+        c.id === decoded.id &&
+        (c.lastMessageAt || c.updatedAt || '') === decoded.lastMessageAt
+    );
+    startIdx = idx >= 0 ? idx + 1 : 0;
+  }
+
+  const items = sortedItems.slice(startIdx, startIdx + limit);
+  const hasMore = startIdx + limit < sortedItems.length;
+  const last = items[items.length - 1];
+  const nextCursor =
+    hasMore && last
+      ? encodeChatListCursor({
+          lastMessageAt: last.lastMessageAt || last.updatedAt || '',
+          id: last.id,
+        })
+      : null;
+
+  return { items, hasMore, nextCursor };
 }

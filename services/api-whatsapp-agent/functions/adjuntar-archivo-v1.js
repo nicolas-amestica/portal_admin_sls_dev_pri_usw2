@@ -95,13 +95,6 @@ export const main = async (event) => {
 
     await Promise.all([
       dynamoDbLib.put({ TableName: CONVERSATIONS_TABLE, Item: attachmentItem }),
-      dynamoDbLib.update({
-        TableName: CONVERSATIONS_TABLE,
-        Key: { pk: 'INBOX', sk: `CONV#${phone}` },
-        UpdateExpression: 'SET lastMessage = :txt, lastMessageAt = :now, unreadCount = :zero',
-        ConditionExpression: 'attribute_exists(pk)',
-        ExpressionAttributeValues: { ':txt': preview.slice(0, 200), ':now': now, ':zero': 0 },
-      }).catch(() => {}),
       upsertChatListItem({
         phone,
         lastMessage: preview.slice(0, 200),

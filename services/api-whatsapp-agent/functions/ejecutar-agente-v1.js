@@ -191,16 +191,6 @@ async function saveConversation(
   const sessionResultIdx = skipUserTurn ? 0 : 1;
   const unreadCount = results[sessionResultIdx]?.unreadCount ?? undefined;
 
-  dynamoDbLib
-    .update({
-      TableName: CONVERSATIONS_TABLE,
-      Key: { pk: 'INBOX', sk: `CONV#${normalizedPhone}` },
-      UpdateExpression: 'SET lastMessage = :txt, lastMessageAt = :now ADD unreadCount :one',
-      ConditionExpression: 'attribute_exists(pk)',
-      ExpressionAttributeValues: { ':txt': lastMessageText, ':now': now, ':one': 1 },
-    })
-    .catch(() => {});
-
   await upsertChatListItem({
     phone: normalizedPhone,
     channel,
@@ -254,8 +244,7 @@ const REASON_LABELS = {
 };
 
 /**
- * @description Marca la conversación como derivada al equipo humano escribiendo en la partición
- * INBOX de DynamoDB. Reemplaza la creación de conversación en Chatwoot.
+ * @description Marca la conversación como derivada al equipo humano vía CHATS + sesión CONV#.
  * @param {string} phoneNumber
  * @param {string} text - Último mensaje del cliente.
  * @param {string} reason - Motivo de derivación ('sin_presupuesto' | 'sin_respuesta' | 'error_gemini').
@@ -279,26 +268,6 @@ async function derivarConversacion(phoneNumber, text, reason, channel, collected
   const reasonLabel = REASON_LABELS[reason] ?? reason;
 
   await Promise.all([
-    dynamoDbLib.put({
-      TableName: CONVERSATIONS_TABLE,
-      Item: {
-        pk: 'INBOX',
-        sk: `CONV#${phone}`,
-        phone,
-        contactName,
-        channel,
-        reason,
-        reasonLabel,
-        lastMessage: (text ?? '').slice(0, 200),
-        lastMessageAt: now,
-        unreadCount: 1,
-        status: 'derived',
-        createdAt: now,
-        ...(collectedData?.destino && { destino: collectedData.destino }),
-        ...(collectedData?.codigoEvento && { codigoEvento: collectedData.codigoEvento }),
-        ttl: Math.floor(Date.now() / 1000) + 90 * 24 * 60 * 60,
-      },
-    }),
     dynamoDbLib.update({
       TableName: CONVERSATIONS_TABLE,
       Key: { pk: `CONV#${phone}`, sk: `CONV#${phone}` },

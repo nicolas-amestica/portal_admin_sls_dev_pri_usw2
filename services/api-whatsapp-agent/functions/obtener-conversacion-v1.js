@@ -123,13 +123,6 @@ export const main = async (event) => {
         }).catch(() => {}),
         dynamoDbLib.update({
           TableName: CONVERSATIONS_TABLE,
-          Key: { pk: 'INBOX', sk: `CONV#${phone}` },
-          UpdateExpression: 'SET unreadCount = :zero',
-          ConditionExpression: 'attribute_exists(pk)',
-          ExpressionAttributeValues: { ':zero': 0 },
-        }).catch(() => {}),
-        dynamoDbLib.update({
-          TableName: CONVERSATIONS_TABLE,
           Key: { pk: `CONV#${phone}`, sk: `CONV#${phone}` },
           UpdateExpression: 'SET unreadCount = :zero',
           ExpressionAttributeValues: { ':zero': 0 },

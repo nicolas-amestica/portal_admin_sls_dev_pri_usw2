@@ -134,7 +134,7 @@ functions:
 
   listar_conversaciones_v1:
     handler: functions/listar-conversaciones-v1.main
-    description: Lista las conversaciones abiertas derivadas al equipo humano en la bandeja de entrada.
+    description: Lista conversaciones WhatsApp paginadas por actividad (pk=CHATS, cursor opaco).
     timeout: 15
     memorySize: 256
     events:

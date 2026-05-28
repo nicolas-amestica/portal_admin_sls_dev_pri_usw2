@@ -8,7 +8,7 @@ const ACTION = 'Marcar como no leído';
 
 /**
  * @description Marca una conversación como no leída (unreadCount = 1).
- * Persiste en DynamoDB (CHATS, INBOX y sesión) y hace broadcast WS.
+ * Persiste en DynamoDB (CHATS y sesión) y hace broadcast WS.
  *
  * @param {object} event - Evento HTTP de API Gateway con pathParameters.phone.
  */
@@ -27,13 +27,6 @@ export const main = async (event) => {
         UpdateExpression: 'SET unreadCount = :one',
         ExpressionAttributeValues: { ':one': 1 },
       }).catch((err) => console.warn(`[${ACTION}] No se pudo actualizar CHATS: ${err.message}`)),
-      dynamoDbLib.update({
-        TableName: CONVERSATIONS_TABLE,
-        Key: { pk: 'INBOX', sk: `CONV#${phone}` },
-        UpdateExpression: 'SET unreadCount = :one',
-        ConditionExpression: 'attribute_exists(pk)',
-        ExpressionAttributeValues: { ':one': 1 },
-      }).catch((err) => console.warn(`[${ACTION}] No se pudo actualizar INBOX: ${err.message}`)),
       dynamoDbLib.update({
         TableName: CONVERSATIONS_TABLE,
         Key: { pk: `CONV#${phone}`, sk: `CONV#${phone}` },
