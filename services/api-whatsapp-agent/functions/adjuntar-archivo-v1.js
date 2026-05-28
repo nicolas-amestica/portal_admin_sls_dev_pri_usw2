@@ -4,7 +4,7 @@ import { parseEventBody } from '../../../helpers/event-parser.js';
 import { success, unsuccessful } from '../../../helpers/responses.js';
 import { uploadMedia, sendDocumentById, sendImageById, sendAudioById } from '../helpers/whatsapp-api.js';
 import { getObjectBuffer, deleteObject } from '../../../libs/s3-v3.js';
-import { broadcastToScope, SCOPES } from '../../../libs/websocket.js';
+import { broadcastConversationUpdated, broadcastMessageAppended } from '../helpers/inbox-realtime.js';
 import { upsertChatListItem } from '../helpers/chat-list-index.js';
 import { prepareAudioForWhatsApp } from '../helpers/prepare-audio-for-whatsapp.js';
 import { buildTurnItem, normalizePhone } from '../mappers/map-conversacion-item.js';
@@ -117,14 +117,13 @@ export const main = async (event) => {
       console.warn(`[${ACTION}] No se pudo eliminar objeto S3 "${s3Key}": ${err.message}`)
     );
 
-    // Propagar a otras pestañas.
     await Promise.allSettled([
-      broadcastToScope({ phone }, { type: 'new_message', phone }),
-      broadcastToScope(SCOPES.LIST, {
-        type: 'conversation_updated',
+      broadcastMessageAppended({ phone, item: attachmentItem }),
+      broadcastConversationUpdated({
         phone,
         lastMessage: preview.slice(0, 100),
         lastMessageAt: now,
+        unreadCount: 0,
       }),
     ]);
 

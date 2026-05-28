@@ -13,10 +13,16 @@ import {
 } from '../helpers/whatsapp-api.js';
 import { buildTurnItem, toGeminiHistory, normalizePhone } from '../mappers/map-conversacion-item.js';
 import { registerWhatsAppMessageIndex } from '../helpers/whatsapp-delivery.js';
+import { sanitizeForHistory } from '../helpers/sanitize-for-history.js';
+import { persistInboundMessage } from '../helpers/persist-inbound-message.js';
+import {
+  broadcastAgentProcessing,
+  broadcastConversationUpdated,
+  broadcastMessageAppended,
+} from '../helpers/inbox-realtime.js';
 import { sendMetaTextMessage } from '../helpers/messenger-api.js';
 import { getPresignedUrl } from '../../../libs/s3-v3.js';
 import { shortenUrl } from '../helpers/url-shortener.js';
-import { broadcastToScope, SCOPES } from '../../../libs/websocket.js';
 import { upsertChatListItem } from '../helpers/chat-list-index.js';
 
 const ACTION = 'Ejecutar agente WhatsApp';
@@ -85,21 +91,135 @@ async function checkRateLimit(phoneNumber) {
 }
 
 /**
- * @description Sanitiza el texto del usuario antes de persistirlo en el historial.
- * Elimina patrones que podrían usarse para envenenar el contexto de Gemini en turnos futuros:
- * prefijos de rol, etiquetas de sistema, caracteres de control y null bytes.
- * @param {string} text
- * @returns {string}
+ * @description Persiste el turno del modelo (y opcionalmente el user) en DynamoDB.
+ * Con skipUserTurn=true el mensaje del cliente ya fue guardado por persistInboundMessage.
+ * @param {string} phoneNumber
+ * @param {string} userText
+ * @param {string} modelText
+ * @param {object} collectedData
+ * @param {string} [channel]
+ * @param {{ whatsappMessageId?: string }} [outboundMeta]
+ * @param {{ skipUserTurn?: boolean }} [options]
  */
-function sanitizeForHistory(text) {
-  if (!text) return '';
-  return text
-    .replace(/\0/g, '')                                         // null bytes
-    .replace(/[\x01-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')         // caracteres de control
-    .replace(/^(system|assistant|user|model)\s*:/gim, '')       // prefijos de rol falsos
-    .replace(/<\|.*?\|>/g, '')                                   // tokens especiales estilo <|im_start|>
-    .replace(/###\s*(system|instruction|prompt)/gi, '')          // encabezados de instrucción
-    .trim();
+async function saveConversation(
+  phoneNumber,
+  userText,
+  modelText,
+  collectedData,
+  channel = 'whatsapp',
+  outboundMeta = {},
+  options = {}
+) {
+  const { skipUserTurn = false } = options;
+  const { whatsappMessageId: outboundWhatsAppMessageId } = outboundMeta;
+  const { CONVERSATIONS_TABLE } = process.env;
+  const now = new Date().toISOString();
+  const ttl = Math.floor(Date.now() / 1000) + 90 * 24 * 60 * 60;
+  const normalizedPhone = normalizePhone(phoneNumber);
+  const sessionKey = `CONV#${normalizedPhone}`;
+  const previewText = (modelText?.trim() ? sanitizeForHistory(modelText) : sanitizeForHistory(userText)).slice(0, 200);
+  const lastMessageText = sanitizeForHistory(userText).slice(0, 100);
+
+  const writes = [];
+
+  if (!skipUserTurn) {
+    const userItem = buildTurnItem(phoneNumber, `MSG#${uuidv7()}`, 'user', sanitizeForHistory(userText));
+    writes.push(dynamoDbLib.put({ TableName: CONVERSATIONS_TABLE, Item: userItem }));
+  }
+
+  const sessionExprParts = ['collectedData = :cd', 'updatedAt = :now', '#ttl = :ttl'];
+  const sessionValues = { ':cd': collectedData, ':now': now, ':ttl': ttl };
+  const sessionNames = { '#ttl': 'ttl' };
+
+  if (skipUserTurn) {
+    if (modelText?.trim()) {
+      sessionExprParts.push('lastMessageAt = :now', 'lastMessageText = :preview');
+      sessionValues[':preview'] = sanitizeForHistory(modelText).slice(0, 100);
+    }
+  } else {
+    sessionExprParts.push(
+      'lastMessageAt = :now',
+      'lastMessageText = :txt',
+      'createdAt = if_not_exists(createdAt, :now)',
+      'phoneNumber = if_not_exists(phoneNumber, :phone)',
+      'channel = if_not_exists(channel, :channel)'
+    );
+    sessionValues[':txt'] = lastMessageText;
+    sessionValues[':phone'] = normalizedPhone;
+    sessionValues[':channel'] = channel;
+  }
+
+  let sessionUpdate = dynamoDbLib.update({
+    TableName: CONVERSATIONS_TABLE,
+    Key: { pk: sessionKey, sk: sessionKey },
+    UpdateExpression: `SET ${sessionExprParts.join(', ')}${skipUserTurn ? '' : ' ADD unreadCount :one'}`,
+    ExpressionAttributeNames: sessionNames,
+    ExpressionAttributeValues: skipUserTurn
+      ? sessionValues
+      : { ...sessionValues, ':one': 1 },
+    ReturnValues: 'UPDATED_NEW',
+  });
+
+  writes.push(sessionUpdate);
+
+  let modelItem = null;
+  let modelSk = null;
+  if (modelText?.trim()) {
+    modelSk = `MSG#${uuidv7()}`;
+    if (outboundWhatsAppMessageId && channel === 'whatsapp') {
+      await registerWhatsAppMessageIndex({
+        whatsappMessageId: outboundWhatsAppMessageId,
+        phone: phoneNumber,
+        msgSk: modelSk,
+      });
+    }
+    modelItem = buildTurnItem(
+      phoneNumber,
+      modelSk,
+      'model',
+      sanitizeForHistory(modelText),
+      [],
+      {
+        whatsappMessageId: outboundWhatsAppMessageId,
+        deliveryStatus: outboundWhatsAppMessageId ? 'sent' : undefined,
+      }
+    );
+    writes.push(dynamoDbLib.put({ TableName: CONVERSATIONS_TABLE, Item: modelItem }));
+  }
+
+  const results = await Promise.all(writes);
+  const sessionResultIdx = skipUserTurn ? 0 : 1;
+  const unreadCount = results[sessionResultIdx]?.unreadCount ?? undefined;
+
+  dynamoDbLib
+    .update({
+      TableName: CONVERSATIONS_TABLE,
+      Key: { pk: 'INBOX', sk: `CONV#${normalizedPhone}` },
+      UpdateExpression: 'SET lastMessage = :txt, lastMessageAt = :now ADD unreadCount :one',
+      ConditionExpression: 'attribute_exists(pk)',
+      ExpressionAttributeValues: { ':txt': lastMessageText, ':now': now, ':one': 1 },
+    })
+    .catch(() => {});
+
+  await upsertChatListItem({
+    phone: normalizedPhone,
+    channel,
+    lastMessage: previewText,
+    lastMessageAt: now,
+    ...(skipUserTurn ? {} : { unreadDelta: 1 }),
+  }).catch((err) => console.warn(`[${ACTION}] No se pudo actualizar CHATS: ${err.message}`));
+
+  const listPayload = {
+    phone: normalizedPhone,
+    lastMessage: previewText,
+    lastMessageAt: now,
+    ...(unreadCount != null ? { unreadCount } : {}),
+  };
+
+  await Promise.allSettled([
+    modelItem ? broadcastMessageAppended({ phone: normalizedPhone, item: modelItem }) : Promise.resolve(),
+    broadcastConversationUpdated(listPayload),
+  ]).catch((err) => console.warn(`[${ACTION}] Broadcast WS falló (no crítico): ${err.message}`));
 }
 
 /**
@@ -125,98 +245,6 @@ async function loadConversation(phoneNumber) {
   const turnItems = items.filter((i) => i.sk.startsWith('MSG#')).reverse();
 
   return { session, turnItems };
-}
-
-/**
- * @description Persiste el nuevo turno y la sesión actualizada en DynamoDB.
- * Si la conversación ya fue derivada (item INBOX existe), actualiza también ese item.
- * @param {string} phoneNumber
- * @param {string} userText
- * @param {string} modelText
- * @param {object} collectedData
- * @param {string} [channel]
- * @param {{ whatsappMessageId?: string }} [outboundMeta]
- */
-async function saveConversation(phoneNumber, userText, modelText, collectedData, channel = 'whatsapp', outboundMeta = {}) {
-  const { whatsappMessageId: outboundWhatsAppMessageId } = outboundMeta;
-  const { CONVERSATIONS_TABLE } = process.env;
-  const now = new Date().toISOString();
-  const ttl = Math.floor(Date.now() / 1000) + 90 * 24 * 60 * 60;
-  const normalizedPhone = normalizePhone(phoneNumber);
-  const sessionKey = `CONV#${normalizedPhone}`;
-  const previewText = (modelText?.trim() ? sanitizeForHistory(modelText) : sanitizeForHistory(userText)).slice(0, 200);
-  const lastMessageText = sanitizeForHistory(userText).slice(0, 100);
-
-  const userItem = buildTurnItem(phoneNumber, `MSG#${uuidv7()}`, 'user', sanitizeForHistory(userText));
-
-  // UPDATED_NEW devuelve el unreadCount post-ADD sin una read extra (lo usamos para el broadcast).
-  const sessionUpdate = dynamoDbLib.update({
-    TableName: CONVERSATIONS_TABLE,
-    Key: { pk: sessionKey, sk: sessionKey },
-    UpdateExpression: 'SET collectedData = :cd, lastMessageAt = :now, lastMessageText = :txt, updatedAt = :now, #ttl = :ttl, createdAt = if_not_exists(createdAt, :now), phoneNumber = if_not_exists(phoneNumber, :phone), channel = if_not_exists(channel, :channel) ADD unreadCount :one',
-    ExpressionAttributeNames: { '#ttl': 'ttl' },
-    ExpressionAttributeValues: { ':cd': collectedData, ':now': now, ':txt': lastMessageText, ':ttl': ttl, ':one': 1, ':phone': normalizedPhone, ':channel': channel },
-    ReturnValues: 'UPDATED_NEW',
-  });
-
-  const writes = [dynamoDbLib.put({ TableName: CONVERSATIONS_TABLE, Item: userItem }), sessionUpdate];
-
-  // Solo guardar el turno del modelo si hay texto (evita burbujas en blanco en el portal).
-  let modelSk = null;
-  if (modelText?.trim()) {
-    modelSk = `MSG#${uuidv7()}`;
-    if (outboundWhatsAppMessageId && channel === 'whatsapp') {
-      await registerWhatsAppMessageIndex({
-        whatsappMessageId: outboundWhatsAppMessageId,
-        phone: phoneNumber,
-        msgSk: modelSk,
-      });
-    }
-    const modelItem = buildTurnItem(
-      phoneNumber,
-      modelSk,
-      'model',
-      sanitizeForHistory(modelText),
-      [],
-      {
-        whatsappMessageId: outboundWhatsAppMessageId,
-        deliveryStatus: outboundWhatsAppMessageId ? 'sent' : undefined,
-      }
-    );
-    writes.push(dynamoDbLib.put({ TableName: CONVERSATIONS_TABLE, Item: modelItem }));
-  }
-
-  const results = await Promise.all(writes);
-  const unreadCount = results[1]?.unreadCount ?? 0;
-
-  // Actualizar item INBOX si la conversación ya fue derivada (ConditionExpression evita crear uno nuevo).
-  dynamoDbLib.update({
-    TableName: CONVERSATIONS_TABLE,
-    Key: { pk: 'INBOX', sk: `CONV#${normalizedPhone}` },
-    UpdateExpression: 'SET lastMessage = :txt, lastMessageAt = :now ADD unreadCount :one',
-    ConditionExpression: 'attribute_exists(pk)',
-    ExpressionAttributeValues: { ':txt': lastMessageText, ':now': now, ':one': 1 },
-  }).catch(() => {}); // No-op si la conversación no está derivada
-
-  await upsertChatListItem({
-    phone: normalizedPhone,
-    channel,
-    lastMessage: previewText,
-    lastMessageAt: now,
-    unreadDelta: 1,
-  }).catch((err) => console.warn(`[${ACTION}] No se pudo actualizar CHATS: ${err.message}`));
-
-  // Notificar bandeja (LIST) y detalle abierto (canal por teléfono).
-  await Promise.allSettled([
-    broadcastToScope(SCOPES.LIST, {
-      type: 'conversation_updated',
-      phone: normalizedPhone,
-      unreadCount,
-      lastMessage: previewText,
-      lastMessageAt: now,
-    }),
-    broadcastToScope({ phone: normalizedPhone }, { type: 'new_message', phone: normalizedPhone }),
-  ]).catch((err) => console.warn(`[${ACTION}] Broadcast WS falló (no crítico): ${err.message}`));
 }
 
 const REASON_LABELS = {
@@ -290,6 +318,16 @@ async function derivarConversacion(phoneNumber, text, reason, channel, collected
       reasonLabel,
     }),
   ]);
+
+  await broadcastConversationUpdated({
+    phone,
+    unreadCount: 1,
+    lastMessage: (text ?? '').slice(0, 200),
+    lastMessageAt: now,
+    status: 'derived',
+    reason,
+    reasonLabel,
+  });
 
   return phone;
 }
@@ -408,131 +446,111 @@ export const main = async (event) => {
     text = text.slice(0, MAX_MESSAGE_LENGTH);
   }
 
-  // 1. Cargar historial de la conversación.
-  const { session, turnItems } = await loadConversation(phoneNumber);
-  const history = toGeminiHistory(turnItems);
-  const collectedData = session?.collectedData || {};
-  // hasHistory: hay mensajes previos en DynamoDB aunque el historial de Gemini quede vacío
-  // (ej: todos los turnos fueron sin_respuesta → ningún turno model guardado → trim deja history=[]).
-  const hasHistory = turnItems.length > 0;
+  await persistInboundMessage({ phoneNumber, text, messageId, channel });
+  await broadcastAgentProcessing({ phone: phoneNumber, active: true });
 
-  // 2. Llamar a Gemini con function calling.
-  let responseText, toolsExecuted;
   try {
-    ({ responseText, toolsExecuted } = await runConversationTurn(history, text, phoneNumber, collectedData, channel, hasHistory));
-    if (toolsExecuted.some((t) => t.name === 'sin_respuesta')) {
-      responseText = '';
-    }
-  } catch (error) {
-    console.error(`[${ACTION}] Error en Gemini para ${phoneNumber}:`, error.message, error.stack);
-    // Await en paralelo para garantizar que el write en DynamoDB termina antes de retornar
-    // (Lambda mata promesas pendientes tras el return → fire-and-forget pierde el UpdateItem).
-    const [, phone] = await Promise.all([
-      saveConversation(phoneNumber, text, '', collectedData, channel).catch((e) =>
-        console.error(`[${ACTION}] Error guardando turno tras error Gemini:`, e.message)
-      ),
-      derivarConversacion(phoneNumber, text, 'error_gemini', channel, collectedData).catch((e) => {
-        console.error(`[${ACTION}] Error derivando conversación:`, e.message);
-        return null;
-      }),
-    ]);
-    if (phone) {
-      await Promise.allSettled([
-        broadcastToScope({ phone }, { type: 'new_message', phone }),
-        broadcastToScope(SCOPES.LIST, {
-          type: 'conversation_updated',
-          phone,
-          unreadCount: 1,
-          lastMessage: (text ?? '').slice(0, 100),
-          lastMessageAt: new Date().toISOString(),
-        }),
-      ]).catch((err) => console.warn(`[${ACTION}] Broadcast fallido: ${err.message}`));
-    }
-    return;
-  }
+    const { session, turnItems } = await loadConversation(phoneNumber);
+    const history = toGeminiHistory(turnItems);
+    const collectedData = session?.collectedData || {};
+    const hasHistory = turnItems.length > 1;
 
-  // 3. Si el agente derivó a humano
-  const derivado = toolsExecuted.some((t) => t.name === 'sin_respuesta');
-  const sinPresupuesto = toolsExecuted.some(
-    (t) => t.name === 'buscar_presupuestos' && !t.result?.encontrados
-  );
-  if (derivado || sinPresupuesto) {
-    const reason = sinPresupuesto ? 'sin_presupuesto' : 'sin_respuesta';
-    const motivoTool = toolsExecuted.find((t) => t.name === 'sin_respuesta')?.args?.motivo || 'N/A';
-    const sinBudgetTool = toolsExecuted.find((t) => t.name === 'buscar_presupuestos' && !t.result?.encontrados);
-    const extrasSinBudget = sinBudgetTool ? ` Args presupuesto: ${JSON.stringify(sinBudgetTool.args)}` : '';
-    console.log(`[${ACTION}] Mensaje derivado (${reason}) para ${phoneNumber}. Motivo: ${motivoTool}.${extrasSinBudget} Sin respuesta al cliente.`);
-    const updatedData = mergeCollectedData(collectedData, toolsExecuted);
-    // Await en paralelo: sin esto, Lambda puede retornar antes de que el UpdateItem termine.
-    const [, phone] = await Promise.all([
-      // Solo persistir el mensaje del usuario; no crear burbuja del modelo con marcadores internos.
-      saveConversation(phoneNumber, text, '', updatedData, channel).catch((e) =>
-        console.error(`[${ACTION}] Error guardando turno al derivar:`, e.message)
-      ),
-      derivarConversacion(phoneNumber, text, reason, channel, collectedData).catch((e) => {
-        console.error(`[${ACTION}] Error derivando conversación:`, e.message);
-        return null;
-      }),
-    ]);
-    if (phone) {
-      await Promise.allSettled([
-        broadcastToScope({ phone }, { type: 'new_message', phone }),
-        broadcastToScope(SCOPES.LIST, {
-          type: 'conversation_updated',
-          phone,
-          unreadCount: 1,
-          lastMessage: (text ?? '').slice(0, 100),
-          lastMessageAt: new Date().toISOString(),
+    let responseText;
+    let toolsExecuted;
+    try {
+      ({ responseText, toolsExecuted } = await runConversationTurn(
+        history,
+        text,
+        phoneNumber,
+        collectedData,
+        channel,
+        hasHistory
+      ));
+      if (toolsExecuted.some((t) => t.name === 'sin_respuesta')) {
+        responseText = '';
+      }
+    } catch (error) {
+      console.error(`[${ACTION}] Error en Gemini para ${phoneNumber}:`, error.message, error.stack);
+      await Promise.all([
+        saveConversation(phoneNumber, text, '', collectedData, channel, {}, { skipUserTurn: true }).catch((e) =>
+          console.error(`[${ACTION}] Error guardando turno tras error Gemini:`, e.message)
+        ),
+        derivarConversacion(phoneNumber, text, 'error_gemini', channel, collectedData).catch((e) => {
+          console.error(`[${ACTION}] Error derivando conversación:`, e.message);
         }),
-      ]).catch((err) => console.warn(`[${ACTION}] Broadcast fallido: ${err.message}`));
+      ]);
+      return;
     }
-    return;
-  }
 
-  // 4. Marcar como leído
-  if (channel === 'whatsapp') {
-    await markAsRead(messageId).catch((err) =>
-      console.warn(`[${ACTION}] No se pudo marcar como leído:`, err.message)
+    const derivado = toolsExecuted.some((t) => t.name === 'sin_respuesta');
+    const sinPresupuesto = toolsExecuted.some(
+      (t) => t.name === 'buscar_presupuestos' && !t.result?.encontrados
     );
-    await sendTypingIndicator(phoneNumber).catch(() => {});
-  }
-
-  // Fallback: Si Gemini no devolvió texto pero ejecutó herramientas, forzar un mensaje informativo.
-  if (!responseText?.trim() && toolsExecuted.length > 0) {
-    responseText = 'He procesado tu solicitud. En que más puedo ayudarte?';
-  }
-
-  await new Promise((resolve) => setTimeout(resolve, calculateTypingDelay(responseText || '')));
-
-  // 5. Enviar documentos PDF y luego el texto de respuesta según el canal.
-  await sendPresupuestoDocuments(channel, phoneNumber, toolsExecuted);
-  let outboundText = responseText?.trim() ?? '';
-  if (shouldBlockOutboundAgentResponse(outboundText)) {
-    console.warn(`[${ACTION}] Texto de respuesta bloqueado (patrón interno). phone=${phoneNumber}`);
-    outboundText = '';
-  }
-  let outboundWhatsAppMessageId = null;
-  if (outboundText) {
-    if (channel === 'whatsapp') {
-      outboundWhatsAppMessageId = await sendTextMessage(phoneNumber, outboundText);
-    } else {
-      await sendMetaTextMessage(phoneNumber, outboundText);
+    if (derivado || sinPresupuesto) {
+      const reason = sinPresupuesto ? 'sin_presupuesto' : 'sin_respuesta';
+      const motivoTool = toolsExecuted.find((t) => t.name === 'sin_respuesta')?.args?.motivo || 'N/A';
+      const sinBudgetTool = toolsExecuted.find((t) => t.name === 'buscar_presupuestos' && !t.result?.encontrados);
+      const extrasSinBudget = sinBudgetTool ? ` Args presupuesto: ${JSON.stringify(sinBudgetTool.args)}` : '';
+      console.log(
+        `[${ACTION}] Mensaje derivado (${reason}) para ${phoneNumber}. Motivo: ${motivoTool}.${extrasSinBudget} Sin respuesta al cliente.`
+      );
+      const updatedData = mergeCollectedData(collectedData, toolsExecuted);
+      await Promise.all([
+        saveConversation(phoneNumber, text, '', updatedData, channel, {}, { skipUserTurn: true }).catch((e) =>
+          console.error(`[${ACTION}] Error guardando turno al derivar:`, e.message)
+        ),
+        derivarConversacion(phoneNumber, text, reason, channel, collectedData).catch((e) => {
+          console.error(`[${ACTION}] Error derivando conversación:`, e.message);
+        }),
+      ]);
+      return;
     }
-  } else if (responseText?.trim()) {
-    console.warn(`[${ACTION}] No se envió mensaje de texto (vacío o bloqueado). phone=${phoneNumber}`);
-  } else {
-    console.warn(`[${ACTION}] [${phoneNumber}] responseText vacío tras Gemini. Tools: ${toolsExecuted.map(t => t.name).join(', ')}`);
-  }
 
-  // 6. Persistir el turno en DynamoDB (solo texto ya saneado; nunca marcadores internos).
-  let updatedData = mergeCollectedData(collectedData, toolsExecuted);
-  const pdfListoParaCliente = toolsExecuted.some((t) => t.name === 'buscar_presupuestos' && t.result?.encontrados);
-  if (pdfListoParaCliente) {
-    updatedData = { ...updatedData, presupuestosPdfEnviados: true };
-  }
-  await saveConversation(phoneNumber, text, outboundText, updatedData, channel, {
-    whatsappMessageId: outboundWhatsAppMessageId ?? undefined,
-  });
+    if (channel === 'whatsapp') {
+      await markAsRead(messageId).catch((err) =>
+        console.warn(`[${ACTION}] No se pudo marcar como leído:`, err.message)
+      );
+      await sendTypingIndicator(phoneNumber).catch(() => {});
+    }
 
-  console.log(`[${ACTION}] [${channel}] Turno completado para ${phoneNumber}`);
+    if (!responseText?.trim() && toolsExecuted.length > 0) {
+      responseText = 'He procesado tu solicitud. En que más puedo ayudarte?';
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, calculateTypingDelay(responseText || '')));
+
+    await sendPresupuestoDocuments(channel, phoneNumber, toolsExecuted);
+    let outboundText = responseText?.trim() ?? '';
+    if (shouldBlockOutboundAgentResponse(outboundText)) {
+      console.warn(`[${ACTION}] Texto de respuesta bloqueado (patrón interno). phone=${phoneNumber}`);
+      outboundText = '';
+    }
+    let outboundWhatsAppMessageId = null;
+    if (outboundText) {
+      if (channel === 'whatsapp') {
+        outboundWhatsAppMessageId = await sendTextMessage(phoneNumber, outboundText);
+      } else {
+        await sendMetaTextMessage(phoneNumber, outboundText);
+      }
+    } else if (responseText?.trim()) {
+      console.warn(`[${ACTION}] No se envió mensaje de texto (vacío o bloqueado). phone=${phoneNumber}`);
+    } else {
+      console.warn(
+        `[${ACTION}] [${phoneNumber}] responseText vacío tras Gemini. Tools: ${toolsExecuted.map((t) => t.name).join(', ')}`
+      );
+    }
+
+    let updatedData = mergeCollectedData(collectedData, toolsExecuted);
+    const pdfListoParaCliente = toolsExecuted.some((t) => t.name === 'buscar_presupuestos' && t.result?.encontrados);
+    if (pdfListoParaCliente) {
+      updatedData = { ...updatedData, presupuestosPdfEnviados: true };
+    }
+    await saveConversation(phoneNumber, text, outboundText, updatedData, channel, {
+      whatsappMessageId: outboundWhatsAppMessageId ?? undefined,
+    }, { skipUserTurn: true });
+
+    console.log(`[${ACTION}] [${channel}] Turno completado para ${phoneNumber}`);
+  } finally {
+    await broadcastAgentProcessing({ phone: phoneNumber, active: false });
+  }
 };

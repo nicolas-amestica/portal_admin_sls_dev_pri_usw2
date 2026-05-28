@@ -3,7 +3,7 @@ import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { parseEventBody } from '../../../helpers/event-parser.js';
 import { success, unsuccessful } from '../../../helpers/responses.js';
 import { sendTextMessage } from '../helpers/whatsapp-api.js';
-import { broadcastToScope, SCOPES } from '../../../libs/websocket.js';
+import { broadcastConversationUpdated, broadcastMessageAppended } from '../helpers/inbox-realtime.js';
 import { upsertChatListItem } from '../helpers/chat-list-index.js';
 import { buildTurnItem, normalizePhone } from '../mappers/map-conversacion-item.js';
 import { registerWhatsAppMessageIndex } from '../helpers/whatsapp-delivery.js';
@@ -64,14 +64,13 @@ export const main = async (event) => {
 
     console.log(`[${ACTION}] Mensaje enviado a ${phone}`);
 
-    // Propagar a otras pestañas: detalle recarga delta, lista actualiza último mensaje.
     await Promise.allSettled([
-      broadcastToScope({ phone }, { type: 'new_message', phone }),
-      broadcastToScope(SCOPES.LIST, {
-        type: 'conversation_updated',
+      broadcastMessageAppended({ phone, item }),
+      broadcastConversationUpdated({
         phone,
         lastMessage: text.slice(0, 100),
         lastMessageAt: now,
+        unreadCount: 0,
       }),
     ]);
 
