@@ -2,20 +2,31 @@ import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { broadcastToScope } from '../../../libs/websocket.js';
 import { normalizePhone } from '../mappers/map-conversacion-item.js';
 
-/** Estados que persistimos en UI como doble check gris (`delivered`). */
-const DELIVERED_UI_STATUS = 'delivered';
+/** Progresión monótona: sent → delivered → read (failed no se sobrescribe). */
+const STATUS_RANK = { sent: 0, delivered: 1, read: 2 };
 
 /**
  * @description Normaliza estados de Meta a los que usa el portal.
- * `read` implica que el mensaje ya llegó al dispositivo; lo mapeamos a `delivered`
- * (doble check gris) sin exponer lectura azul en el inbox.
  * @param {string} status
- * @returns {'delivered'|'failed'|null}
+ * @returns {'delivered'|'read'|'failed'|null}
  */
 function normalizeStatusForUi(status) {
-  if (status === 'delivered' || status === 'read') return DELIVERED_UI_STATUS;
+  if (status === 'delivered') return 'delivered';
+  if (status === 'read') return 'read';
   if (status === 'failed') return 'failed';
   return null;
+}
+
+/**
+ * @description true si el estado actual ya alcanzó o supera el nuevo (no degradar).
+ * @param {string|undefined} current
+ * @param {string} next
+ * @returns {boolean}
+ */
+function shouldSkipStatusUpdate(current, next) {
+  if (current === 'failed') return true;
+  if (next === 'failed') return false;
+  return (STATUS_RANK[current] ?? -1) >= (STATUS_RANK[next] ?? -1);
 }
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -74,7 +85,7 @@ export async function registerWhatsAppMessageIndex({ whatsappMessageId, phone, m
 
 /**
  * @description Procesa webhook de estado saliente y notifica al inbox vía WebSocket.
- * Acepta `delivered`, `read` (→ delivered en UI) y `failed`. Ignora `sent`.
+ * Acepta `delivered`, `read` y `failed`. Ignora `sent`.
  *
  * @param {{ whatsappMessageId: string, status: string }} params
  */
@@ -95,8 +106,7 @@ export async function handleWhatsAppStatusUpdate({ whatsappMessageId, status }) 
     Key: { pk: lookup.convPk, sk: lookup.msgSk },
   }).catch(() => null);
 
-  if (existing?.deliveryStatus === 'failed') return;
-  if (existing?.deliveryStatus === DELIVERED_UI_STATUS) return;
+  if (shouldSkipStatusUpdate(existing?.deliveryStatus, uiStatus)) return;
 
   await dynamoDbLib.update({
     TableName: CONVERSATIONS_TABLE,
@@ -115,4 +125,23 @@ export async function handleWhatsAppStatusUpdate({ whatsappMessageId, status }) 
       deliveryStatus: uiStatus,
     }
   ).catch((err) => console.warn('[WhatsApp delivery] Broadcast WS falló:', err.message));
+}
+
+/** Orden de procesamiento cuando Meta envía varios estados en un mismo webhook. */
+const META_STATUS_ORDER = { sent: 0, delivered: 1, read: 2, failed: 3 };
+
+/**
+ * @description Procesa estados salientes en orden (sent → delivered → read) para no degradar.
+ * @param {Array<{ whatsappMessageId: string, status: string }>} statuses
+ */
+export async function handleOutgoingStatusBatch(statuses) {
+  const sorted = [...statuses].sort(
+    (a, b) => (META_STATUS_ORDER[a.status] ?? -1) - (META_STATUS_ORDER[b.status] ?? -1)
+  );
+  for (const item of sorted) {
+    await handleWhatsAppStatusUpdate({
+      whatsappMessageId: item.whatsappMessageId,
+      status: item.status,
+    });
+  }
 }

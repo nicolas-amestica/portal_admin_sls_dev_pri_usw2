@@ -1,6 +1,6 @@
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
 import { validateWebhookSignature, extractIncomingMessage, extractOutgoingStatuses } from '../validators/validate-webhook-payload.js';
-import { handleWhatsAppStatusUpdate } from '../helpers/whatsapp-delivery.js';
+import { handleOutgoingStatusBatch } from '../helpers/whatsapp-delivery.js';
 
 const ACTION = 'Procesar mensaje WhatsApp';
 
@@ -38,11 +38,7 @@ export const main = async (event) => {
 
   const outgoingStatuses = extractOutgoingStatuses(body);
   if (outgoingStatuses.length) {
-    await Promise.allSettled(
-      outgoingStatuses.map((item) =>
-        handleWhatsAppStatusUpdate({ whatsappMessageId: item.whatsappMessageId, status: item.status })
-      )
-    );
+    await handleOutgoingStatusBatch(outgoingStatuses);
     return ok;
   }
 
