@@ -36,9 +36,10 @@ export const main = async (event) => {
 
     const sorted = sortChatsByActivity((items ?? []).map(mapChatListItem));
     const filtered = filterChatsBySearch(sorted, searchQuery);
+    const unreadTotal = filtered.filter((c) => (c.unreadCount ?? 0) > 0).length;
     const page = paginateChatsByActivity(filtered, { limit, cursor });
 
-    return success(200, { ...page, total: filtered.length }, ACTION);
+    return success(200, { ...page, total: filtered.length, unreadTotal }, ACTION);
   } catch (error) {
     console.error(`[${ACTION}] Error:`, error.message, error.stack);
     return unsuccessful(error.statusCode || 500, error, ACTION);

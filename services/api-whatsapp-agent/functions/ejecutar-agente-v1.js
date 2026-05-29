@@ -66,7 +66,8 @@ function shouldBlockOutboundAgentResponse(text) {
  */
 async function checkRateLimit(phoneNumber) {
   const { CONVERSATIONS_TABLE } = process.env;
-  const pk = `RATE#${phoneNumber}`;
+  const normalized = normalizePhone(phoneNumber);
+  const pk = `RATE#${normalized}`;
   const now = Math.floor(Date.now() / 1000);
 
   const item = await dynamoDbLib.getOne({
@@ -389,13 +390,6 @@ export const main = async (event) => {
     return;
   }
 
-  // Verificar rate limit antes de procesar.
-  const allowed = await checkRateLimit(phoneNumber);
-  if (!allowed) {
-    console.warn(`[${ACTION}] [${channel}] Rate limit excedido para ${phoneNumber}. Mensaje ignorado.`);
-    return;
-  }
-
   console.log(`[${ACTION}] [${channel}] Procesando mensaje de ${phoneNumber}`);
 
   // El audio solo está disponible en WhatsApp.
@@ -415,7 +409,17 @@ export const main = async (event) => {
     text = text.slice(0, MAX_MESSAGE_LENGTH);
   }
 
+  // Persistir siempre en DynamoDB e inbox aunque el rate limit bloquee la respuesta del agente.
   await persistInboundMessage({ phoneNumber, text, messageId, channel });
+
+  const allowed = await checkRateLimit(phoneNumber);
+  if (!allowed) {
+    console.warn(
+      `[${ACTION}] [${channel}] Rate limit excedido para ${phoneNumber}. Mensaje registrado; sin respuesta del agente.`
+    );
+    return;
+  }
+
   await broadcastAgentProcessing({ phone: phoneNumber, active: true });
 
   try {

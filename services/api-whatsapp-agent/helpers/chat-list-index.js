@@ -5,9 +5,9 @@ import { normalizePhone } from '../mappers/map-conversacion-item.js';
 export const CHATS_PK = 'CHATS';
 
 /** Tamaño de página por defecto al listar conversaciones. */
-export const CHAT_LIST_DEFAULT_LIMIT = 40;
+export const CHAT_LIST_DEFAULT_LIMIT = 200;
 /** Tamaño máximo de página permitido. */
-export const CHAT_LIST_MAX_LIMIT = 50;
+export const CHAT_LIST_MAX_LIMIT = 250;
 
 const TTL_DAYS = 90;
 
