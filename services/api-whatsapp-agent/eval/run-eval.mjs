@@ -12,6 +12,8 @@ async function runStaticPromptAssertions(buildSystemPrompt) {
   const base = buildSystemPrompt('+56912345678', {}, 'whatsapp', false);
   assert.ok(base.includes('Silencio total al derivar'), 'prompt debe incluir política de silencio al derivar');
   assert.ok(base.includes('buscar_presupuestos'), 'prompt debe referenciar flujo presupuestos');
+  assert.ok(base.includes('enviar_certificado_sernatur'), 'prompt debe referenciar certificado Sernatur');
+  assert.ok(base.includes('Registro Sernatur'), 'prompt debe incluir conocimiento Sernatur');
   assert.ok(base.includes('10:00 a 22:00'), 'prompt debe incluir horario L-V actualizado');
   assert.ok(base.includes('1 hora 30 minutos'), 'prompt debe indicar duración de reunión');
 
@@ -25,6 +27,29 @@ async function runStaticPromptAssertions(buildSystemPrompt) {
   assert.ok(
     !sinPdf.includes('Ya se enviaron presupuestos en PDF'),
     'sin flag presupuestosPdfEnviados no debe afirmar envío previo de PDF'
+  );
+
+  const conCert = buildSystemPrompt('+56912345678', { certificadoSernaturEnviado: true }, 'whatsapp', true);
+  assert.ok(
+    conCert.includes('Certificado Sernatur: Ya se envió'),
+    'contexto debe indicar certificado ya enviado cuando certificadoSernaturEnviado=true'
+  );
+
+  const conDetect = buildSystemPrompt(
+    '+56912345678',
+    {
+      detectedQuote: {
+        destinos: ['bariloche', 'sur_de_chile'],
+        codigoRegion: 'vi',
+        noRepreguntar: 'NO vuelvas a pedir destino ni región',
+      },
+    },
+    'whatsapp',
+    true
+  );
+  assert.ok(
+    conDetect.includes('Cotización detectada automáticamente'),
+    'prompt debe incluir cotización detectada cuando detectedQuote está presente'
   );
 
   console.log('[eval] Pruebas estáticas del system prompt: OK');

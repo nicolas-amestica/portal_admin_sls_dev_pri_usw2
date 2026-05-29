@@ -118,3 +118,73 @@ export function codigoRegionPorCiudad(ciudad) {
   const key = normalizarClaveCiudad(ciudad);
   return CIUDAD_A_REGION[key] ?? null;
 }
+
+/** Ciudades ordenadas por longitud descendente para evitar matches parciales. */
+const CIUDADES_ORDENADAS = Object.keys(CIUDAD_A_REGION).sort((a, b) => b.length - a.length);
+
+const REGION_ROMAN_PATTERNS = [
+  { codigoRegion: 'xv', patterns: [/\bxv\b/i, /arica\s+y\s+parinacota/i, /\barica\b/i] },
+  { codigoRegion: 'i', patterns: [/\btarapac[aá]\b/i] },
+  { codigoRegion: 'ii', patterns: [/\bantofagasta\b/i] },
+  { codigoRegion: 'iii', patterns: [/\batacama\b/i] },
+  { codigoRegion: 'iv', patterns: [/\bcoquimbo\b/i] },
+  {
+    codigoRegion: 'v',
+    patterns: [
+      /\bv\s*regi[oó]n\b/i,
+      /quinta\s+regi[oó]n/i,
+      /\bvalpara[ií]so\b/i,
+      /\bvi[nñ]a\s+del\s+mar\b/i,
+    ],
+  },
+  {
+    codigoRegion: 'rm',
+    patterns: [/\brm\b/i, /regi[oó]n\s+metropolitana/i, /\bmetropolitana\b/i, /\bsantiago\b/i],
+  },
+  {
+    codigoRegion: 'vi',
+    patterns: [/\bvi\s*regi[oó]n\b/i, /sexta\s+regi[oó]n/i, /\bo['']?higgins\b/i],
+  },
+  { codigoRegion: 'vii', patterns: [/\bvii\s*regi[oó]n\b/i, /s[eé]ptima\s+regi[oó]n/i, /\bmaule\b/i] },
+  { codigoRegion: 'xvi', patterns: [/\bxvi\b/i, /regi[oó]n\s+de\s+[nñ]uble/i, /\b[nñ]uble\b/i] },
+  { codigoRegion: 'viii', patterns: [/\bviii\s*regi[oó]n/i, /octava\s+regi[oó]n/i, /\bb[ií]ob[ií]o\b/i] },
+  { codigoRegion: 'ix', patterns: [/\bix\s*regi[oó]n/i, /novena\s+regi[oó]n/i, /\baraucan[ií]a\b/i] },
+  { codigoRegion: 'xiv', patterns: [/\bxiv\b/i, /los\s+r[ií]os\b/i] },
+  { codigoRegion: 'x', patterns: [/\bx\s*regi[oó]n/i, /d[eé]cima\s+regi[oó]n/i, /los\s+lagos\b/i] },
+  { codigoRegion: 'xi', patterns: [/\bxi\s*regi[oó]n/i, /\bays[eé]n\b/i] },
+  { codigoRegion: 'xii', patterns: [/\bxii\b/i, /magallanes\b/i] },
+];
+
+/**
+ * @description Detecta código de región chilena a partir de texto libre del cliente.
+ * @param {string} text
+ * @returns {{ codigoRegion: string, ciudad?: string, source: 'ciudad'|'region' }|null}
+ */
+export function detectRegionFromText(text) {
+  if (!text || typeof text !== 'string') return null;
+
+  const normalized = text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  for (const cityKey of CIUDADES_ORDENADAS) {
+    const cityPattern = cityKey.replace(/_/g, '[\\s_]+');
+    const regex = new RegExp(`(?:\\bde\\s+|\\bdesde\\s+|\\ben\\s+|\\bsomos\\s+de\\s+)?${cityPattern}\\b`, 'i');
+    if (regex.test(normalized)) {
+      return {
+        codigoRegion: CIUDAD_A_REGION[cityKey],
+        ciudad: cityKey.replace(/_/g, ' '),
+        source: 'ciudad',
+      };
+    }
+  }
+
+  for (const entry of REGION_ROMAN_PATTERNS) {
+    if (entry.patterns.some((pattern) => pattern.test(normalized))) {
+      return { codigoRegion: entry.codigoRegion, source: 'region' };
+    }
+  }
+
+  return null;
+}

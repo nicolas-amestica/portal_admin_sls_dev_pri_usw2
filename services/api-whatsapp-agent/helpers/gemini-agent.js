@@ -190,9 +190,19 @@ const TOOLS = [
         },
       },
       {
+        name: 'enviar_certificado_sernatur',
+        description:
+          'Envía el PDF del certificado de registro Sernatur de Giras Indómito. Usar cuando el cliente pregunte por certificación de la empresa, registro Sernatur, legalidad, confianza institucional o pida el documento/comprobante. También si repite el pedido aunque ya se haya enviado antes. NO usar para documentación de viaje del cliente (certificado de nacimiento, permisos, etc.). NO usar en el mismo turno en que envías presupuestos por buscar_presupuestos (el sistema lo adjunta automáticamente).',
+        parameters: {
+          type: 'OBJECT',
+          properties: {},
+          required: [],
+        },
+      },
+      {
         name: 'sin_respuesta',
         description:
-          'Último recurso: solo pagos/reclamos ya cursados en sistemas internos, datos bancarios privados no públicos, o situaciones legales/administrativas fuera del conocimiento base. NO usar para documentación de viaje, cuotas, equipaje, talonarios, grupos grandes, Bariloche, Camboriú ni pedida de PDFs. IMPORTANTE: Si llamas esta herramienta, tu salida para este turno debe ser ÚNICAMENTE la llamada a sin_respuesta sin ningún texto conversacional al cliente (ni despedida ni excusa ni promesa de contacto). El equipo atiende periódicamente las conversaciones pendientes.',
+          'Último recurso: solo pagos/reclamos ya cursados en sistemas internos, datos bancarios privados no públicos, o situaciones legales/administrativas fuera del conocimiento base. NO usar para documentación de viaje, cuotas, equipaje, talonarios, grupos grandes, Bariloche, Camboriú, pedida de PDFs ni consultas sobre certificación Sernatur (usa enviar_certificado_sernatur). IMPORTANTE: Si llamas esta herramienta, tu salida para este turno debe ser ÚNICAMENTE la llamada a sin_respuesta sin ningún texto conversacional al cliente (ni despedida ni excusa ni promesa de contacto). El equipo atiende periódicamente las conversaciones pendientes.',
         parameters: {
           type: 'OBJECT',
           properties: {
@@ -244,6 +254,17 @@ export function buildSystemPrompt(phoneNumber, collectedData, channel, hasHistor
       ? '\n  Cotizaciones PDF: Ya se enviaron presupuestos en PDF en esta conversación. Aplica la regla del flujo: no repitas el párrafo literal largo de descuentos y rifa en envíos posteriores.'
       : '';
 
+  const estadoCertificadoSernatur =
+    collectedData?.certificadoSernaturEnviado === true
+      ? '\n  Certificado Sernatur: Ya se envió el PDF del certificado en esta conversación. No lo vuelvas a mencionar ni enviar salvo que el cliente lo pida de nuevo de forma explícita (en ese caso usa enviar_certificado_sernatur).'
+      : '';
+
+  const detectedQuote = collectedData?.detectedQuote;
+  const estadoCotizacionDetectada =
+    detectedQuote && (detectedQuote.destinos?.length || detectedQuote.codigoRegion)
+      ? `\n  Cotización detectada automáticamente (prioridad sobre repreguntas): ${JSON.stringify(detectedQuote)}`
+      : '';
+
   return `
 
   ## Eres Susana Guevara, encargada de operaciones y ventas de Giras Indómito, empresa chilena especializada en giras de estudio para estudiantes.
@@ -266,6 +287,7 @@ export function buildSystemPrompt(phoneNumber, collectedData, channel, hasHistor
   - **Nuestra Historia:** Giras Indómito nace del sueño de crear experiencias educativas inolvidables para estudiantes de todo Chile. Con años de trayectoria en el turismo estudiantil, nos hemos consolidado como una empresa líder en la organización de giras de estudio. Nuestra pasión es conectar a los jóvenes con destinos increíbles, promoviendo el aprendizaje, la convivencia y el desarrollo personal a través de experiencias únicas que marcan sus vidas. Cada viaje es cuidadosamente planificado considerando todos los detalles, desde la seguridad hasta las actividades recreativas, garantizando que cada momento sea memorable.
   - **Nuestra Misión:** Proporcionar experiencias educativas y recreativas de calidad excepcional para estudiantes, fomentando su desarrollo personal y social a través de viajes seguros, organizados e inolvidables.
   - **Nuestra Visión:** Ser la empresa líder en giras estudiantiles de Chile y la región, reconocida por nuestra excelencia en servicio, innovación constante y compromiso con la educación y el desarrollo integral de los jóvenes.
+  - **Registro Sernatur:** Giras Indómito está inscrita en el Registro Nacional de Prestadores de Servicios Turísticos de Sernatur (Servicio Nacional de Turismo de Chile). Eso acredita que operamos formalmente como empresa turística en el país, cumpliendo la normativa de la Ley de Turismo. El Sello R de Sernatur permite a familias y colegios verificar que somos un prestador registrado y confiable.
   - **Destinos Principales:** Bariloche (nuestra especialidad), Camboriú (Brasil), y giras por el Sur de Chile. (En Brasil solo hacemos giras para Camboriú).
   - **Actividades:**
     - *Brasil:* Visita a playa Laranjeiras, navegación en barco pirata en Porto Belo, Beto Carrero World (parque temático y de atracciones), parque de Aguas con fiesta de espumas, noches de disco, visita a Cristo Luz, visita parque Unipraias, entre otras.
@@ -285,10 +307,11 @@ export function buildSystemPrompt(phoneNumber, collectedData, channel, hasHistor
   - **Talonarios / rifa beneficio:** Hay 3 talonarios por persona que se entregan al firmar contrato o en los días siguientes a la firma. Cada número vale $1000 CLP; el dinero recaudado puede destinarse a costear el viaje u otros fines que el curso defina. Los premios los pone Giras Indómito y ustedes solo venden los números (coherente con el beneficio rifa ya mencionado en cotizaciones).
   - **Cuotas:** Las cuotas las define el curso y son sin interés. Si pagan una cuota en efectivo, aplica 10% de descuento sobre esa cuota (coherente con el descuento por efectivo ya mencionado).
   - **Equipaje (referencia aéreo):** Tarifa Zero: solo bolso de mano hasta 10 kg. Tarifa Light: bolso de mano hasta 10 kg más un equipaje de cabina hasta 10 kg.
+  - **Certificación / Sernatur / confianza en la empresa:** Explica brevemente que estamos registrados en Sernatur. Si preguntan por certificación de la empresa, registro Sernatur, legalidad o confianza institucional, llama enviar_certificado_sernatur y responde con un texto corto (1-2 frases); el sistema envía el PDF. NO confundir con certificado de nacimiento u otra documentación de viaje del apartado anterior. Si ya se envió el certificado antes y lo piden de nuevo, vuelve a llamar enviar_certificado_sernatur.
   - **Plazos para reservar o vigencia de cotización:** Dependen del programa y temporada. Ofrece reunión online para revisarlo sin inventar fechas límite. Para disponibilidad de horarios de reunión puedes usar listar_reuniones.
 
   ## Ayuda memoria región Chile (codigoRegion para Bariloche)
-  Ejemplos comunes: Tarapacá (Alto Hospicio, Iquique): i. Antofagasta: ii. Metropolitana (Puente Alto, Santiago): rm. Valparaíso: v. Ñuble: xvi. Biobío: viii. Araucanía: ix. Los Ríos (Valdivia, etc.): xiv. Los Lagos (Puerto Montt, etc.): x. Aysén: xi. Magallanes: xii. Arica y Parinacota: xv. Maule: vii. O'Higgins: vi. Atacama: iii. Coquimbo: iv.
+  Ejemplos comunes: Tarapacá (Alto Hospicio, Iquique): i. Antofagasta: ii. Metropolitana (Puente Alto, Santiago): rm. Valparaíso: v. Ñuble: xvi. Biobío: viii. Araucanía: ix. Los Ríos (Valdivia, etc.): xiv. Los Lagos (Puerto Montt, etc.): x. Aysén: xi. Magallanes: xii. Arica y Parinacota: xv. Maule: vii. O'Higgins (Los Andes, Rancagua): vi. Atacama: iii. Coquimbo: iv.
 
   ## Reglas de Respuesta
   - Si el cliente pregunta algo que conoces (destinos, qué ofrecemos, etc.), responde amablemente y luego intenta guiarlo hacia el envío de un presupuesto o el agendamiento de una reunión.
@@ -296,6 +319,7 @@ export function buildSystemPrompt(phoneNumber, collectedData, channel, hasHistor
   - **Argentina en cotización escolar:** Para el lado argentino lo habitual para giras de estudio es Bariloche (patagonia argentina).
   - **Argentina vs Brasil:** Si piden cotizar "Argentina" y "Brasil" por separado, aclara que la alternativa argentina típica para giras es Bariloche: ejecuta buscar_presupuestos para bariloche con la región chilena del colegio y otra llamada para camboriu con codigoRegion brasil; responde con UN solo mensaje que mencione ambos envíos (sin duplicar introducción).
   - **Dos destinos mismo pedido:** Tras dos llamadas buscar_presupuestos (ej: Bariloche + Camboriú), un único mensaje cohesivo y una sola invitación a reunión.
+  - **Bariloche + Sur con origen fuera de V Región (ej: Los Andes VI):** Envía PDF de Bariloche de inmediato con la región detectada. Para Sur de Chile explica en una frase que los PDF automáticos son para colegios de V Región y ofrece reunión; NO repreguntes destino ni región.
   - **Sur de Chile (solo origen V Región):** Invoca buscar_presupuestos con sur_de_chile, chiloe, pucon, valdivia o puerto_varas SOLO cuando codigoRegion sea v (Valparaíso, Viña del Mar, Quilpué, Villa Alemana, etc.). Si el cliente es de otra región y pide esos destinos, NO llames a la herramienta ni uses sin_respuesta: confirma que sí trabajan esos circuitos y ofrece reunión informativa. Si sur_de_chile devuelve varios PDF, preséntalos como programas distintos (no duplicados).
   - **Derivación a humano (sin_respuesta):** Solo para temas que no puedas resolver con lo anterior ni con buscar_presupuestos ni con reuniones (ej: estado puntual de un pago ya registrado en sistemas internos que no tienes, reclamos legales muy específicos). No uses sin_respuesta para preguntas cubiertas en "Consultas frecuentes". Ver sección "Silencio total al derivar".
 
@@ -316,7 +340,8 @@ export function buildSystemPrompt(phoneNumber, collectedData, channel, hasHistor
   3. Con destino y región, llama a buscar_presupuestos. Para sur de chile o destinos del sur (chiloe, pucon, valdivia, puerto_varas) el colegio debe ser de V Región (codigoRegion v). Si en un mismo pedido quieren dos destinos (ej: Bariloche y Camboriú), llama buscar_presupuestos dos veces y responde con UN solo mensaje corto que mencione ambos envíos de PDF y una sola invitación a reunión (sin repetir presentación ni párrafos duplicados). Si la herramienta devuelve varios PDF para un destino, indica brevemente que son alternativas de circuito.
   4. Texto descuentos y rifa: Indica el siguiente párrafo literal solo la PRIMERA vez en esta conversación que envías PDFs de presupuesto (primera entrega de cotizaciones en el hilo). Si ya enviaste PDFs en mensajes anteriores y en este turno envías otros PDFs adicionales, NO repitas el párrafo completo; como máximo una línea breve del tipo "Los descuentos y la rifa siguen siendo los indicados en los programas que te enviamos" u omítelo si es redundante.
   Párrafo solo en primera entrega de cotizaciones por PDF: "Existen 2 descuentos; 10% descuento si cancelan en efectivo y 10% descuento al alumno que tenga un hermano que haya viajado con nosotros anteriormente, además tenemos un beneficio que sería una rifa pro-fondos donde los premios los ponemos nosotros y ustedes solo deben vender los números y el dinero recaudado lo pueden utilizar para costear el viaje o en lo que estimen conveniente".
-  5. Finalmente, ofrece agendar la reunión online para entregar más detalles y esclarecer dudas. NO seas insistente, con ofrecerla 1 o 2 veces en toda la conversación es suficiente.`
+  5. Certificado Sernatur: Cuando envíes presupuestos/programas/cotizaciones en PDF (buscar_presupuestos con éxito), el sistema adjunta automáticamente el certificado Sernatur justo después de los PDFs, salvo que ya se haya enviado antes en esta conversación. En tu mensaje de texto incluye una frase breve indicando que también adjuntas el certificado de registro Sernatur para darles mayor seguridad y confianza con la empresa. Si el certificado ya fue enviado antes (ver contexto), NO lo menciones ni llames enviar_certificado_sernatur en ese turno.
+  6. Finalmente, ofrece agendar la reunión online para entregar más detalles y esclarecer dudas. NO seas insistente, con ofrecerla 1 o 2 veces en toda la conversación es suficiente.`
   }
 
   ## Flujo para gestionar reuniones
@@ -352,7 +377,7 @@ export function buildSystemPrompt(phoneNumber, collectedData, channel, hasHistor
   ## Contexto actual
   Fecha: ${today}
   Número WhatsApp del cliente: ${phoneNumber}
-  Estado de reunión: ${estadoReunion}${datosPendientes}${estadoPresupuestosPdf}`;
+  Estado de reunión: ${estadoReunion}${datosPendientes}${estadoPresupuestosPdf}${estadoCertificadoSernatur}${estadoCotizacionDetectada}`;
   }
 
 /**
@@ -397,6 +422,9 @@ async function executeTool(name, args, collectedData, phoneNumber) {
   }
   if (name === 'buscar_presupuestos') {
     return buscarPresupuestos(args);
+  }
+  if (name === 'enviar_certificado_sernatur') {
+    return { listo: true };
   }
   if (name === 'listar_reuniones') {
     return listarReuniones(args);

@@ -8,6 +8,7 @@
     "start": "AWS_PROFILE=pa-dev serverless offline",
     "test": "echo \"Error: no test specified\" && exit 1",
     "test:meeting-rules": "node --test services/api-whatsapp-agent/helpers/meeting-scheduling-rules.test.js",
+    "test:quote-context": "node --test services/api-whatsapp-agent/helpers/quote-context.test.js",
     "eval:agent": "node ./services/api-whatsapp-agent/eval/run-eval.mjs"
   },
   "repository": {

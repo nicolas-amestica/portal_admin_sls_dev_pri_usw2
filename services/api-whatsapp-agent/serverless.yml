@@ -63,6 +63,9 @@ provider:
     SECRET_KEY: /pa/${self:custom.stage}/jwt-key
     # Cambiar a 'true' para habilitar respuestas en Messenger e Instagram
     ENABLE_META_CHANNELS: 'false'
+    # Espera (ms) tras el último mensaje del cliente antes de invocar Gemini.
+    # Agrupa bursts de WhatsApp; solo la invocación más reciente responde.
+    AGENT_DEBOUNCE_MS: '2500'
     WS_MANAGEMENT_ENDPOINT:
       Fn::Join:
         - ''

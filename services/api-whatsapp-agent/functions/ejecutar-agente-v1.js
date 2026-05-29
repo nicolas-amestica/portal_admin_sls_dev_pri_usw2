@@ -11,7 +11,7 @@ import {
   sendTextMessage,
   downloadMedia,
 } from '../helpers/whatsapp-api.js';
-import { buildTurnItem, toGeminiHistory, normalizePhone } from '../mappers/map-conversacion-item.js';
+import { buildTurnItem, normalizePhone } from '../mappers/map-conversacion-item.js';
 import { registerWhatsAppMessageIndex } from '../helpers/whatsapp-delivery.js';
 import { sanitizeForHistory } from '../helpers/sanitize-for-history.js';
 import { persistInboundMessage } from '../helpers/persist-inbound-message.js';
@@ -24,6 +24,10 @@ import { sendMetaTextMessage } from '../helpers/messenger-api.js';
 import { getPresignedUrl } from '../../../libs/s3-v3.js';
 import { shortenUrl } from '../helpers/url-shortener.js';
 import { upsertChatListItem } from '../helpers/chat-list-index.js';
+import { sendCertificadoSernatur } from '../helpers/send-certificado-sernatur.js';
+import { waitForAgentDebounce } from '../helpers/agent-debounce.js';
+import { prepareTurnContext } from '../helpers/prepare-turn-context.js';
+import { extractQuoteContext } from '../helpers/fn-extract-quote-context.js';
 
 const ACTION = 'Ejecutar agente WhatsApp';
 // Cada turno ocupa 2 items en DynamoDB (user + model). +1 por si el item de sesión aparece.
@@ -308,8 +312,12 @@ async function derivarConversacion(phoneNumber, text, reason, channel, collected
  * @param {Array<{name: string, args: object, result: object}>} toolsExecuted
  * @returns {object}
  */
-function mergeCollectedData(existingData, toolsExecuted) {
+function mergeCollectedData(existingData, toolsExecuted, detectedQuote) {
   const data = { ...existingData };
+
+  if (detectedQuote) {
+    data.detectedQuote = detectedQuote;
+  }
 
   const presupuestoTool = toolsExecuted.find((t) => t.name === 'buscar_presupuestos');
   if (presupuestoTool) {
@@ -351,23 +359,56 @@ function mergeCollectedData(existingData, toolsExecuted) {
  * @param {Array<{name: string, args: object, result: object}>} toolsExecuted
  */
 async function sendPresupuestoDocuments(channel, phoneNumber, toolsExecuted) {
-  const presupuestoTool = toolsExecuted.find((t) => t.name === 'buscar_presupuestos');
-  if (!presupuestoTool?.result?.encontrados) return;
+  const presupuestoTools = toolsExecuted.filter((t) => t.name === 'buscar_presupuestos' && t.result?.encontrados);
+  if (presupuestoTools.length === 0) return;
 
-  for (const archivo of presupuestoTool.result.archivos) {
-    if (channel === 'whatsapp') {
-      const buffer = await getObjectBuffer({ Bucket: process.env.BUCKET_INFO_GI, Key: archivo.key });
-      const mediaId = await uploadMedia(buffer, archivo.nombre, 'application/pdf');
-      await sendDocumentById(phoneNumber, mediaId, archivo.nombre, 'Presupuesto Giras Indómito');
-    } else {
-      const presignedUrl = await getPresignedUrl(
-        { Bucket: process.env.BUCKET_INFO_GI, Key: archivo.key },
-        3600
-      );
-      const url = await shortenUrl(presignedUrl);
-      await sendMetaTextMessage(phoneNumber, `${archivo.nombre}: ${url}`);
+  for (const presupuestoTool of presupuestoTools) {
+    for (const archivo of presupuestoTool.result.archivos) {
+      if (channel === 'whatsapp') {
+        const buffer = await getObjectBuffer({ Bucket: process.env.BUCKET_INFO_GI, Key: archivo.key });
+        const mediaId = await uploadMedia(buffer, archivo.nombre, 'application/pdf');
+        await sendDocumentById(phoneNumber, mediaId, archivo.nombre, 'Presupuesto Giras Indómito');
+      } else {
+        const presignedUrl = await getPresignedUrl(
+          { Bucket: process.env.BUCKET_INFO_GI, Key: archivo.key },
+          3600
+        );
+        const url = await shortenUrl(presignedUrl);
+        await sendMetaTextMessage(phoneNumber, `${archivo.nombre}: ${url}`);
+      }
     }
   }
+}
+
+/**
+ * @description Envía el certificado Sernatur tras cotizaciones o por solicitud explícita del cliente.
+ * @param {'whatsapp'|'messenger'|'instagram'} channel
+ * @param {string} phoneNumber
+ * @param {Array<{name: string, args: object, result: object}>} toolsExecuted
+ * @param {object} collectedData
+ * @returns {Promise<boolean>} true si se envió el certificado en este turno.
+ */
+async function sendCertificadoSernaturIfNeeded(channel, phoneNumber, toolsExecuted, collectedData) {
+  const solicitudExplicita = toolsExecuted.some((t) => t.name === 'enviar_certificado_sernatur');
+  const presupuestoEnviado = toolsExecuted.some((t) => t.name === 'buscar_presupuestos' && t.result?.encontrados);
+  const certificadoYaEnviado = collectedData?.certificadoSernaturEnviado === true;
+
+  try {
+    // Tras cotizaciones: adjunto automático (prioridad sobre tool explícita si el modelo llamó ambas).
+    if (presupuestoEnviado && !certificadoYaEnviado) {
+      await sendCertificadoSernatur(channel, phoneNumber, { motivo: 'post_presupuesto' });
+      return true;
+    }
+
+    if (solicitudExplicita) {
+      await sendCertificadoSernatur(channel, phoneNumber, { motivo: 'explicito' });
+      return true;
+    }
+  } catch (err) {
+    console.error(`[${ACTION}] No se pudo enviar certificado Sernatur a ${phoneNumber}:`, err.message);
+  }
+
+  return false;
 }
 
 /**
@@ -412,28 +453,42 @@ export const main = async (event) => {
   // Persistir siempre en DynamoDB e inbox aunque el rate limit bloquee la respuesta del agente.
   await persistInboundMessage({ phoneNumber, text, messageId, channel });
 
-  const allowed = await checkRateLimit(phoneNumber);
-  if (!allowed) {
-    console.warn(
-      `[${ACTION}] [${channel}] Rate limit excedido para ${phoneNumber}. Mensaje registrado; sin respuesta del agente.`
-    );
-    return;
-  }
-
   await broadcastAgentProcessing({ phone: phoneNumber, active: true });
 
   try {
+    const isLeader = await waitForAgentDebounce(phoneNumber);
+    if (!isLeader) {
+      return;
+    }
+
+    const allowed = await checkRateLimit(phoneNumber);
+    if (!allowed) {
+      console.warn(
+        `[${ACTION}] [${channel}] Rate limit excedido para ${phoneNumber}. Mensaje registrado; sin respuesta del agente.`
+      );
+      return;
+    }
+
     const { session, turnItems } = await loadConversation(phoneNumber);
-    const history = toGeminiHistory(turnItems);
-    const collectedData = session?.collectedData || {};
-    const hasHistory = turnItems.length > 1;
+    const { history, pendingUserText, hasHistory } = prepareTurnContext(turnItems);
+
+    if (!pendingUserText) {
+      console.warn(`[${ACTION}] Sin texto pendiente del cliente para ${phoneNumber}.`);
+      return;
+    }
+
+    const detectedQuote = extractQuoteContext(turnItems);
+    const collectedData = {
+      ...(session?.collectedData || {}),
+      ...(detectedQuote ? { detectedQuote } : {}),
+    };
 
     let responseText;
     let toolsExecuted;
     try {
       ({ responseText, toolsExecuted } = await runConversationTurn(
         history,
-        text,
+        pendingUserText,
         phoneNumber,
         collectedData,
         channel,
@@ -445,10 +500,10 @@ export const main = async (event) => {
     } catch (error) {
       console.error(`[${ACTION}] Error en Gemini para ${phoneNumber}:`, error.message, error.stack);
       await Promise.all([
-        saveConversation(phoneNumber, text, '', collectedData, channel, {}, { skipUserTurn: true }).catch((e) =>
+        saveConversation(phoneNumber, pendingUserText, '', collectedData, channel, {}, { skipUserTurn: true }).catch((e) =>
           console.error(`[${ACTION}] Error guardando turno tras error Gemini:`, e.message)
         ),
-        derivarConversacion(phoneNumber, text, 'error_gemini', channel, collectedData).catch((e) => {
+        derivarConversacion(phoneNumber, pendingUserText, 'error_gemini', channel, collectedData).catch((e) => {
           console.error(`[${ACTION}] Error derivando conversación:`, e.message);
         }),
       ]);
@@ -456,9 +511,11 @@ export const main = async (event) => {
     }
 
     const derivado = toolsExecuted.some((t) => t.name === 'sin_respuesta');
-    const sinPresupuesto = toolsExecuted.some(
-      (t) => t.name === 'buscar_presupuestos' && !t.result?.encontrados
+    const presupuestoIntentado = toolsExecuted.some((t) => t.name === 'buscar_presupuestos');
+    const presupuestoEncontrado = toolsExecuted.some(
+      (t) => t.name === 'buscar_presupuestos' && t.result?.encontrados
     );
+    const sinPresupuesto = presupuestoIntentado && !presupuestoEncontrado;
     if (derivado || sinPresupuesto) {
       const reason = sinPresupuesto ? 'sin_presupuesto' : 'sin_respuesta';
       const motivoTool = toolsExecuted.find((t) => t.name === 'sin_respuesta')?.args?.motivo || 'N/A';
@@ -467,12 +524,12 @@ export const main = async (event) => {
       console.log(
         `[${ACTION}] Mensaje derivado (${reason}) para ${phoneNumber}. Motivo: ${motivoTool}.${extrasSinBudget} Sin respuesta al cliente.`
       );
-      const updatedData = mergeCollectedData(collectedData, toolsExecuted);
+      const updatedData = mergeCollectedData(collectedData, toolsExecuted, detectedQuote);
       await Promise.all([
-        saveConversation(phoneNumber, text, '', updatedData, channel, {}, { skipUserTurn: true }).catch((e) =>
+        saveConversation(phoneNumber, pendingUserText, '', updatedData, channel, {}, { skipUserTurn: true }).catch((e) =>
           console.error(`[${ACTION}] Error guardando turno al derivar:`, e.message)
         ),
-        derivarConversacion(phoneNumber, text, reason, channel, collectedData).catch((e) => {
+        derivarConversacion(phoneNumber, pendingUserText, reason, channel, collectedData).catch((e) => {
           console.error(`[${ACTION}] Error derivando conversación:`, e.message);
         }),
       ]);
@@ -492,7 +549,17 @@ export const main = async (event) => {
 
     await new Promise((resolve) => setTimeout(resolve, calculateTypingDelay(responseText || '')));
 
-    await sendPresupuestoDocuments(channel, phoneNumber, toolsExecuted);
+    try {
+      await sendPresupuestoDocuments(channel, phoneNumber, toolsExecuted);
+    } catch (err) {
+      console.error(`[${ACTION}] Error enviando presupuestos PDF a ${phoneNumber}:`, err.message);
+    }
+    const certificadoEnviadoEnTurno = await sendCertificadoSernaturIfNeeded(
+      channel,
+      phoneNumber,
+      toolsExecuted,
+      collectedData
+    );
     let outboundText = responseText?.trim() ?? '';
     if (shouldBlockOutboundAgentResponse(outboundText)) {
       console.warn(`[${ACTION}] Texto de respuesta bloqueado (patrón interno). phone=${phoneNumber}`);
@@ -513,12 +580,15 @@ export const main = async (event) => {
       );
     }
 
-    let updatedData = mergeCollectedData(collectedData, toolsExecuted);
+    let updatedData = mergeCollectedData(collectedData, toolsExecuted, detectedQuote);
     const pdfListoParaCliente = toolsExecuted.some((t) => t.name === 'buscar_presupuestos' && t.result?.encontrados);
     if (pdfListoParaCliente) {
       updatedData = { ...updatedData, presupuestosPdfEnviados: true };
     }
-    await saveConversation(phoneNumber, text, outboundText, updatedData, channel, {
+    if (certificadoEnviadoEnTurno) {
+      updatedData = { ...updatedData, certificadoSernaturEnviado: true };
+    }
+    await saveConversation(phoneNumber, pendingUserText, outboundText, updatedData, channel, {
       whatsappMessageId: outboundWhatsAppMessageId ?? undefined,
     }, { skipUserTurn: true });
 
