@@ -21,8 +21,9 @@ async function indexSession(session) {
   const phone = session.phoneNumber ?? session.pk?.replace(/^CONV#/, '');
   if (!phone) return false;
 
-  const now = session.lastMessageAt ?? session.updatedAt ?? new Date().toISOString();
+  const activityAt = session.lastMessageAt ?? session.updatedAt ?? new Date().toISOString();
   const ttl = Math.floor(Date.now() / 1000) + 90 * 24 * 60 * 60;
+  const unread = session.unreadCount ?? 0;
 
   await client.send(
     new UpdateItemCommand({
@@ -32,17 +33,17 @@ async function indexSession(session) {
         sk: { S: `CONV#${phone}` },
       },
       UpdateExpression:
-        'SET phone = if_not_exists(phone, :phone), contactName = if_not_exists(contactName, :cn), channel = if_not_exists(channel, :ch), lastMessage = if_not_exists(lastMessage, :msg), lastMessageAt = if_not_exists(lastMessageAt, :lma), #s = if_not_exists(#s, :status), unreadCount = if_not_exists(unreadCount, :zero), createdAt = if_not_exists(createdAt, :now), updatedAt = :now, #ttl = :ttl',
+        'SET phone = if_not_exists(phone, :phone), contactName = if_not_exists(contactName, :cn), channel = if_not_exists(channel, :ch), lastMessage = :msg, lastMessageAt = :lma, unreadCount = :uc, #s = if_not_exists(#s, :status), createdAt = if_not_exists(createdAt, :now), updatedAt = :now, #ttl = :ttl',
       ExpressionAttributeNames: { '#s': 'status', '#ttl': 'ttl' },
       ExpressionAttributeValues: {
         ':phone': { S: phone },
         ':cn': { S: session.contactName ?? phone },
         ':ch': { S: session.channel ?? 'whatsapp' },
         ':msg': { S: (session.lastMessageText ?? '').slice(0, 200) },
-        ':lma': { S: now },
+        ':lma': { S: activityAt },
+        ':uc': { N: String(unread) },
         ':status': { S: session.status === 'derived' ? 'derived' : 'bot' },
-        ':zero': { N: '0' },
-        ':now': { S: now },
+        ':now': { S: activityAt },
         ':ttl': { N: String(ttl) },
       },
     })

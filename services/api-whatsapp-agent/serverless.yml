@@ -145,6 +145,19 @@ functions:
             id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
             type: request
 
+  marcar_todos_leidos_v1:
+    handler: functions/marcar-todos-leidos-v1.main
+    description: Marca todas las conversaciones del inbox como leídas (unreadCount = 0).
+    timeout: 29
+    memorySize: 256
+    events:
+      - httpApi:
+          path: /v1/inbox/conversaciones/marcar-todos-leidos
+          method: PATCH
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
   obtener_conversacion_v1:
     handler: functions/obtener-conversacion-v1.main
     description: Retorna el detalle de una conversación con el historial completo (Chatwoot + DynamoDB).

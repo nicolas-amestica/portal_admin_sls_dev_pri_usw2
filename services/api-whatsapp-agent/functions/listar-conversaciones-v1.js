@@ -4,6 +4,7 @@ import {
   CHATS_PK,
   CHAT_LIST_DEFAULT_LIMIT,
   CHAT_LIST_MAX_LIMIT,
+  filterChatsBySearch,
   mapChatListItem,
   paginateChatsByActivity,
   sortChatsByActivity,
@@ -25,6 +26,7 @@ export const main = async (event) => {
       ? Math.min(Math.max(rawLimit, 1), CHAT_LIST_MAX_LIMIT)
       : CHAT_LIST_DEFAULT_LIMIT;
     const cursor = event.queryStringParameters?.cursor ?? null;
+    const searchQuery = event.queryStringParameters?.q?.trim() ?? '';
 
     const items = await dynamoDbLib.iterativeQuery({
       TableName: CONVERSATIONS_TABLE,
@@ -33,9 +35,10 @@ export const main = async (event) => {
     });
 
     const sorted = sortChatsByActivity((items ?? []).map(mapChatListItem));
-    const page = paginateChatsByActivity(sorted, { limit, cursor });
+    const filtered = filterChatsBySearch(sorted, searchQuery);
+    const page = paginateChatsByActivity(filtered, { limit, cursor });
 
-    return success(200, page, ACTION);
+    return success(200, { ...page, total: filtered.length }, ACTION);
   } catch (error) {
     console.error(`[${ACTION}] Error:`, error.message, error.stack);
     return unsuccessful(error.statusCode || 500, error, ACTION);

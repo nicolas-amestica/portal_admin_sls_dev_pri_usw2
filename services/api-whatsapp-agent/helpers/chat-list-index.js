@@ -89,8 +89,6 @@ export async function upsertChatListItem({
     ':updatedAt': updatedAt,
     ':createdAt': updatedAt,
     ':ttl': chatListTtl(),
-    ':cn': contactName ?? normalized,
-    ':ch': channel ?? 'whatsapp',
   };
 
   let updateExpr =
@@ -101,6 +99,7 @@ export async function upsertChatListItem({
     values[':cnSet'] = contactName;
   } else {
     updateExpr += ', contactName = if_not_exists(contactName, :cn)';
+    values[':cn'] = normalized;
   }
 
   if (channel) {
@@ -108,6 +107,7 @@ export async function upsertChatListItem({
     values[':chSet'] = channel;
   } else {
     updateExpr += ', channel = if_not_exists(channel, :ch)';
+    values[':ch'] = 'whatsapp';
   }
 
   if (lastMessage != null) {
@@ -139,13 +139,12 @@ export async function upsertChatListItem({
   if (unreadSet != null) {
     updateExpr += ', unreadCount = :ucSet';
     values[':ucSet'] = unreadSet;
+  } else if (unreadDelta != null && unreadDelta !== 0) {
+    values[':ud'] = unreadDelta;
+    updateExpr += ' ADD unreadCount :ud';
   } else {
     values[':zero'] = 0;
     updateExpr += ', unreadCount = if_not_exists(unreadCount, :zero)';
-    if (unreadDelta != null && unreadDelta !== 0) {
-      updateExpr += ' ADD unreadCount :ud';
-      values[':ud'] = unreadDelta;
-    }
   }
 
   await dynamoDbLib.update({
@@ -211,6 +210,22 @@ export function decodeChatListCursor(cursor) {
  * @param {{ limit: number, cursor?: string | null }} options
  * @returns {{ items: object[], hasMore: boolean, nextCursor: string | null }}
  */
+/**
+ * @description Filtra chats por término en nombre de contacto o teléfono (case-insensitive).
+ * @param {ReturnType<typeof mapChatListItem>[]} items
+ * @param {string} [query]
+ * @returns {ReturnType<typeof mapChatListItem>[]}
+ */
+export function filterChatsBySearch(items, query) {
+  const term = (query ?? '').trim().toLowerCase();
+  if (!term) return items;
+  return items.filter((c) => {
+    const name = (c.contactName ?? '').toLowerCase();
+    const phone = (c.phoneNumber ?? c.id ?? '').replace(/^\+/, '');
+    return name.includes(term) || phone.includes(term);
+  });
+}
+
 export function paginateChatsByActivity(sortedItems, { limit, cursor = null }) {
   let startIdx = 0;
   const decoded = decodeChatListCursor(cursor);
