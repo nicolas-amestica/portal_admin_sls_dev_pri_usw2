@@ -89,7 +89,7 @@ export async function registerWhatsAppMessageIndex({ whatsappMessageId, phone, m
  *
  * @param {{ whatsappMessageId: string, status: string }} params
  */
-export async function handleWhatsAppStatusUpdate({ whatsappMessageId, status }) {
+export async function handleWhatsAppStatusUpdate({ whatsappMessageId, status, failureReason }) {
   const uiStatus = normalizeStatusForUi(status);
   if (!whatsappMessageId || !uiStatus) return;
 
@@ -108,11 +108,18 @@ export async function handleWhatsAppStatusUpdate({ whatsappMessageId, status }) 
 
   if (shouldSkipStatusUpdate(existing?.deliveryStatus, uiStatus)) return;
 
+  const updateExpr = uiStatus === 'failed' && failureReason
+    ? 'SET deliveryStatus = :ds, deliveryFailureReason = :fr'
+    : 'SET deliveryStatus = :ds';
+  const updateValues = uiStatus === 'failed' && failureReason
+    ? { ':ds': uiStatus, ':fr': failureReason.slice(0, 500) }
+    : { ':ds': uiStatus };
+
   await dynamoDbLib.update({
     TableName: CONVERSATIONS_TABLE,
     Key: { pk: lookup.convPk, sk: lookup.msgSk },
-    UpdateExpression: 'SET deliveryStatus = :ds',
-    ExpressionAttributeValues: { ':ds': uiStatus },
+    UpdateExpression: updateExpr,
+    ExpressionAttributeValues: updateValues,
   });
 
   await broadcastToScope(
@@ -123,6 +130,7 @@ export async function handleWhatsAppStatusUpdate({ whatsappMessageId, status }) 
       whatsappMessageId,
       msgSk: lookup.msgSk,
       deliveryStatus: uiStatus,
+      ...(uiStatus === 'failed' && failureReason ? { deliveryFailureReason: failureReason.slice(0, 500) } : {}),
     }
   ).catch((err) => console.warn('[WhatsApp delivery] Broadcast WS falló:', err.message));
 }
@@ -142,6 +150,7 @@ export async function handleOutgoingStatusBatch(statuses) {
     await handleWhatsAppStatusUpdate({
       whatsappMessageId: item.whatsappMessageId,
       status: item.status,
+      failureReason: item.failureReason,
     });
   }
 }

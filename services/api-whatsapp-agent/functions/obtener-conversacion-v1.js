@@ -77,6 +77,7 @@ function mapDynamoMessages(dynamoMsgs) {
     ...(m.attachments?.length ? { adjuntos: m.attachments } : {}),
     ...(m.whatsappMessageId ? { whatsappMessageId: m.whatsappMessageId } : {}),
     ...(m.deliveryStatus ? { deliveryStatus: m.deliveryStatus } : {}),
+    ...(m.deliveryFailureReason ? { deliveryFailureReason: m.deliveryFailureReason } : {}),
   }));
 }
 

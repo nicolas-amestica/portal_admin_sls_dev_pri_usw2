@@ -155,6 +155,22 @@ export function extractIncomingMessage(body) {
 }
 
 /**
+ * @description Resume el motivo de fallo de entrega reportado por Meta.
+ * @param {Array<{ message?: string, title?: string, error_data?: { details?: string } }>|undefined} errors
+ * @returns {string|undefined}
+ */
+function extractStatusFailureReason(errors) {
+  if (!Array.isArray(errors) || !errors.length) return undefined;
+  const first = errors[0];
+  return (
+    first?.error_data?.details ||
+    first?.message ||
+    first?.title ||
+    undefined
+  );
+}
+
+/**
  * @description Extrae actualizaciones de estado de mensajes salientes (sent, delivered, read, failed).
  * @param {object} body - Payload parseado del webhook de Meta.
  * @returns {Array<{ whatsappMessageId: string, status: string, recipientId?: string, timestamp?: string }>}
@@ -176,6 +192,7 @@ export function extractOutgoingStatuses(body) {
         status: item.status,
         recipientId: item.recipient_id,
         timestamp: item.timestamp,
+        failureReason: extractStatusFailureReason(item.errors),
       }));
   } catch {
     return [];

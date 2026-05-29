@@ -23,5 +23,6 @@ export function mapTurnToPortalMessage(item) {
       : {}),
     ...(item.whatsappMessageId ? { whatsappMessageId: item.whatsappMessageId } : {}),
     ...(item.deliveryStatus ? { deliveryStatus: item.deliveryStatus } : {}),
+    ...(item.deliveryFailureReason ? { deliveryFailureReason: item.deliveryFailureReason } : {}),
   };
 }

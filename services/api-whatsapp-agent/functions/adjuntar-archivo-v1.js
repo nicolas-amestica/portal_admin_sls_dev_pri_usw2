@@ -9,6 +9,7 @@ import { upsertChatListItem } from '../helpers/chat-list-index.js';
 import { prepareAudioForWhatsApp } from '../helpers/prepare-audio-for-whatsapp.js';
 import { buildTurnItem, normalizePhone } from '../mappers/map-conversacion-item.js';
 import { registerWhatsAppMessageIndex } from '../helpers/whatsapp-delivery.js';
+import { assertWhatsAppServiceWindow } from '../helpers/whatsapp-service-window.js';
 
 const ACTION = 'Adjuntar archivo a conversación';
 const MAX_FILE_SIZE_MB = 7;
@@ -37,6 +38,8 @@ export const main = async (event) => {
     if (typeof s3Key !== 'string' || !s3Key.startsWith('inbox-adjuntos/') || s3Key.includes('..')) {
       return unsuccessful(403, Object.assign(new Error('Clave S3 no permitida'), { statusCode: 403 }), ACTION);
     }
+
+    await assertWhatsAppServiceWindow(phone);
 
     const { CONVERSATIONS_TABLE, BUCKET_INFO_GI } = process.env;
 

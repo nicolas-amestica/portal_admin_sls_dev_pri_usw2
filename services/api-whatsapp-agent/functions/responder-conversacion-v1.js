@@ -7,6 +7,7 @@ import { broadcastConversationUpdated, broadcastMessageAppended } from '../helpe
 import { upsertChatListItem } from '../helpers/chat-list-index.js';
 import { buildTurnItem, normalizePhone } from '../mappers/map-conversacion-item.js';
 import { registerWhatsAppMessageIndex } from '../helpers/whatsapp-delivery.js';
+import { assertWhatsAppServiceWindow } from '../helpers/whatsapp-service-window.js';
 
 const ACTION = 'Responder conversación derivada';
 
@@ -31,6 +32,8 @@ export const main = async (event) => {
     }
 
     const text = content.trim();
+    await assertWhatsAppServiceWindow(phone);
+
     const { CONVERSATIONS_TABLE } = process.env;
     const now = new Date().toISOString();
     const msgSk = `MSG#${uuidv7()}`;
