@@ -2,6 +2,7 @@ import * as dynamoDbLib from '../../../libs/dynamodb-v3.js';
 import { success, unsuccessful } from '../../../helpers/responses.js';
 import { normalizePhone } from '../mappers/map-conversacion-item.js';
 import { CHATS_PK, chatListSk } from '../helpers/chat-list-index.js';
+import { markConversationRead } from '../helpers/mark-conversation-read.js';
 
 const ACTION = 'Obtener detalle de conversación';
 const PAGE_SIZE = 50;
@@ -115,20 +116,9 @@ export const main = async (event) => {
 
     // 2. Si es carga completa, resetear contadores en segundo plano (Escritura post-lectura)
     if (isFullLoad) {
-      Promise.all([
-        dynamoDbLib.update({
-          TableName: CONVERSATIONS_TABLE,
-          Key: { pk: CHATS_PK, sk: chatListSk(phone) },
-          UpdateExpression: 'SET unreadCount = :zero',
-          ExpressionAttributeValues: { ':zero': 0 },
-        }).catch(() => {}),
-        dynamoDbLib.update({
-          TableName: CONVERSATIONS_TABLE,
-          Key: { pk: `CONV#${phone}`, sk: `CONV#${phone}` },
-          UpdateExpression: 'SET unreadCount = :zero',
-          ExpressionAttributeValues: { ':zero': 0 },
-        }).catch((err) => console.warn(`[${ACTION}] No se pudo resetear unreadCount sesión: ${err.message}`)),
-      ]);
+      markConversationRead(phone, { broadcast: false }).catch((err) =>
+        console.warn(`[${ACTION}] No se pudo marcar como leída: ${err.message}`)
+      );
     }
 
     const { msgs, hasMore, nextCursor } = histResult;

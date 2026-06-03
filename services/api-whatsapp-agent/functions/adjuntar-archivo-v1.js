@@ -6,6 +6,7 @@ import { uploadMedia, sendDocumentById, sendImageById, sendAudioById } from '../
 import { getObjectBuffer, deleteObject } from '../../../libs/s3-v3.js';
 import { broadcastConversationUpdated, broadcastMessageAppended } from '../helpers/inbox-realtime.js';
 import { upsertChatListItem } from '../helpers/chat-list-index.js';
+import { markConversationRead } from '../helpers/mark-conversation-read.js';
 import { prepareAudioForWhatsApp } from '../helpers/prepare-audio-for-whatsapp.js';
 import { buildTurnItem, normalizePhone } from '../mappers/map-conversacion-item.js';
 import { registerWhatsAppMessageIndex } from '../helpers/whatsapp-delivery.js';
@@ -104,6 +105,7 @@ export const main = async (event) => {
         lastMessageAt: now,
         unreadSet: 0,
       }),
+      markConversationRead(phone, { broadcast: false }),
     ]).catch((err) =>
       console.warn(`[${ACTION}] Write-through adjunto DynamoDB falló (no crítico): ${err.message}`)
     );

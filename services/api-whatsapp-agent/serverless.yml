@@ -161,6 +161,19 @@ functions:
             id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
             type: request
 
+  recalcular_unread_v1:
+    handler: functions/recalcular-unread-v1.main
+    description: Recalcula unreadCount según el último mensaje del hilo (agente/equipo = leído).
+    timeout: 29
+    memorySize: 256
+    events:
+      - httpApi:
+          path: /v1/inbox/conversaciones/recalcular-unread
+          method: PATCH
+          authorizer:
+            id: ${cf:autorizador-${self:custom.stage}.AuthorizerId}
+            type: request
+
   obtener_conversacion_v1:
     handler: functions/obtener-conversacion-v1.main
     description: Retorna el detalle de una conversación con el historial completo (Chatwoot + DynamoDB).

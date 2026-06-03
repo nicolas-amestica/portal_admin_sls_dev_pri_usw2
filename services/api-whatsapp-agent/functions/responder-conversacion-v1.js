@@ -5,6 +5,7 @@ import { success, unsuccessful } from '../../../helpers/responses.js';
 import { sendTextMessage } from '../helpers/whatsapp-api.js';
 import { broadcastConversationUpdated, broadcastMessageAppended } from '../helpers/inbox-realtime.js';
 import { upsertChatListItem } from '../helpers/chat-list-index.js';
+import { markConversationRead } from '../helpers/mark-conversation-read.js';
 import { buildTurnItem, normalizePhone } from '../mappers/map-conversacion-item.js';
 import { registerWhatsAppMessageIndex } from '../helpers/whatsapp-delivery.js';
 import { assertWhatsAppServiceWindow } from '../helpers/whatsapp-service-window.js';
@@ -56,6 +57,7 @@ export const main = async (event) => {
         lastMessageAt: now,
         unreadSet: 0,
       }),
+      markConversationRead(phone, { broadcast: false }),
     ]);
 
     console.log(`[${ACTION}] Mensaje enviado a ${phone}`);

@@ -15,6 +15,7 @@ import { buildTurnItem, normalizePhone } from '../mappers/map-conversacion-item.
 import { registerWhatsAppMessageIndex } from '../helpers/whatsapp-delivery.js';
 import { sanitizeForHistory } from '../helpers/sanitize-for-history.js';
 import { persistInboundMessage } from '../helpers/persist-inbound-message.js';
+import { markConversationRead } from '../helpers/mark-conversation-read.js';
 import {
   broadcastAgentProcessing,
   broadcastConversationUpdated,
@@ -591,6 +592,10 @@ export const main = async (event) => {
     await saveConversation(phoneNumber, pendingUserText, outboundText, updatedData, channel, {
       whatsappMessageId: outboundWhatsAppMessageId ?? undefined,
     }, { skipUserTurn: true });
+
+    await markConversationRead(phoneNumber).catch((err) =>
+      console.warn(`[${ACTION}] No se pudo marcar conversación como leída: ${err.message}`)
+    );
 
     console.log(`[${ACTION}] [${channel}] Turno completado para ${phoneNumber}`);
   } finally {
