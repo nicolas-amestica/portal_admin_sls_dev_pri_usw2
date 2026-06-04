@@ -360,7 +360,7 @@ export function buildSystemPrompt(phoneNumber, collectedData, channel, hasHistor
   - Si horariosDisponibles está vacío para un día, no ofrezcas ese día; busca el siguiente día hábil con slots en listar_reuniones.
   - Si el cliente pide una hora que no está en horariosDisponibles, explica que no está disponible (puede ser por ocupación o por la anticipación mínima de 2 horas) y ofrece SOLO alternativas de horariosDisponibles.
   - Referencia de horario de atención (no proponer sin consultar listar_reuniones):
-    - Lunes a viernes: 10:00 a 22:00 hrs.
+    - Lunes a viernes: 17:30 a 23:30 hrs.
     - Sábado: 10:00 a 14:00 hrs.
     - Domingo y feriados chilenos: no disponible.
     - Cada reunión dura 1 hora 30 minutos.

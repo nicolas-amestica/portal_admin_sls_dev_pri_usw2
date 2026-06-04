@@ -3,8 +3,9 @@ import Holidays from 'date-holidays';
 export const MEETING_DURATION_MINUTES = 90;
 export const SLOT_INTERVAL_MINUTES = 90;
 export const MIN_ADVANCE_MINUTES = 120;
-export const DAY_START = '10:00';
-export const WEEKDAY_CLOSE = '22:00';
+export const WEEKDAY_START = '17:30';
+export const SATURDAY_START = '10:00';
+export const WEEKDAY_CLOSE = '23:30';
 export const SATURDAY_CLOSE = '14:00';
 
 const DEFAULT_TIMEZONE = 'America/Santiago';
@@ -210,7 +211,7 @@ export function getDaySchedule(dateStr, timeZone = DEFAULT_TIMEZONE) {
 }
 
 /**
- * @description Genera bloques de inicio válidos para una fecha (grid de 90 min desde 10:00).
+ * @description Genera bloques de inicio válidos para una fecha (grid de 90 min según tipo de día).
  * @param {string} dateStr
  * @param {string} [timeZone]
  * @returns {string[]}
@@ -219,7 +220,8 @@ export function getValidSlotStarts(dateStr, timeZone = DEFAULT_TIMEZONE) {
   const schedule = getDaySchedule(dateStr, timeZone);
   if (!schedule.allowed || !schedule.closeTime) return [];
 
-  const openMin = timeToMinutes(DAY_START);
+  const dayStart = schedule.dayType === 'weekday' ? WEEKDAY_START : SATURDAY_START;
+  const openMin = timeToMinutes(dayStart);
   const closeMin = timeToMinutes(schedule.closeTime);
   /** @type {string[]} */
   const slots = [];

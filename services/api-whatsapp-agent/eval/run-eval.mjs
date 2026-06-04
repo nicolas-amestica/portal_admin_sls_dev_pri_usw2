@@ -14,7 +14,7 @@ async function runStaticPromptAssertions(buildSystemPrompt) {
   assert.ok(base.includes('buscar_presupuestos'), 'prompt debe referenciar flujo presupuestos');
   assert.ok(base.includes('enviar_certificado_sernatur'), 'prompt debe referenciar certificado Sernatur');
   assert.ok(base.includes('Registro Sernatur'), 'prompt debe incluir conocimiento Sernatur');
-  assert.ok(base.includes('10:00 a 22:00'), 'prompt debe incluir horario L-V actualizado');
+  assert.ok(base.includes('17:30 a 23:30'), 'prompt debe incluir horario L-V actualizado');
   assert.ok(base.includes('1 hora 30 minutos'), 'prompt debe indicar duración de reunión');
 
   const conPdf = buildSystemPrompt('+56912345678', { presupuestosPdfEnviados: true }, 'whatsapp', true);
