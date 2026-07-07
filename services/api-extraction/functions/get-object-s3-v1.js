@@ -15,6 +15,7 @@ const ALLOWED_KEY_PREFIXES = [
   "fichas-medicas/",
   "inbox-adjuntos/",
   "tickets/",
+  "documentos/",
 ];
 
 /**

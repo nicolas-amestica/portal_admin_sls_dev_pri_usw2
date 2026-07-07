@@ -52,6 +52,7 @@ const PERMISSION_PATH_TO_API_PREFIXES = {
     '/v1/pagos/programas',
     '/v1/extracciones/object',
   ],
+  'gestion-administrativa/documentos': ['/v1/extracciones/object'],
 
   'cliente/inicio': ['/v1/dashboard', '/v1/programas'],
   'cliente/pagos': ['/v1/pagos', '/v1/programas', '/v1/balances'],
