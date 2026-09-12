@@ -10,7 +10,6 @@ Este archivo contiene ejemplos de diferentes combinaciones de inputs para genera
   "form": { ... },                  // Datos específicos del documento
   "action": {                       // Opciones de generación (todas opcionales)
     "isPreview": boolean,           // Default: false
-    "hasSigned": boolean,         // Default: true (sin firmas)
     "hasHeaderFooter": boolean      // Default: false
   }
 }
@@ -21,10 +20,9 @@ Este archivo contiene ejemplos de diferentes combinaciones de inputs para genera
 | Propiedad | Tipo | Default | Descripción |
 |-----------|------|---------|-------------|
 | `isPreview` | boolean | `false` | Si es `true`, agrega marca de agua "BORRADOR" |
-| `hasSigned` | boolean | `true` | Si es `false`, incluye firmas digitales desde S3 |
 | `hasHeaderFooter` | boolean | `false` | Si es `true`, carga header.png y footer.png desde S3 |
 
-**Importante:** Si no se especifica una propiedad, se asume `false` por defecto (excepto `hasSigned` que es `true`).
+**Importante:** Si no se especifica una propiedad, se asume `false` por defecto.
 
 ---
 
@@ -111,7 +109,7 @@ Este archivo contiene ejemplos de diferentes combinaciones de inputs para genera
 
 ### 4. Contrato Final para Firma (completo)
 
-**Caso:** Contrato oficial con header/footer y espacio para firmas digitales, sin marca de agua
+**Caso:** Contrato oficial con header/footer y espacios para firma manual, sin marca de agua
 
 ```json
 {
@@ -129,7 +127,6 @@ Este archivo contiene ejemplos de diferentes combinaciones de inputs para genera
   },
   "action": {
     "isPreview": false,
-    "hasSigned": false,
     "hasHeaderFooter": true
   }
 }
@@ -137,18 +134,14 @@ Este archivo contiene ejemplos de diferentes combinaciones de inputs para genera
 
 **Resultado:**
 - ❌ Sin marca de agua (documento final)
-- ✅ Con firmas digitales (carga desde `s3://bucket/signatures/signature-{DNI}.png`)
+- ✅ Con líneas y datos para firma manual
 - ✅ Con header/footer
-
-**Firmas cargadas:**
-- `signatures/signature-12345678-9.png` → Firma de Juan Pérez
-- `signatures/signature-98765432-1.png` → Firma de María González
 
 ---
 
-### 5. Contrato Firmado y Aprobado (archivo final)
+### 5. Contrato sin marca de agua
 
-**Caso:** Documento final con firmas y header/footer, sin marca de agua
+**Caso:** Documento final con espacios para firma manual y header/footer
 
 ```json
 {
@@ -156,7 +149,6 @@ Este archivo contiene ejemplos de diferentes combinaciones de inputs para genera
   "form": { ... },
   "action": {
     "isPreview": false,
-    "hasSigned": false,
     "hasHeaderFooter": true
   }
 }
@@ -164,16 +156,16 @@ Este archivo contiene ejemplos de diferentes combinaciones de inputs para genera
 
 **Resultado:**
 - ❌ Sin marca de agua
-- ✅ Con firmas digitales
+- ✅ Con líneas y datos para firma manual
 - ✅ Con header/footer
 
 **Uso:** Documento listo para archivar o enviar al cliente
 
 ---
 
-### 6. Documento Solo con Firmas (sin header/footer)
+### 6. Documento sin Header/Footer
 
-**Caso:** Documento simple que requiere firmas pero sin elementos visuales
+**Caso:** Documento simple con espacios para firma manual, sin elementos visuales
 
 ```json
 {
@@ -184,15 +176,13 @@ Este archivo contiene ejemplos de diferentes combinaciones de inputs para genera
       { "name": "Ana Silva", "dni": "11111111-1" }
     ]
   },
-  "action": {
-    "hasSigned": false
-  }
+  "action": {}
 }
 ```
 
 **Resultado:**
 - ❌ Sin marca de agua
-- ✅ Con firmas digitales
+- ✅ Con líneas y datos para firma manual
 - ❌ Sin header/footer
 
 ---
@@ -223,7 +213,7 @@ Este archivo contiene ejemplos de diferentes combinaciones de inputs para genera
 
 ### 8. Combinación Personalizada
 
-**Caso:** Borrador con header/footer y firmas (para revisión final antes de aprobar)
+**Caso:** Borrador con header/footer para revisión final antes de aprobar
 
 ```json
 {
@@ -231,7 +221,6 @@ Este archivo contiene ejemplos de diferentes combinaciones de inputs para genera
   "form": { ... },
   "action": {
     "isPreview": true,
-    "hasSigned": false,
     "hasHeaderFooter": true
   }
 }
@@ -239,7 +228,7 @@ Este archivo contiene ejemplos de diferentes combinaciones de inputs para genera
 
 **Resultado:**
 - ✅ Con marca de agua "BORRADOR"
-- ✅ Con firmas digitales
+- ✅ Con líneas y datos para firma manual
 - ✅ Con header/footer
 
 **Uso:** Para que el cliente revise el documento final con todas sus características antes de aprobar
@@ -248,16 +237,12 @@ Este archivo contiene ejemplos de diferentes combinaciones de inputs para genera
 
 ## Tabla de Combinaciones
 
-| # | isPreview | hasSigned | hasHeaderFooter | Marca Agua | Firmas | Header/Footer | Caso de Uso |
-|---|-----------|-------------|-----------------|------------|--------|---------------|-------------|
-| 1 | `false` | `true` | `false` | ❌ | ❌ | ❌ | Documento simple |
-| 2 | `true` | `true` | `false` | ✅ | ❌ | ❌ | Borrador interno |
-| 3 | `true` | `true` | `true` | ✅ | ❌ | ✅ | Cotización con logo |
-| 4 | `false` | `false` | `true` | ❌ | ✅ | ✅ | Contrato final |
-| 5 | `false` | `false` | `false` | ❌ | ✅ | ❌ | Documento con firmas simple |
-| 6 | `false` | `true` | `true` | ❌ | ❌ | ✅ | Presentación corporativa |
-| 7 | `true` | `false` | `true` | ✅ | ✅ | ✅ | Revisión final pre-aprobación |
-| 8 | `true` | `false` | `false` | ✅ | ✅ | ❌ | Borrador con firmas |
+| # | isPreview | hasHeaderFooter | Marca Agua | Header/Footer | Caso de Uso |
+|---|-----------|-----------------|------------|---------------|-------------|
+| 1 | `false` | `false` | ❌ | ❌ | Documento simple |
+| 2 | `true` | `false` | ✅ | ❌ | Borrador interno |
+| 3 | `true` | `true` | ✅ | ✅ | Cotización con logo |
+| 4 | `false` | `true` | ❌ | ✅ | Contrato final |
 
 ---
 
@@ -345,7 +330,6 @@ Este archivo contiene ejemplos de diferentes combinaciones de inputs para genera
   },
   "action": {
     "isPreview": false,
-    "hasSigned": false,
     "hasHeaderFooter": true
   }
 }
@@ -355,12 +339,9 @@ Este archivo contiene ejemplos de diferentes combinaciones de inputs para genera
 
 ## Notas Importantes
 
-1. **Valores por defecto**: Si `action` no se especifica o está vacío `{}`, todas las propiedades son `false` por defecto (excepto `hasSigned` que es `true`).
+1. **Valores por defecto**: Si `action` no se especifica o está vacío `{}`, todas las propiedades son `false` por defecto.
 
-2. **Firmas en S3**: Para que las firmas se incluyan, debe cumplirse:
-   - `action.hasSigned = false`
-   - El documento debe tener datos de firmantes en `form.representatives` o `form.clientRepresentative`
-   - Las firmas deben existir en S3: `s3://bucket/signatures/signature-{DNI}.png`
+2. **Firmas**: La página de firmas sólo contiene líneas y datos para firma manual; no se cargan ni estampan imágenes automáticamente.
 
 3. **Header/Footer en S3**: Para que se incluyan, debe cumplirse:
    - `action.hasHeaderFooter = true`

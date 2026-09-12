@@ -83,7 +83,6 @@ const handler = async (event) => {
     form: contract,
     action: {
       isPreview: true,
-      hasSigned: false,
       hasHeaderFooter: true
     },
     bucket: BUCKET_INFO_GI

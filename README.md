@@ -360,7 +360,6 @@ const result = await generateDocument({
   form: documentData,
   action: {
     isPreview: false,     // true = marca de agua BORRADOR
-    hasSigned: true,      // true = sin firmas desde S3
     hasHeaderFooter: false
   },
   bucket: process.env.BUCKET_INFO_GI

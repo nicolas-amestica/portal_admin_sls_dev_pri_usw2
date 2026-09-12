@@ -182,7 +182,7 @@ import { generateDocument } from '../../libs/document-generator.js';
 const result = await generateDocument({
   scope: 'CTT',         // CTT | DBA | DBR
   form: documentData,
-  action: { isPreview: false, hasSigned: true, hasHeaderFooter: false },
+  action: { isPreview: false, hasHeaderFooter: false },
   bucket: process.env.BUCKET_INFO_GI
 });
 // result.success → boolean, result.base64 → PDF en base64

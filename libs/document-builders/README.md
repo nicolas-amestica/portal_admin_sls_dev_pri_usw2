@@ -34,8 +34,7 @@ libs/
     // Datos del formulario según el tipo de documento
   },
   "action": {
-    "isPreview": true,     // true = con marca de agua "BORRADOR"
-    "hasSigned": false   // false = con firmas digitales
+    "isPreview": true     // true = con marca de agua "BORRADOR"
   }
 }
 ```
@@ -59,8 +58,7 @@ export const main = async (event) => {
       payments: { totalGroup: 5000000, ... }
     },
     action: {
-      isPreview: false,    // Sin marca de agua (documento final)
-      hasSigned: false   // Con firmas digitales
+      isPreview: false    // Sin marca de agua (documento final)
     },
     bucket: process.env.BUCKET_INFO_GI
   });
@@ -88,15 +86,15 @@ export const main = async (event) => {
   const borrador = await generateDocument({
     scope: 'CTT',
     form: miFormulario,
-    action: { isPreview: true, hasSigned: true },
+    action: { isPreview: true },
     bucket: BUCKET_INFO_GI
   });
 
-  // Generar documento final con firmas
+  // Generar documento final sin marca de agua
   const final = await generateDocument({
     scope: 'CTT',
     form: miFormulario,
-    action: { isPreview: false, hasSigned: false },
+    action: { isPreview: false },
     bucket: BUCKET_INFO_GI
   });
 
@@ -129,7 +127,7 @@ export const main = async (event) => {
   const result = await generateDocument({
     scope,
     form: event.body,
-    action: { isPreview: false, hasSigned: false },
+    action: { isPreview: false },
     bucket: process.env.BUCKET_INFO_GI
   });
 
@@ -158,7 +156,7 @@ export const main = async (event) => {
   const result = await generateDocument({
     scope: 'CTT',
     form: formData,
-    action: { isPreview: false, hasSigned: false },
+    action: { isPreview: false },
     bucket: process.env.BUCKET_INFO_GI
   });
 
@@ -218,7 +216,7 @@ export const main = async (event) => {
   const result = await generateDocument({
     scope: 'CTT',
     form: formData,
-    action: { isPreview: true, hasSigned: true }, // Borrador para cotización
+    action: { isPreview: true }, // Borrador para cotización
     bucket: process.env.BUCKET_INFO_GI
   });
 
@@ -254,11 +252,6 @@ export const main = async (event) => {
 
 - **`true`**: Genera el documento CON marca de agua "BORRADOR"
 - **`false`**: Genera el documento SIN marca de agua (documento final)
-
-### `hasSigned` (boolean)
-
-- **`true`**: Genera el documento SIN firmas digitales (es una cotización)
-- **`false`**: Genera el documento CON firmas digitales desde S3 (documento final para firma)
 
 ## Respuesta
 
@@ -375,15 +368,9 @@ Todos los builders deben retornar un objeto con esta estructura:
 }
 ```
 
-## Firmas Digitales
+## Espacios de Firma
 
-El sistema carga automáticamente las firmas desde S3 cuando `hasSigned = false`:
-
-- **Ruta en S3**: `signatures/signature-{DNI}.png`
-- **Formato**: PNG (imagen de firma escaneada)
-- **Bucket**: Configurado en `BUCKET_INFO_GI`
-
-Si no existe una firma para un DNI, se muestra una línea para firma manuscrita.
+La página de firmas muestra líneas, nombres y RUT para firma manual. El generador no carga ni estampa imágenes de firmas automáticamente.
 
 ## Validación de Scopes
 
@@ -401,7 +388,7 @@ if (!isValidScope('CTT')) {
 
 ## Ejemplos de Uso
 
-### Generar Contrato Final (sin marca de agua, con firmas)
+### Generar Contrato Final (sin marca de agua)
 
 ```bash
 curl -X POST https://api.example.com/v1/documentos/pdf \
@@ -414,8 +401,7 @@ curl -X POST https://api.example.com/v1/documentos/pdf \
       "payments": { ... }
     },
     "action": {
-      "isPreview": false,
-      "hasSigned": false
+      "isPreview": false
     }
   }'
 ```
@@ -429,8 +415,7 @@ curl -X POST https://api.example.com/v1/documentos/pdf \
     "scope": "CTT",
     "form": { ... },
     "action": {
-      "isPreview": true,
-      "hasSigned": true
+      "isPreview": true
     }
   }'
 ```
@@ -442,9 +427,8 @@ curl -X POST https://api.example.com/v1/documentos/pdf \
 2. ✅ **Extensibilidad**: Agregar nuevos tipos de documentos es simple y no afecta los existentes
 3. ✅ **Validación automática**: El sistema valida scopes y parámetros requeridos
 4. ✅ **Respuesta estandarizada**: Compatible con la interfaz TypeScript de Angular v21
-5. ✅ **Firma y marca de agua configurables**: Control total mediante parámetros `action`
-6. ⚠️ **Firmas opcionales**: Si no hay firma en S3, se muestra línea para firma manuscrita
-7. ⚠️ **Builders placeholder**: DBA y DBR necesitan implementación según requerimientos
+5. ✅ **Firma manual**: La página de firmas siempre queda libre de imágenes preinsertadas
+6. ⚠️ **Builders placeholder**: DBA y DBR necesitan implementación según requerimientos
 
 ## API del Módulo `document-generator.js`
 
@@ -455,7 +439,6 @@ curl -X POST https://api.example.com/v1/documentos/pdf \
 - `form` (object, requerido): Datos del formulario
 - `action` (object, opcional): Opciones de generación
   - `isPreview` (boolean): `true` = con marca de agua, `false` = sin marca de agua
-  - `hasSigned` (boolean): `true` = sin firmas, `false` = con firmas
 - `bucket` (string, requerido): Nombre del bucket S3
 
 **Retorno:** `Promise<GenerateDocumentResult>`

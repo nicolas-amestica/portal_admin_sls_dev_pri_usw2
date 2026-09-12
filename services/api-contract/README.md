@@ -58,7 +58,6 @@ Genera un documento PDF a partir de los datos del contrato enviados en el body. 
   "scope": "CTT",
   "action": {
     "isPreview": false,
-    "hasSigned": true,
     "hasHeaderFooter": false
   }
 }
@@ -143,7 +142,6 @@ GET /v1/documentos/pdf/CTT%23<uuid-v7>
 | Opción | Tipo | Descripción |
 |---|---|---|
 | `isPreview` | `boolean` | `true` = agrega marca de agua "BORRADOR" |
-| `hasSigned` | `boolean` | `false` = incluye imágenes de firmas digitales desde S3 |
 | `hasHeaderFooter` | `boolean` | `true` = agrega header.png y footer.png |
 
 ---

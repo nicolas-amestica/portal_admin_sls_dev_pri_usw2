@@ -1,11 +1,10 @@
-import { generateContract, loadImages, loadSignatures } from '../pdf-generator/index.js';
+import { generateContract, loadImages } from '../pdf-generator/index.js';
 import { getDocumentBuilder, isValidScope, getSupportedScopes } from './index.js';
 
 /**
  * Opciones para la generación de documentos
  * @typedef {Object} DocumentAction
  * @property {boolean} [isPreview=false] - Si es true, agrega marca de agua "BORRADOR"
- * @property {boolean} [hasSigned=true] - Si es false, incluye firmas digitales desde S3
  * @property {boolean} [hasHeaderFooter=false] - Si es true, carga header.png y footer.png desde S3
  */
 
@@ -89,34 +88,14 @@ export const generateDocumentBuffer = async ({ scope, form, action = {}, bucket 
       }
     }
 
-    // 6. Cargar firmas digitales si hasSigned = false (documento con firmas)
-    let signatures = [];
-    if (action.hasSigned === false && documentData.signatures) {
-      // Recolectar todos los DNIs de operadores y clientes
-      const allRepresentatives = [
-        ...(documentData.signatures.operators || []),
-        ...(documentData.signatures.clients || [])
-      ];
-
-      if (allRepresentatives.length > 0) {
-        try {
-          signatures = await loadSignatures(bucket, allRepresentatives);
-        } catch (error) {
-          console.warn('Error al cargar firmas desde S3:', error.message);
-          // Continuar sin firmas en caso de error
-        }
-      }
-    }
-
-    // 7. Configurar opciones del generador de PDF
+    // 6. Configurar opciones del generador de PDF
     const pdfOptions = {
       addWatermark: action.isPreview === true,        // Marca de agua solo si isPreview = true
       watermarkText: 'BORRADOR',
-      signatures: signatures,                          // Firmas solo si hasSigned = true
       hasHeaderFooter: action.hasHeaderFooter === true // Header/footer solo si hasHeaderFooter = true
     };
 
-    // 8. Generar PDF
+    // 7. Generar PDF
     const pdfBuffer = await generateContract(
       documentData,
       headerImage,
@@ -124,7 +103,7 @@ export const generateDocumentBuffer = async ({ scope, form, action = {}, bucket 
       pdfOptions
     );
 
-    // 9. Validar buffer generado
+    // 8. Validar buffer generado
     if (!Buffer.isBuffer(pdfBuffer)) {
       return {
         success: false,

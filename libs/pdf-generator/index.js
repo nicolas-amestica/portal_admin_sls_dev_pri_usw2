@@ -10,7 +10,7 @@ import {
 } from "./core/layout.js";
 
 // Re-exportar funciones útiles
-export { loadImages, loadSignatures, clearImageCache } from "./core/image-loader.js";
+export { loadImages, clearImageCache } from "./core/image-loader.js";
 export { formatDate, formatCurrency, sanitizeRut as formatRut } from "./helpers/formatters.js";
 export { PDF_CONFIG, PDF_STYLES } from "./core/config.js";
 
@@ -28,7 +28,6 @@ export { PDF_CONFIG, PDF_STYLES } from "./core/config.js";
  * @param {string} options.watermarkText - Texto de marca de agua (opcional)
  * @param {boolean} options.addWatermark - Si agregar marca de agua (default: false)
  * @param {boolean} options.hasHeaderFooter - Si el documento tiene header/footer (default: false)
- * @param {Array} options.signatures - Array de firmas {dni, signature (base64), name}
  *
  * @returns {Promise<Buffer>} Buffer del PDF generado
  */
@@ -41,8 +40,7 @@ export const generateContract = async (
   const {
     watermarkText = 'BORRADOR',
     addWatermark: shouldAddWatermark = false,
-    hasHeaderFooter = false,
-    signatures: signatureImages = []
+    hasHeaderFooter = false
   } = options;
 
   // 1. Crear documento
@@ -68,24 +66,6 @@ export const generateContract = async (
       // Continuar sin imágenes
     }
   }
-
-  // Embeder firmas si están disponibles
-  const embeddedSignatures = await Promise.all(
-    signatureImages.map(async (sig) => {
-      try {
-        const signatureBytes = Buffer.from(sig.signature, "base64");
-        const signatureImage = await pdfDoc.embedPng(signatureBytes);
-        return {
-          dni: sig.dni,
-          image: signatureImage,
-          name: sig.name
-        };
-      } catch (error) {
-        console.error(`Error al embeder firma para ${sig.dni}:`, error.message);
-        return null;
-      }
-    })
-  ).then(sigs => sigs.filter(sig => sig !== null));
 
   // 4. Configuración inicial
   const { PAGE_WIDTH, PAGE_HEIGHT, MARGIN, HEADER_HEIGHT, FOOTER_HEIGHT } =
@@ -308,40 +288,14 @@ export const generateContract = async (
 
   const SIGNATURE_SPACE = 90;
   const SIGNATURE_LINE_LENGTH = 200;
-  const SIGNATURE_IMAGE_HEIGHT = 40;
-  const SIGNATURE_IMAGE_WIDTH = 120;
-
-  // Función auxiliar para encontrar la firma por RUT/DNI
-  const findSignature = (rut) => {
-    if (!rut) return null;
-    const cleanRut = rut.replace(/\./g, '').replace(/-/g, '');
-    return embeddedSignatures.find(sig => {
-      const cleanSigDni = sig.dni.replace(/\./g, '').replace(/-/g, '');
-      return cleanSigDni === cleanRut;
-    });
-  };
-
-  /**
-   * Dibuja siempre la línea de firma; si existe PNG en S3, lo superpone justo encima.
-   * Antes solo se dibujaba la línea cuando no había imagen (p. ej. operador con firma en S3 vs clientes sin archivo).
-   */
-  const drawSignatureSlot = (pageRef, x, lineY, representativeDni) => {
-    const sig = findSignature(representativeDni);
+  /** Dibuja el espacio para una firma manual, sin estampar imágenes. */
+  const drawSignatureSlot = (pageRef, x, lineY) => {
     pageRef.drawLine({
       start: { x, y: lineY },
       end: { x: x + SIGNATURE_LINE_LENGTH, y: lineY },
       thickness: 1,
       color: rgb(0, 0, 0),
     });
-    if (sig && sig.image) {
-      const signatureDims = sig.image.scale(0.075);
-      pageRef.drawImage(sig.image, {
-        x,
-        y: lineY + 2,
-        width: signatureDims.width,
-        height: signatureDims.height,
-      });
-    }
     return lineY - 15;
   };
 
@@ -370,7 +324,7 @@ export const generateContract = async (
         operatorY = PAGE_HEIGHT - HEADER_HEIGHT - 150;
       }
 
-      operatorY = drawSignatureSlot(page, col1X, operatorY, operator.dni);
+      operatorY = drawSignatureSlot(page, col1X, operatorY);
 
       page.drawText("El Operador", {
         x: col1X,
@@ -413,7 +367,7 @@ export const generateContract = async (
         clientY = PAGE_HEIGHT - HEADER_HEIGHT - 150;
       }
 
-      clientY = drawSignatureSlot(page, col2X, clientY, client.dni);
+      clientY = drawSignatureSlot(page, col2X, clientY);
 
       page.drawText("El Representante", {
         x: col2X,
@@ -476,7 +430,7 @@ export const generateContract = async (
           yPosition = PAGE_HEIGHT - HEADER_HEIGHT - 150;
         }
 
-        yPosition = drawSignatureSlot(page, centerX, yPosition, operator.dni);
+        yPosition = drawSignatureSlot(page, centerX, yPosition);
 
         page.drawText(operator.name, {
           x: centerX,
@@ -533,7 +487,7 @@ export const generateContract = async (
           yPosition = PAGE_HEIGHT - HEADER_HEIGHT - 150;
         }
 
-        yPosition = drawSignatureSlot(page, centerX, yPosition, client.dni);
+        yPosition = drawSignatureSlot(page, centerX, yPosition);
 
         page.drawText(client.name, {
           x: centerX,
