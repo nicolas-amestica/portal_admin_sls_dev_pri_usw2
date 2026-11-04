@@ -2,7 +2,8 @@ import { config } from 'dotenv';
 import { existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join, resolve } from 'path';
-import { SSMClient, GetParameterCommand } from '@aws-sdk/client-ssm';
+import { createHash } from 'crypto';
+import { SSMClient, GetParameterCommand, GetParametersCommand } from '@aws-sdk/client-ssm';
 
 // Compatibilidad con ESM y CJS
 let __filename;
@@ -130,7 +131,33 @@ export async function getParameterValue(parameterName) {
 
     const response = await ssmClient.send(command);
 
-    return response.Parameter?.Value;
+    const value = response.Parameter?.Value;
+    if (!value) return value;
+
+    let manifest;
+    try {
+      manifest = JSON.parse(value);
+    } catch {
+      return value;
+    }
+    if (manifest?.format !== 'ssm-standard-chunks-v1' || !Array.isArray(manifest.parts) || !manifest.sha256) {
+      return value;
+    }
+
+    const partsResponse = await ssmClient.send(new GetParametersCommand({
+      Names: manifest.parts,
+      WithDecryption: true,
+    }));
+    if (partsResponse.InvalidParameters?.length || partsResponse.Parameters?.length !== manifest.parts.length) {
+      throw new Error(`Parámetro fragmentado incompleto: ${parameterName}`);
+    }
+    const valuesByName = new Map(partsResponse.Parameters.map((part) => [part.Name, part.Value]));
+    const reconstructed = manifest.parts.map((name) => valuesByName.get(name) ?? '').join('');
+    const digest = createHash('sha256').update(reconstructed).digest('hex');
+    if (digest !== manifest.sha256) {
+      throw new Error(`Integridad inválida para parámetro fragmentado: ${parameterName}`);
+    }
+    return reconstructed;
   } catch (err) {
     console.error('Error obteniendo el parámetro SSM:', err);
     throw err;

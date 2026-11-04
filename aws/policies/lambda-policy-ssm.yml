@@ -4,3 +4,4 @@ Action:
   - ssm:GetParameters
 Resource:
   - arn:aws:ssm:${self:provider.region}:*:parameter/pa/${self:custom.stage}/*
+  - arn:aws:ssm:${self:provider.region}:*:parameter/dte/${self:custom.stage}/*
